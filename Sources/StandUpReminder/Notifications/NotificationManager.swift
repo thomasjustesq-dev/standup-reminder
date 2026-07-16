@@ -33,16 +33,17 @@ enum NotificationManager {
         }
     }
 
-    static func deliver(_ payload: ReminderPayload, soundName: String) {
+    static func deliver(_ payload: ReminderPayload) {
         let content = UNMutableNotificationContent()
         content.title = payload.title
         content.body = payload.body
-        content.sound = .default
+        // Sound is played by the app via NSSound (honoring the configured
+        // sound name); a notification sound here would double it up.
+        content.sound = nil
         content.categoryIdentifier = categoryId
         content.userInfo = [
             "kind": payload.kind.rawValue,
             "promptId": payload.promptId,
-            "soundName": soundName,
             "guidedSteps": payload.guidedSteps
         ]
         content.interruptionLevel = .timeSensitive

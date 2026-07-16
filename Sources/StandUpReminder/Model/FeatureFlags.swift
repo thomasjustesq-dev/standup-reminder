@@ -49,7 +49,7 @@ struct FeatureFlags: Codable, Equatable {
     static let `default` = FeatureFlags(
         iCloudSyncEnabled: false,
         teamQuiet: .default,
-        voiceAnnouncementsEnabled: true,
+        voiceAnnouncementsEnabled: false,
         speakOnlyWithHeadphones: true,
         watchCompanionEnabled: true,
         learnedScheduleEnabled: true,

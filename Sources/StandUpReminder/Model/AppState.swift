@@ -60,6 +60,7 @@ final class AppState: ObservableObject {
     private var frontmostBundleId: String?
     private var frontmostSince: Date?
     private var lastUpdateCheckAt: Date?
+    private var lastWeatherRefreshAt: Date?
     private var lastSavedRuntime: RuntimeState?
     private var knownRuntimeMTime: Date?
     private var knownConfigMTime: Date?
@@ -284,8 +285,6 @@ final class AppState: ObservableObject {
         }
 
         Task { await self.maybeCheckForUpdates(force: false) }
-        Task { await self.refreshTeamQuietHours() }
-        Task { await self.refreshWeather() }
         refreshLearnedSuggestion()
     }
 
@@ -323,16 +322,30 @@ final class AppState: ObservableObject {
         statusMessage = "Pushed to iCloud"
     }
 
+    /// Weather hourly, team quiet feed every 6h, on the tick cadence.
+    private func refreshPeriodicSourcesIfDue() {
+        if config.features.weatherBreaksEnabled,
+           lastWeatherRefreshAt.map({ Date().timeIntervalSince($0) >= 3600 }) ?? true {
+            lastWeatherRefreshAt = Date()
+            Task { await self.refreshWeather() }
+        }
+        if config.features.teamQuiet.enabled,
+           !config.features.teamQuiet.feedURL.isEmpty,
+           config.features.teamQuiet.lastFetchedAt.map({ Date().timeIntervalSince($0) >= 6 * 3600 }) ?? true {
+            Task { await self.refreshTeamQuietHours() }
+        }
+    }
+
     func refreshTeamQuietHours() async {
         guard config.features.teamQuiet.enabled,
               !config.features.teamQuiet.feedURL.isEmpty else { return }
         let windows = await TeamQuietHours.fetch(from: config.features.teamQuiet.feedURL)
+        var c = config
+        c.features.teamQuiet.lastFetchedAt = Date()
         if !windows.isEmpty {
-            var c = config
             c.features.teamQuiet.windows = windows
-            c.features.teamQuiet.lastFetchedAt = Date()
-            config = c
         }
+        config = c
     }
 
     func refreshWeather() async {
@@ -340,7 +353,13 @@ final class AppState: ObservableObject {
             weather = nil
             return
         }
-        let coords = WeatherService.approxCoordinates(for: config.scheduleTimeZone)
+        LocationProvider.shared.refresh()
+        let coords: (Double, Double)
+        if let fix = LocationProvider.shared.lastCoordinate {
+            coords = (fix.latitude, fix.longitude)
+        } else {
+            coords = WeatherService.approxCoordinates(for: config.scheduleTimeZone)
+        }
         weather = await WeatherService.fetch(latitude: coords.0, longitude: coords.1)
     }
 
@@ -391,21 +410,21 @@ final class AppState: ObservableObject {
 
     func snooze(minutes: Int) {
         snoozeUntil = Date().addingTimeInterval(TimeInterval(minutes * 60))
-        stats.recordSnooze(on: StatsSnapshot.dayKey())
+        stats.recordSnooze(on: StatsSnapshot.dayKey(calendar: config.scheduleCalendar))
         statusMessage = "Snoozed \(minutes)m"
         refreshNextFire()
     }
 
     func skipToday() {
         skipRestOfDayDate = Date()
-        stats.recordSkip(on: StatsSnapshot.dayKey())
+        stats.recordSkip(on: StatsSnapshot.dayKey(calendar: config.scheduleCalendar))
         statusMessage = "Skipping rest of today"
         refreshNextFire()
     }
 
     func acknowledgeDone() {
         lastAcknowledgedAt = Date()
-        stats.recordDone(on: StatsSnapshot.dayKey())
+        stats.recordDone(on: StatsSnapshot.dayKey(calendar: config.scheduleCalendar))
         if config.sitStandModeEnabled {
             toggleDeskPhase()
         }
@@ -452,6 +471,7 @@ final class AppState: ObservableObject {
 
     func tick() {
         reloadExternalChangesIfNeeded()
+        refreshPeriodicSourcesIfDue()
         updateActivityWindow()
         updateFrontmostTracking()
         refreshNextFire()
@@ -661,8 +681,12 @@ final class AppState: ObservableObject {
             )
         }
 
-        NotificationManager.deliver(delivered, soundName: config.soundName)
-        if let sound = NSSound(named: NSSound.Name(config.soundName)) { sound.play() }
+        NotificationManager.deliver(delivered)
+        if let sound = NSSound(named: NSSound.Name(config.soundName)) {
+            sound.play()
+        } else {
+            NSSound.beep()
+        }
         if config.features.voiceAnnouncementsEnabled {
             VoiceAnnouncer.speak(
                 "\(delivered.title). \(delivered.body)",
@@ -678,7 +702,7 @@ final class AppState: ObservableObject {
             )
         }
         lastReminderAt = Date()
-        stats.recordShown(on: StatsSnapshot.dayKey())
+        stats.recordShown(on: StatsSnapshot.dayKey(calendar: config.scheduleCalendar))
 
         if mode == .sitStand {
             deskPhaseStartedAt = Date()

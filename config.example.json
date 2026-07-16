@@ -42,7 +42,7 @@
   },
   "features": {
     "iCloudSyncEnabled": false,
-    "voiceAnnouncementsEnabled": true,
+    "voiceAnnouncementsEnabled": false,
     "speakOnlyWithHeadphones": true,
     "watchCompanionEnabled": true,
     "learnedScheduleEnabled": true,

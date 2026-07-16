@@ -16,6 +16,9 @@ struct WidgetSnapshot: Codable, Equatable {
 }
 
 enum WidgetSnapshotWriter {
+    private static let lock = NSLock()
+    private static var lastComparable: WidgetSnapshot?
+
     static func write(
         from config: AppConfig? = nil,
         nextFireAt: Date? = nil,
@@ -39,6 +42,16 @@ enum WidgetSnapshotWriter {
             profileName: profileName,
             updatedAt: Date()
         )
+        // Skip the disk write when nothing the widget shows has changed
+        // (updatedAt alone doesn't count).
+        var comparable = snap
+        comparable.updatedAt = Date(timeIntervalSince1970: 0)
+        lock.lock()
+        let unchanged = comparable == lastComparable
+        if !unchanged { lastComparable = comparable }
+        lock.unlock()
+        guard !unchanged else { return }
+
         if let data = try? JSONCoding.encoder().encode(snap) {
             try? data.write(to: WidgetSnapshot.fileURL, options: .atomic)
             if let defaults = UserDefaults(suiteName: WidgetSnapshot.appGroupID) {

@@ -14,6 +14,7 @@ final class WebcamStillnessMonitor: NSObject, ObservableObject {
     @Published private(set) var facePresent = false
     @Published private(set) var status: String = "Off"
 
+    private let frameGate = FrameGate()
     private var session: AVCaptureSession?
     private var lastMotionAt = Date()
     private var lastFaceBox: CGRect?
@@ -90,6 +91,9 @@ extension WebcamStillnessMonitor: AVCaptureVideoDataOutputSampleBufferDelegate {
         didOutput sampleBuffer: CMSampleBuffer,
         from connection: AVCaptureConnection
     ) {
+        // Face detection on every camera frame burns CPU/battery for a
+        // signal that only needs minute-level resolution.
+        guard frameGate.shouldProcess(minInterval: 3) else { return }
         guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         let requestHandler = VNImageRequestHandler(cvPixelBuffer: imageBuffer, options: [:])
         let request = VNDetectFaceRectanglesRequest()
@@ -111,5 +115,20 @@ extension WebcamStillnessMonitor: AVCaptureVideoDataOutputSampleBufferDelegate {
                 self.lastFaceBox = box
             }
         }
+    }
+}
+
+/// Lock-guarded frame throttle usable from the capture queue.
+final class FrameGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var lastProcessedAt = Date.distantPast
+
+    func shouldProcess(minInterval: TimeInterval) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        let now = Date()
+        guard now.timeIntervalSince(lastProcessedAt) >= minInterval else { return false }
+        lastProcessedAt = now
+        return true
     }
 }

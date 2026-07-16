@@ -36,6 +36,10 @@
 	<string>Stand Up Reminder can save a short mindful session to Apple Health when you tap Done on a break.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>Stand Up Reminder can save a short mindful session to Apple Health when you tap Done on a break.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Optional: your approximate location fetches local weather for outdoor-walk suggestions. Denying falls back to a time-zone estimate.</string>
+	<key>NSLocationUsageDescription</key>
+	<string>Optional: your approximate location fetches local weather for outdoor-walk suggestions. Denying falls back to a time-zone estimate.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Optional on-device stillness detection uses face bounding boxes only. Video never leaves your Mac.</string>
 	<key>SUFeedURL</key>
