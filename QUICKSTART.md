@@ -1,6 +1,6 @@
 # Quick start (Mac)
 
-1. Copy the `standup-reminder` folder to your Mac.
+1. Clone this repository to your Mac.
 2. Install Xcode (or Command Line Tools + Swift 5.9+).
 3. In Terminal:
 
