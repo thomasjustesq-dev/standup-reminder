@@ -110,14 +110,10 @@ final class AppState: ObservableObject {
 
     private func syncActiveProfileConfig() {
         guard let idx = profiles.profiles.firstIndex(where: { $0.id == profiles.activeProfileId }) else { return }
+        guard profiles.profiles[idx].config != config else { return }
         var docs = profiles
         docs.profiles[idx].config = config
-        // Avoid recursive thrash: only write if changed
-        if docs != profiles {
-            profiles = docs
-        } else {
-            ProfileStore.save(docs)
-        }
+        profiles = docs
     }
 
     func switchProfile(id: String) {
@@ -293,6 +289,7 @@ final class AppState: ObservableObject {
         updateActivityWindow()
         updateFrontmostTracking()
         updateMeetingCatchUpFlag()
+        persistRuntime()
         effectiveIntervalMinutes = AdaptiveInterval.resolvedMinutes(config: config, samples: activitySamples)
         refreshNextFire()
         publishWidget()
@@ -349,7 +346,6 @@ final class AppState: ObservableObject {
         let idle = IdleMonitor.secondsIdle()
         activitySamples.append(idle)
         if activitySamples.count > 24 { activitySamples.removeFirst(activitySamples.count - 24) }
-        persistRuntime()
 
         if idle < 60 {
             if activeSince == nil { activeSince = Date().addingTimeInterval(-idle) }
@@ -363,14 +359,12 @@ final class AppState: ObservableObject {
         if current != frontmostBundleId {
             frontmostBundleId = current
             frontmostSince = Date()
-            persistRuntime()
         }
     }
 
     private func updateMeetingCatchUpFlag() {
         let inMeeting = CalendarMonitor.isInMeeting()
         if lastMeetingState && !inMeeting && config.meetingCatchUpEnabled {
-            // Left a meeting — if we were due for a break recently, catch up.
             if let last = lastReminderAt {
                 if Date().timeIntervalSince(last) >= TimeInterval(effectiveIntervalMinutes * 60) {
                     pendingMeetingCatchUp = true
@@ -379,12 +373,10 @@ final class AppState: ObservableObject {
                 pendingMeetingCatchUp = true
             }
         }
-        if inMeeting && config.meetingCatchUpEnabled {
-            // Remember we suppressed during meeting
-            if isOnScheduleBoundary() { pendingMeetingCatchUp = true }
+        if inMeeting && config.meetingCatchUpEnabled && isOnScheduleBoundary() {
+            pendingMeetingCatchUp = true
         }
         lastMeetingState = inMeeting
-        persistRuntime()
     }
 
     private func isOnScheduleBoundary(now: Date = Date()) -> Bool {
