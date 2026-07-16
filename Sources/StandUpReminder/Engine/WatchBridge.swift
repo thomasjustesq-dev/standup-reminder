@@ -1,6 +1,28 @@
 import Combine
 import Foundation
+#if canImport(WatchConnectivity)
 import WatchConnectivity
+#endif
+
+#if !canImport(WatchConnectivity)
+/// WatchConnectivity is an iOS/watchOS framework and does not exist in the macOS SDK.
+/// The Watch companion only functions when built as part of the iOS/watchOS targets
+/// (see project.yml); this stub keeps the Mac app compiling with the same API.
+@MainActor
+final class WatchBridge: ObservableObject {
+    static let shared = WatchBridge()
+
+    @Published var isWatchReachable = false
+    @Published var lastWatchEvent: String = "—"
+
+    func start(enabled: Bool) {
+        if enabled { AppLog.write("Watch companion unavailable on macOS (no WatchConnectivity)") }
+    }
+
+    func sendStatus(status: String, nextFire: Date?, countdownMinutes: Int?) {}
+    func notifyReminder(title: String, body: String) {}
+}
+#else
 
 /// Mac side of the Apple Watch companion (Done / snooze / status).
 @MainActor
@@ -90,3 +112,5 @@ extension WatchBridge: WCSessionDelegate {
         }
     }
 }
+
+#endif

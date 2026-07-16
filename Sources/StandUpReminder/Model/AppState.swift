@@ -97,11 +97,12 @@ final class AppState: ObservableObject {
     }
 
     private init() {
-        profiles = ProfileStore.load()
-        let active = ProfileStore.activeProfile(in: profiles)
+        let loadedProfiles = ProfileStore.load()
+        let active = ProfileStore.activeProfile(in: loadedProfiles)
+        profiles = loadedProfiles
         // Prefer profile config; fall back to legacy config.json once.
         if FileManager.default.fileExists(atPath: Paths.configFile.path),
-           profiles.profiles.count <= 2 {
+           loadedProfiles.profiles.count <= 2 {
             config = ConfigStore.load()
         } else {
             config = active.config
