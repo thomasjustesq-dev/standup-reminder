@@ -190,6 +190,32 @@ final class SchedulerTests: XCTestCase {
         XCTAssertEqual(next?.date, date(2026, 7, 15, 10, 0))
     }
 
+    func testUpcomingChainSimulatesADay() {
+        // 9:05 ack, 30-min interval, lunch + wind-down on: the chain the iOS
+        // app pre-schedules must space breaks evenly and fire lunch and
+        // wind-down exactly once.
+        let chain = Scheduler.upcoming(input(
+            config: makeConfig(lunch: true, windDown: true),
+            now: date(2026, 7, 15, 9, 6),
+            lastAcknowledgedAt: date(2026, 7, 15, 9, 5)
+        ), count: 18)
+
+        XCTAssertEqual(chain.first, Scheduler.Next(date: date(2026, 7, 15, 9, 35), kind: .breakPrompt))
+        let sameDay = chain.filter { $0.date < date(2026, 7, 16, 0, 0) }
+        XCTAssertEqual(sameDay.filter { $0.kind == .lunch }.count, 1)
+        XCTAssertEqual(sameDay.filter { $0.kind == .windDown }.count, 1)
+        XCTAssertEqual(sameDay.first { $0.kind == .lunch }?.date, date(2026, 7, 15, 12, 0))
+        XCTAssertEqual(sameDay.first { $0.kind == .windDown }?.date, date(2026, 7, 15, 17, 0))
+
+        // Breaks stay >= one interval apart.
+        let breaks = sameDay.filter { $0.kind == .breakPrompt }.map(\.date)
+        for (a, b) in zip(breaks, breaks.dropFirst()) {
+            XCTAssertGreaterThanOrEqual(b.timeIntervalSince(a), 30 * 60)
+        }
+        // The chain rolls into the next workday.
+        XCTAssertTrue(chain.contains { $0.date >= date(2026, 7, 16, 9, 0) })
+    }
+
     func testOverdueSuppressedBreakStaysDue() {
         // A break that came due mid-meeting keeps its past due date so it
         // fires as soon as suppression lifts.

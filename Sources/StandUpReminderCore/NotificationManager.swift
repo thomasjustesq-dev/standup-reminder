@@ -58,6 +58,41 @@ enum NotificationManager {
             }
         }
     }
+
+    /// Pre-schedule a reminder for a future date (iOS: the app cannot tick in
+    /// the background, so upcoming reminders are queued as local notifications).
+    static func schedule(_ payload: ReminderPayload, at date: Date, calendar: Calendar, identifier: String) {
+        let content = UNMutableNotificationContent()
+        content.title = payload.title
+        content.body = payload.body
+        content.sound = .default
+        content.categoryIdentifier = categoryId
+        content.userInfo = [
+            "kind": payload.kind.rawValue,
+            "promptId": payload.promptId,
+            "guidedSteps": payload.guidedSteps
+        ]
+        content.interruptionLevel = .timeSensitive
+
+        let comps = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error {
+                AppLog.write("Failed to schedule notification: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// Identifier prefix for the pre-scheduled queue; slots are numbered so
+    /// they can be cancelled synchronously (no async getPending race).
+    static let queuedIdPrefix = requestIdPrefix + "queued-"
+
+    /// Remove every pre-scheduled (not yet delivered) reminder in the queue.
+    static func cancelScheduledQueue(upTo count: Int = 64) {
+        let ids = (0..<count).map { "\(queuedIdPrefix)\($0)" }
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ids)
+    }
 }
 
 final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {

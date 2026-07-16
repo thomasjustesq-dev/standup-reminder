@@ -128,6 +128,33 @@ enum Scheduler {
         return nil
     }
 
+    /// Simulate the next `count` reminders assuming no user interaction.
+    /// iOS cannot run a timer in the background, so the phone app pre-schedules
+    /// this chain as local notifications and rebuilds it on every interaction.
+    static func upcoming(_ input: Input, count: Int) -> [Next] {
+        var results: [Next] = []
+        var state = input
+        let calendar = input.config.scheduleCalendar
+        for _ in 0..<max(0, count) {
+            guard let next = next(state) else { break }
+            results.append(next)
+            state.now = next.date.addingTimeInterval(1)
+            state.snoozeUntil = nil
+            state.lastReminderAt = next.date
+            switch next.kind {
+            case .sitStand:
+                state.deskPhaseStartedAt = next.date
+            case .lunch:
+                state.lunchFiredDayKey = StatsSnapshot.dayKey(next.date, calendar: calendar)
+            case .windDown:
+                state.windDownFiredDayKey = StatsSnapshot.dayKey(next.date, calendar: calendar)
+            case .breakPrompt:
+                break
+            }
+        }
+        return results
+    }
+
     /// The given moment if it falls inside work hours, otherwise the start of
     /// the next scheduled workday.
     static func nextWithinWorkHours(_ date: Date, config: AppConfig) -> Date? {

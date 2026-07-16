@@ -11,8 +11,11 @@ enum Paths {
     static var configFile: URL { appSupport.appendingPathComponent("config.json") }
     static var statsFile: URL { appSupport.appendingPathComponent("stats.json") }
     static var logFile: URL {
-        let logs = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Logs", isDirectory: true)
+        // Library/Logs resolves inside the sandbox container on iOS/watchOS
+        // and to ~/Library/Logs on macOS (homeDirectoryForCurrentUser is
+        // macOS-only, so it can't be used in shared code).
+        let library = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first!
+        let logs = library.appendingPathComponent("Logs", isDirectory: true)
         try? FileManager.default.createDirectory(at: logs, withIntermediateDirectories: true)
         return logs.appendingPathComponent("standup-reminder.log")
     }

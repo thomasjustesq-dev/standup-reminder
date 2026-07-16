@@ -12,7 +12,9 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "StandUpReminder",
-            path: "Sources/StandUpReminder"
+            path: "Sources",
+            exclude: ["StandUpReminderWidget", "StandUpReminderWatch", "StandUpReminderiOS"],
+            sources: ["StandUpReminder", "StandUpReminderCore"]
         ),
         .testTarget(
             name: "StandUpReminderTests",

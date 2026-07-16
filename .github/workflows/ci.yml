@@ -6,7 +6,7 @@ on:
   pull_request:
 
 jobs:
-  build-test:
+  mac-package:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -14,3 +14,18 @@ jobs:
         run: swift build -v
       - name: Test
         run: swift test -v
+
+  ios-and-watch:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install xcodegen
+        run: brew install xcodegen
+      - name: Generate project
+        run: xcodegen generate
+      - name: Build iOS app (embeds Watch app)
+        run: >
+          xcodebuild -project StandUpReminder.xcodeproj
+          -scheme StandUpReminderiOS
+          -destination 'generic/platform=iOS Simulator'
+          CODE_SIGNING_ALLOWED=NO build
