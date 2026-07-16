@@ -13,6 +13,11 @@ let package = Package(
         .executableTarget(
             name: "StandUpReminder",
             path: "Sources/StandUpReminder"
+        ),
+        .testTarget(
+            name: "StandUpReminderTests",
+            dependencies: ["StandUpReminder"],
+            path: "Tests/StandUpReminderTests"
         )
     ]
 )
