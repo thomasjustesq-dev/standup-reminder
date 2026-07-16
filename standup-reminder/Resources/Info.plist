@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleExecutable</key>
+	<string>StandUpReminder</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.user.StandUpReminder</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>Stand Up Reminder</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>2.0.0</string>
+	<key>CFBundleVersion</key>
+	<string>2</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Stand Up Reminder skips break alerts while you are in a calendar meeting.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Stand Up Reminder skips break alerts while you are in a calendar meeting.</string>
+	<key>NSFocusStatusUsageDescription</key>
+	<string>Stand Up Reminder avoids interrupting you when Focus or Do Not Disturb is on.</string>
+	<key>NSUserNotificationsUsageDescription</key>
+	<string>Stand Up Reminder sends break and lunch reminders during your workday.</string>
+</dict>
+</plist>

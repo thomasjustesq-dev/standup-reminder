@@ -1,93 +1,94 @@
 # Stand Up Reminder (macOS)
 
-A lightweight reminder that nudges you to stand up and move every **30 minutes** during work hours (**9am–5pm**, weekdays by default), plus a **lunch reminder at noon**.
+Menu bar app that reminds you to move during the workday, eat lunch at noon, and take light wellness breaks — built for **iMac, MacBook, Mac Mini, and Mac Studio** (macOS 14+).
 
-Works on **iMac, MacBook, Mac Mini, and Mac Studio** (any Mac running a recent macOS).
+## Features
 
-It uses:
-
-- **Notification Center** alerts (via `osascript`)
-- A **LaunchAgent** so it runs in the background while you are logged in — no app window, no menu bar clutter
-
-## Quick install
-
-1. Copy the `standup-reminder` folder to your Mac.
-2. Open **Terminal**.
-3. Run:
-
-```bash
-cd /path/to/standup-reminder
-chmod +x install.sh uninstall.sh bin/standup-reminder.sh
-./install.sh
-```
-
-4. Send a test notification:
-
-```bash
-~/Library/Application\ Support/StandUpReminder/bin/standup-reminder.sh --test
-~/Library/Application\ Support/StandUpReminder/bin/standup-reminder.sh --test-lunch
-```
-
-5. If macOS asks for notification permission, allow it  
-   (**System Settings → Notifications** — look for **Script Editor** or the Terminal/`osascript` entry).
-
-Reminders continue automatically after reboot as long as you are logged in.
-
-## Default schedule
-
-| Setting | Default |
+| Area | What you get |
 | --- | --- |
-| Hours | 9:00am – 4:30pm (every 30 minutes) |
-| Lunch | 12:00pm (replaces the stand-up ping at noon) |
-| Days | Monday – Friday |
-| When locked | Skips if the Mac screen is locked |
+| Menu bar | Enable/disable, pause/resume, snooze 10m, skip today, test alerts |
+| Schedule | Every 30 minutes, 9–5, per-day hours |
+| Lunch | Noon lunch reminder (configurable window) |
+| Rotating prompts | Stand/move, stretch, water, 20-20-20 eyes, posture |
+| Quiet rules | Skip when locked, display asleep, Focus/DND, or in a calendar meeting |
+| Presence | Skip when idle; optional warm-up after you return |
+| Notifications | Actions: **Done**, **Snooze 10m**, **Skip today** |
+| Stats | Weekly + all-time shown/done/snoozed/skipped (local only) |
+| Onboarding | First-run permissions guide |
+| CLI | `status`, `pause`, `resume`, `snooze`, `test`, … |
+| Install | `scripts/install.sh` → `~/Applications`, optional Homebrew formula |
 
-“9–5” means reminders fire while the clock hour is 9 through 16 (last ping at **4:30pm**). Change this in `config.env` if you want a different window.
+## Install (recommended)
 
-## Customize
-
-Edit `config.env` in this folder (or the installed copy at  
-`~/Library/Application Support/StandUpReminder/config.env`):
+On your Mac, with Xcode or the Swift toolchain installed:
 
 ```bash
-START_HOUR=9
-END_HOUR=17
-INTERVAL_MINUTES=30
-WEEKDAYS_ONLY=1
-SKIP_WHEN_LOCKED=1
-NOTIFICATION_TITLE="Stand Up Reminder"
-NOTIFICATION_BODY="Time to stand up and move around for a minute or two."
-SOUND_NAME="Glass"
-LUNCH_ENABLED=1
-LUNCH_HOUR=12
-LUNCH_MINUTE=0
-LUNCH_TITLE="Lunch Reminder"
-LUNCH_BODY="It's noon — time to take a break and eat lunch."
+cd standup-reminder
+chmod +x scripts/*.sh
+./scripts/install.sh
 ```
 
-After changing **hours**, **interval**, or **weekdays**, re-run `./install.sh` so the LaunchAgent schedule is regenerated.
+That builds `StandUpReminder.app`, copies it to `~/Applications`, opens it, and symlinks the CLI to `~/.local/bin/standup-reminder`.
 
-Message/title/sound/lunch text changes apply on the next reminder without reinstalling if you edit the **installed** `config.env`.
+If macOS blocks the app: **right-click → Open**, or allow it under **System Settings → Privacy & Security**.
+
+### Homebrew (from this folder)
+
+```bash
+./scripts/build-app.sh
+# then either use scripts/install.sh, or:
+brew install --build-from-source ./Formula/standup-reminder.rb
+```
+
+> The formula builds from the local checkout. Prefer `scripts/install.sh` if Homebrew complains about the URL.
+
+## CLI
+
+```bash
+standup-reminder status
+standup-reminder pause
+standup-reminder resume
+standup-reminder snooze 15
+standup-reminder skip-today
+standup-reminder test
+standup-reminder test-lunch
+standup-reminder help
+```
+
+Add `~/.local/bin` to your `PATH` if the command is not found.
+
+## Settings
+
+Open **Settings…** from the menu bar icon (`figure.stand`).
+
+Config is stored at:
+
+`~/Library/Application Support/StandUpReminder/config.json`
+
+Runtime pause/snooze state:
+
+`~/Library/Application Support/StandUpReminder/runtime.json`
+
+Logs:
+
+`~/Library/Logs/standup-reminder.log`
 
 ## Uninstall
 
 ```bash
-cd /path/to/standup-reminder
-./uninstall.sh
+./scripts/uninstall.sh
 ```
 
-## Logs
+## Legacy shell / LaunchAgent version
 
-- `~/Library/Logs/standup-reminder.log` — when reminders fired or were skipped
-- `~/Library/Logs/standup-reminder.launchd.*.log` — LaunchAgent stdout/stderr
+The original bash + `launchd` installer lives in [`legacy/`](legacy/) if you want a no-compile option. The Swift app replaces it and `install.sh` removes the old LaunchAgent when present.
 
-## How it works
+## Develop
 
-`install.sh` copies the script into Application Support and creates  
-`~/Library/LaunchAgents/com.user.standupreminder.plist` with `StartCalendarInterval` entries for each reminder time. At each interval, `bin/standup-reminder.sh` double-checks the schedule (and lock state), then shows a Notification Center alert.
+```bash
+swift build
+swift run StandUpReminder
+./scripts/build-app.sh
+```
 
-## Notes
-
-- Requires being **logged in** to a user session (normal for desk Macs).
-- Does not need admin rights.
-- Safe to keep running overnight: outside the configured window it simply does nothing.
+Requires **macOS 14+** and **Swift 5.9+** / Xcode 15+.
