@@ -52,7 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Task { @MainActor in
-            if CLI.runIfNeeded() {
+            if await CLI.runIfNeeded() {
                 try? await Task.sleep(nanoseconds: 700_000_000)
                 NSApp.terminate(nil)
                 return
@@ -95,4 +95,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 extension Notification.Name {
     static let openGuidedBreakWindow = Notification.Name("openGuidedBreakWindow")
     static let openSampleDayTour = Notification.Name("openSampleDayTour")
+    /// Posted via DistributedNotificationCenter by the CLI process after it
+    /// mutates state on disk, so the running app picks it up immediately.
+    static let standUpExternalStateChanged = Notification.Name("com.user.StandUpReminder.externalStateChanged")
 }

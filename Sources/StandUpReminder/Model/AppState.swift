@@ -60,6 +60,10 @@ final class AppState: ObservableObject {
     private var frontmostBundleId: String?
     private var frontmostSince: Date?
     private var lastUpdateCheckAt: Date?
+    private var lastSavedRuntime: RuntimeState?
+    private var knownRuntimeMTime: Date?
+    private var knownConfigMTime: Date?
+    private var knownProfilesMTime: Date?
 
     var activeProfileName: String {
         ProfileStore.activeProfile(in: profiles).name
@@ -113,6 +117,9 @@ final class AppState: ObservableObject {
         showOnboarding = !config.hasCompletedOnboarding
         effectiveIntervalMinutes = config.intervalMinutes
         applyRuntime(RuntimeState.load())
+        knownRuntimeMTime = Self.fileMTime(RuntimeState.fileURL)
+        knownConfigMTime = Self.fileMTime(Paths.configFile)
+        knownProfilesMTime = Self.fileMTime(ProfileStore.fileURL)
     }
 
     private func syncActiveProfileConfig() {
@@ -156,6 +163,31 @@ final class AppState: ObservableObject {
         frontmostSince = runtime.frontmostSince
         lastUpdateCheckAt = runtime.lastUpdateCheckAt
         suppressRuntimePersist = false
+        lastSavedRuntime = runtime
+    }
+
+    private static func fileMTime(_ url: URL) -> Date? {
+        (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
+    }
+
+    /// Pick up state written by another process (the CLI runs as a separate
+    /// instance of this binary and mutates the same JSON stores on disk).
+    /// Reload before persisting so a CLI write is not clobbered by a tick.
+    func reloadExternalChangesIfNeeded() {
+        if let mtime = Self.fileMTime(RuntimeState.fileURL), mtime != knownRuntimeMTime {
+            knownRuntimeMTime = mtime
+            applyRuntime(RuntimeState.load())
+        }
+        if let mtime = Self.fileMTime(Paths.configFile), mtime != knownConfigMTime {
+            knownConfigMTime = mtime
+            let loaded = ConfigStore.load()
+            if loaded != config { config = loaded }
+        }
+        if let mtime = Self.fileMTime(ProfileStore.fileURL), mtime != knownProfilesMTime {
+            knownProfilesMTime = mtime
+            let loaded = ProfileStore.load()
+            if loaded != profiles { profiles = loaded }
+        }
     }
 
     private func persistRuntime() {
@@ -178,12 +210,10 @@ final class AppState: ObservableObject {
             frontmostSince: frontmostSince,
             lastUpdateCheckAt: lastUpdateCheckAt
         )
+        guard runtime != lastSavedRuntime else { return }
         RuntimeState.save(runtime)
-    }
-
-    func reloadRuntimeFromDisk() {
-        applyRuntime(RuntimeState.load())
-        refreshNextFire()
+        lastSavedRuntime = runtime
+        knownRuntimeMTime = Self.fileMTime(RuntimeState.fileURL)
     }
 
     func start() {
@@ -200,8 +230,17 @@ final class AppState: ObservableObject {
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                self?.reloadRuntimeFromDisk()
                 self?.tick()
+            }
+        }
+        DistributedNotificationCenter.default().addObserver(
+            forName: .standUpExternalStateChanged,
+            object: nil,
+            queue: .main
+        ) { _ in
+            Task { @MainActor in
+                AppState.shared.reloadExternalChangesIfNeeded()
+                AppState.shared.refreshNextFire()
             }
         }
         if let timer { RunLoop.main.add(timer, forMode: .common) }
@@ -412,6 +451,7 @@ final class AppState: ObservableObject {
     }
 
     func tick() {
+        reloadExternalChangesIfNeeded()
         updateActivityWindow()
         updateFrontmostTracking()
         refreshNextFire()

@@ -1,8 +1,22 @@
 import Foundation
 
 enum CLI {
+    /// The CLI runs as a second instance of the app binary and mutates the
+    /// shared JSON stores on disk. After any mutation it posts a distributed
+    /// notification so the running menu bar app reloads immediately instead
+    /// of waiting for its next tick.
     @MainActor
-    static func runIfNeeded() -> Bool {
+    private static func notifyRunningApp() {
+        DistributedNotificationCenter.default().postNotificationName(
+            .standUpExternalStateChanged,
+            object: nil,
+            userInfo: nil,
+            deliverImmediately: true
+        )
+    }
+
+    @MainActor
+    static func runIfNeeded() async -> Bool {
         let args = Array(CommandLine.arguments.dropFirst())
         guard let command = args.first else { return false }
         let state = AppState.shared
@@ -14,20 +28,21 @@ enum CLI {
             print(state.statusReport())
             return true
         case "pause":
-            state.pause(); print("Paused."); return true
+            state.pause(); notifyRunningApp(); print("Paused."); return true
         case "resume":
-            state.resume(); print("Resumed."); return true
+            state.resume(); notifyRunningApp(); print("Resumed."); return true
         case "enable":
-            state.setEnabled(true); print("Enabled."); return true
+            state.setEnabled(true); notifyRunningApp(); print("Enabled."); return true
         case "disable":
-            state.setEnabled(false); print("Disabled."); return true
+            state.setEnabled(false); notifyRunningApp(); print("Disabled."); return true
         case "snooze":
             let minutes = Int(args.dropFirst().first ?? "10") ?? 10
             state.snooze(minutes: minutes)
+            notifyRunningApp()
             print("Snoozed \(minutes) minutes.")
             return true
         case "skip-today":
-            state.skipToday(); print("Skipping remaining reminders today."); return true
+            state.skipToday(); notifyRunningApp(); print("Skipping remaining reminders today."); return true
         case "profile":
             guard let idOrName = args.dropFirst().first else {
                 for p in state.profiles.profiles {
@@ -44,6 +59,7 @@ enum CLI {
                 fputs("Profile not found: \(idOrName)\n", stderr)
                 exit(2)
             }
+            notifyRunningApp()
             print("Switched to \(state.activeProfileName)")
             return true
         case "pack":
@@ -57,6 +73,7 @@ enum CLI {
                 return true
             }
             state.applyReminderPack(pack)
+            notifyRunningApp()
             print("Applied pack: \(pack.displayName)")
             return true
         case "export":
@@ -78,6 +95,7 @@ enum CLI {
             do {
                 let data = try Data(contentsOf: URL(fileURLWithPath: path))
                 try state.importSettings(data)
+                notifyRunningApp()
                 print("Imported \(path)")
             } catch {
                 fputs("Import failed: \(error)\n", stderr)
@@ -85,20 +103,31 @@ enum CLI {
             }
             return true
         case "test":
-            state.testStandUp(); Thread.sleep(forTimeInterval: 0.5); print("Test stand-up sent."); return true
+            state.testStandUp()
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            print("Test stand-up sent.")
+            return true
         case "test-lunch":
-            state.testLunch(); Thread.sleep(forTimeInterval: 0.5); print("Test lunch sent."); return true
+            state.testLunch()
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            print("Test lunch sent.")
+            return true
         case "test-wind-down":
-            state.testWindDown(); Thread.sleep(forTimeInterval: 0.5); print("Test wind-down sent."); return true
+            state.testWindDown()
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            print("Test wind-down sent.")
+            return true
         case "test-guided":
-            state.testGuided(); Thread.sleep(forTimeInterval: 0.5); print("Guided break opened."); return true
+            state.testGuided()
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            print("Guided break opened.")
+            return true
         case "icloud-push":
             state.pushToiCloud(); print("Pushed."); return true
         case "icloud-pull":
-            state.pullFromiCloud(); print(state.statusMessage); return true
+            state.pullFromiCloud(); notifyRunningApp(); print(state.statusMessage); return true
         case "weather":
-            Task { await state.refreshWeather() }
-            Thread.sleep(forTimeInterval: 1.2)
+            await state.refreshWeather()
             if let w = state.weather {
                 print(String(format: "%.0f°C code=%d nice=%@ — %@", w.temperatureC, w.weatherCode, w.isNiceForWalk ? "yes" : "no", w.summary))
             } else {
@@ -108,6 +137,7 @@ enum CLI {
         case "learn-apply":
             state.refreshLearnedSuggestion()
             state.applyLearnedSchedule()
+            notifyRunningApp()
             print(state.statusMessage)
             return true
         case "help", "-h", "--help":
