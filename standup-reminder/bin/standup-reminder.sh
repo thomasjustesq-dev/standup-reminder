@@ -15,7 +15,17 @@ SKIP_WHEN_LOCKED=1
 NOTIFICATION_TITLE="Stand Up Reminder"
 NOTIFICATION_BODY="Time to stand up and move around for a minute or two."
 SOUND_NAME="Glass"
+LUNCH_ENABLED=1
+LUNCH_HOUR=12
+LUNCH_MINUTE=0
+LUNCH_TITLE="Lunch Reminder"
+LUNCH_BODY="It's noon — time to take a break and eat lunch."
+LUNCH_SOUND_NAME="Glass"
 LOG_FILE="${HOME}/Library/Logs/standup-reminder.log"
+
+# Set by CLI: standup | lunch | auto
+REMINDER_MODE="auto"
+FORCE=0
 
 load_config() {
   if [[ -f "$CONFIG_FILE" ]]; then
@@ -55,6 +65,18 @@ except Exception:
 ' 2>/dev/null
 }
 
+is_lunch_time() {
+  [[ "${LUNCH_ENABLED}" == "1" ]] || return 1
+
+  local hour minute
+  hour="$(date '+%H')"
+  minute="$(date '+%M')"
+  hour=$((10#$hour))
+  minute=$((10#$minute))
+
+  [[ "$hour" -eq "$LUNCH_HOUR" && "$minute" -eq "$LUNCH_MINUTE" ]]
+}
+
 show_notification() {
   local title="$1"
   local body="$2"
@@ -65,7 +87,7 @@ show_notification() {
 }
 
 should_remind() {
-  if [[ "${FORCE:-0}" == "1" ]]; then
+  if [[ "$FORCE" == "1" ]]; then
     return 0
   fi
 
@@ -87,14 +109,47 @@ should_remind() {
   return 0
 }
 
+resolve_reminder() {
+  # Sets REMINDER_KIND, TITLE, BODY, SOUND for the notification to show.
+  case "$REMINDER_MODE" in
+    lunch)
+      REMINDER_KIND="lunch"
+      TITLE="$LUNCH_TITLE"
+      BODY="$LUNCH_BODY"
+      SOUND="${LUNCH_SOUND_NAME:-$SOUND_NAME}"
+      ;;
+    standup)
+      REMINDER_KIND="standup"
+      TITLE="$NOTIFICATION_TITLE"
+      BODY="$NOTIFICATION_BODY"
+      SOUND="$SOUND_NAME"
+      ;;
+    auto)
+      if [[ "$FORCE" != "1" ]] && is_lunch_time; then
+        REMINDER_KIND="lunch"
+        TITLE="$LUNCH_TITLE"
+        BODY="$LUNCH_BODY"
+        SOUND="${LUNCH_SOUND_NAME:-$SOUND_NAME}"
+      else
+        REMINDER_KIND="standup"
+        TITLE="$NOTIFICATION_TITLE"
+        BODY="$NOTIFICATION_BODY"
+        SOUND="$SOUND_NAME"
+      fi
+      ;;
+  esac
+}
+
 usage() {
   cat <<'EOF'
-Usage: standup-reminder.sh [--test|--force|--help]
+Usage: standup-reminder.sh [options]
 
-  (no args)   Run once: notify if within work hours
-  --test      Send a notification immediately (ignores schedule)
-  --force     Same as --test
-  --help      Show this help
+  (no args)        Run once: notify if within work hours
+                   (lunch message at noon; stand-up otherwise)
+  --test           Send the stand-up notification immediately
+  --test-lunch     Send the lunch notification immediately
+  --force          Same as --test
+  --help           Show this help
 EOF
 }
 
@@ -108,9 +163,15 @@ main() {
       ;;
     --test|--force)
       FORCE=1
+      REMINDER_MODE="standup"
+      ;;
+    --test-lunch)
+      FORCE=1
+      REMINDER_MODE="lunch"
       ;;
     "")
       FORCE=0
+      REMINDER_MODE="auto"
       ;;
     *)
       echo "Unknown option: $1" >&2
@@ -123,8 +184,9 @@ main() {
     exit 0
   fi
 
-  show_notification "$NOTIFICATION_TITLE" "$NOTIFICATION_BODY" "$SOUND_NAME"
-  log "notified: $NOTIFICATION_BODY"
+  resolve_reminder
+  show_notification "$TITLE" "$BODY" "$SOUND"
+  log "notified (${REMINDER_KIND}): $BODY"
 }
 
 main "$@"

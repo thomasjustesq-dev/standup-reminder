@@ -120,7 +120,8 @@ echo "  Agent    : ${PLIST_PATH}"
 echo "  Config   : ${INSTALL_DIR}/config.env"
 echo "  Logs     : ~/Library/Logs/standup-reminder.log"
 echo
-echo "Test a notification now:"
+echo "Test notifications now:"
 echo "  \"${SCRIPT_PATH}\" --test"
+echo "  \"${SCRIPT_PATH}\" --test-lunch"
 echo
 echo "Allow alerts if macOS prompts you (System Settings → Notifications → Script Editor / osascript)."

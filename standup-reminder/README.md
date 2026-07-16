@@ -1,6 +1,6 @@
 # Stand Up Reminder (macOS)
 
-A lightweight reminder that nudges you to stand up and move every **30 minutes** during work hours (**9am–5pm**, weekdays by default).
+A lightweight reminder that nudges you to stand up and move every **30 minutes** during work hours (**9am–5pm**, weekdays by default), plus a **lunch reminder at noon**.
 
 Works on **iMac, MacBook, Mac Mini, and Mac Studio** (any Mac running a recent macOS).
 
@@ -25,6 +25,7 @@ chmod +x install.sh uninstall.sh bin/standup-reminder.sh
 
 ```bash
 ~/Library/Application\ Support/StandUpReminder/bin/standup-reminder.sh --test
+~/Library/Application\ Support/StandUpReminder/bin/standup-reminder.sh --test-lunch
 ```
 
 5. If macOS asks for notification permission, allow it  
@@ -37,6 +38,7 @@ Reminders continue automatically after reboot as long as you are logged in.
 | Setting | Default |
 | --- | --- |
 | Hours | 9:00am – 4:30pm (every 30 minutes) |
+| Lunch | 12:00pm (replaces the stand-up ping at noon) |
 | Days | Monday – Friday |
 | When locked | Skips if the Mac screen is locked |
 
@@ -56,11 +58,16 @@ SKIP_WHEN_LOCKED=1
 NOTIFICATION_TITLE="Stand Up Reminder"
 NOTIFICATION_BODY="Time to stand up and move around for a minute or two."
 SOUND_NAME="Glass"
+LUNCH_ENABLED=1
+LUNCH_HOUR=12
+LUNCH_MINUTE=0
+LUNCH_TITLE="Lunch Reminder"
+LUNCH_BODY="It's noon — time to take a break and eat lunch."
 ```
 
 After changing **hours**, **interval**, or **weekdays**, re-run `./install.sh` so the LaunchAgent schedule is regenerated.
 
-Message/title/sound changes apply on the next reminder without reinstalling if you edit the **installed** `config.env`.
+Message/title/sound/lunch text changes apply on the next reminder without reinstalling if you edit the **installed** `config.env`.
 
 ## Uninstall
 
