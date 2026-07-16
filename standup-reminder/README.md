@@ -23,10 +23,20 @@ Plus everything from v3: sit/stand, packs, adaptive interval, meeting catch-up, 
 
 ## Install
 
+See **[QUICKSTART.md](QUICKSTART.md)** for the shortest path.
+
 ```bash
 cd standup-reminder
 chmod +x scripts/*.sh
 ./scripts/install.sh
+```
+
+Pause / resume anytime from the menu bar, or:
+
+```bash
+standup-reminder pause
+standup-reminder resume
+standup-reminder status
 ```
 
 See [`docs/DISTRIBUTION.md`](docs/DISTRIBUTION.md) for notarization, Sparkle, Mac App Store, Setapp, and Homebrew Cask.
