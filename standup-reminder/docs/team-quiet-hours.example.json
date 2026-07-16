@@ -1,0 +1,20 @@
+{
+  "windows": [
+    {
+      "id": "all-hands",
+      "startHour": 10,
+      "startMinute": 0,
+      "endHour": 10,
+      "endMinute": 30,
+      "label": "All-hands"
+    },
+    {
+      "id": "focus-friday",
+      "startHour": 14,
+      "startMinute": 0,
+      "endHour": 16,
+      "endMinute": 0,
+      "label": "Focus block"
+    }
+  ]
+}

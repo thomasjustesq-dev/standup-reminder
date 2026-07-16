@@ -7,7 +7,7 @@ struct UpdateInfo: Equatable {
 }
 
 enum UpdateChecker {
-    static let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "3.0.0"
+    static let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "4.0.0"
 
     static func check(releasesURL: String) async -> UpdateInfo? {
         let urlString = releasesURL.isEmpty

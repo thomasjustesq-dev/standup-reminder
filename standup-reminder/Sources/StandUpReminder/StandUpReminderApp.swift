@@ -13,8 +13,10 @@ struct StandUpReminderApp: App {
         } label: {
             if appState.config.showMenuBarCountdown, !appState.menuBarTitle.isEmpty {
                 Text("\(appState.menuBarTitle)")
+                    .accessibilityLabel("Next break in \(appState.menuBarTitle)")
             } else {
                 Image(systemName: appState.menuBarSymbolName)
+                    .accessibilityLabel("Stand Up Reminder")
             }
         }
         .menuBarExtraStyle(.menu)
@@ -35,11 +37,18 @@ struct StandUpReminderApp: App {
                 .environmentObject(appState)
         }
         .windowResizability(.contentSize)
+
+        Window("Sample Day", id: "sample-day") {
+            SampleDayTourView()
+                .environmentObject(appState)
+        }
+        .windowResizability(.contentSize)
     }
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var guidedObserver: Any?
+    private var tourObserver: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Task { @MainActor in
@@ -52,7 +61,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.setActivationPolicy(.accessory)
             AppState.shared.start()
 
-            // Open guided break window when requested.
             guidedObserver = NotificationCenter.default.addObserver(
                 forName: .openGuidedBreakWindow,
                 object: nil,
@@ -63,7 +71,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     window.makeKeyAndOrderFront(nil)
                     return
                 }
-                // SwiftUI Window scenes open via openWindow from views; fallback activate.
+            }
+
+            tourObserver = NotificationCenter.default.addObserver(
+                forName: .openSampleDayTour,
+                object: nil,
+                queue: .main
+            ) { _ in
+                NSApp.activate(ignoringOtherApps: true)
+                for window in NSApp.windows where window.identifier?.rawValue == "sample-day" {
+                    window.makeKeyAndOrderFront(nil)
+                    return
+                }
             }
         }
     }
@@ -75,4 +94,5 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 extension Notification.Name {
     static let openGuidedBreakWindow = Notification.Name("openGuidedBreakWindow")
+    static let openSampleDayTour = Notification.Name("openSampleDayTour")
 }

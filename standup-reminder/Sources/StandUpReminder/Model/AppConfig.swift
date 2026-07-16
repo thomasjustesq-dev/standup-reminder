@@ -195,6 +195,9 @@ struct AppConfig: Codable, Equatable {
     var updateCheckEnabled: Bool
     var githubReleasesURL: String
 
+    // v4 feature cluster
+    var features: FeatureFlags
+
     static func defaultSchedule() -> [String: DaySchedule] {
         var map: [String: DaySchedule] = [:]
         for day in 1...5 { map[String(day)] = .standard }
@@ -247,7 +250,8 @@ struct AppConfig: Codable, Equatable {
         showMenuBarCountdown: true,
         scheduleTimeZoneIdentifier: "",
         updateCheckEnabled: true,
-        githubReleasesURL: ""
+        githubReleasesURL: "",
+        features: .default
     )
 
     var scheduleTimeZone: TimeZone {
@@ -313,6 +317,7 @@ struct AppConfig: Codable, Equatable {
         case denylistBundleIds, healthLoggingEnabled, healthMindfulMinutes
         case guidedBreakEnabled, guidedBreakSeconds, showMenuBarCountdown
         case scheduleTimeZoneIdentifier, updateCheckEnabled, githubReleasesURL
+        case features
     }
 
     init(from decoder: Decoder) throws {
@@ -354,6 +359,7 @@ struct AppConfig: Codable, Equatable {
         scheduleTimeZoneIdentifier = try d.decodeIfPresent(String.self, forKey: .scheduleTimeZoneIdentifier) ?? base.scheduleTimeZoneIdentifier
         updateCheckEnabled = try d.decodeIfPresent(Bool.self, forKey: .updateCheckEnabled) ?? base.updateCheckEnabled
         githubReleasesURL = try d.decodeIfPresent(String.self, forKey: .githubReleasesURL) ?? base.githubReleasesURL
+        features = try d.decodeIfPresent(FeatureFlags.self, forKey: .features) ?? base.features
 
         // Migrate prompts missing guidedSteps
         prompts = prompts.map { p in
@@ -377,7 +383,8 @@ struct AppConfig: Codable, Equatable {
         deepWorkEnabled: Bool, deepWorkQuietMinutes: Int, deepWorkRequireFullscreen: Bool,
         denylistBundleIds: [String], healthLoggingEnabled: Bool, healthMindfulMinutes: Double,
         guidedBreakEnabled: Bool, guidedBreakSeconds: Int, showMenuBarCountdown: Bool,
-        scheduleTimeZoneIdentifier: String, updateCheckEnabled: Bool, githubReleasesURL: String
+        scheduleTimeZoneIdentifier: String, updateCheckEnabled: Bool, githubReleasesURL: String,
+        features: FeatureFlags
     ) {
         self.enabled = enabled
         self.intervalMinutes = intervalMinutes
@@ -415,6 +422,7 @@ struct AppConfig: Codable, Equatable {
         self.scheduleTimeZoneIdentifier = scheduleTimeZoneIdentifier
         self.updateCheckEnabled = updateCheckEnabled
         self.githubReleasesURL = githubReleasesURL
+        self.features = features
     }
 }
 
@@ -437,6 +445,10 @@ enum ConfigStore {
         guard let data = try? encoder.encode(config) else { return }
         try? data.write(to: Paths.configFile, options: .atomic)
         WidgetSnapshotWriter.write(from: config)
+        if config.features.iCloudSyncEnabled {
+            // Profiles pushed from AppState after save to avoid circular imports of ProfileStore state
+            NotificationCenter.default.post(name: .configDidSaveForCloud, object: nil)
+        }
     }
 
     static func exportJSON() throws -> Data {

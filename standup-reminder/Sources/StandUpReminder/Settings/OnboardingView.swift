@@ -7,19 +7,22 @@ struct OnboardingView: View {
     @State private var enableCalendar = true
     @State private var enableFocus = true
     @State private var enableHealth = false
+    @State private var enableiCloud = false
+    @State private var enableVoice = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             Text("Stand Up Reminder")
                 .font(.largeTitle.weight(.bold))
-            Text("Break nudges for real workdays — stand/sit desk cues, lunch, wind-down, guided stretches, and quiet rules for meetings & deep work.")
+                .accessibilityAddTraits(.isHeader)
+            Text("Breaks that respect meetings, Focus, team quiet hours, and optionally sync across your Macs.")
                 .foregroundStyle(.secondary)
 
             VStack(alignment: .leading, spacing: 10) {
-                Label("Notifications with Done / Snooze / Guided break", systemImage: "bell.badge")
-                Label("Optional Focus, Calendar (meetings + PTO), and Health", systemImage: "heart.text.square")
-                Label("Profiles for Office Mac vs Laptop", systemImage: "laptopcomputer")
-                Label("Menu bar countdown to your next break", systemImage: "timer")
+                Label("Notifications + guided breaks", systemImage: "bell.badge")
+                Label("Optional Calendar, Focus, Health, Camera (stillness)", systemImage: "lock.shield")
+                Label("iCloud sync, Watch Done button, voice chimes", systemImage: "applewatch")
+                Label("Sample-day tour so you see 9→5 in a minute", systemImage: "map")
             }
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -29,6 +32,8 @@ struct OnboardingView: View {
             Toggle("Calendar (meetings + OOO)", isOn: $enableCalendar)
             Toggle("Focus / Do Not Disturb", isOn: $enableFocus)
             Toggle("Apple Health mindful minutes on Done", isOn: $enableHealth)
+            Toggle("iCloud settings sync", isOn: $enableiCloud)
+            Toggle("Voice announcements", isOn: $enableVoice)
 
             HStack {
                 Spacer()
@@ -38,17 +43,25 @@ struct OnboardingView: View {
                     dismiss()
                 }
                 Button("Enable & start") {
+                    var c = appState.config
+                    c.features.iCloudSyncEnabled = enableiCloud
+                    c.features.voiceAnnouncementsEnabled = enableVoice
+                    appState.config = c
                     appState.completeOnboarding(
                         enableCalendar: enableCalendar,
                         enableFocus: enableFocus,
                         enableHealth: enableHealth
                     )
                     dismiss()
+                    if appState.config.features.showSampleDayTour {
+                        appState.showSampleDayTour = true
+                        NotificationCenter.default.post(name: .openSampleDayTour, object: nil)
+                    }
                 }
                 .keyboardShortcut(.defaultAction)
             }
         }
         .padding(28)
-        .frame(width: 540)
+        .frame(width: 560)
     }
 }

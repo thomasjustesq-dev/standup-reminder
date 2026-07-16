@@ -92,6 +92,24 @@ enum CLI {
             state.testWindDown(); Thread.sleep(forTimeInterval: 0.5); print("Test wind-down sent."); return true
         case "test-guided":
             state.testGuided(); Thread.sleep(forTimeInterval: 0.5); print("Guided break opened."); return true
+        case "icloud-push":
+            state.pushToiCloud(); print("Pushed."); return true
+        case "icloud-pull":
+            state.pullFromiCloud(); print(state.statusMessage); return true
+        case "weather":
+            Task { await state.refreshWeather() }
+            Thread.sleep(forTimeInterval: 1.2)
+            if let w = state.weather {
+                print(String(format: "%.0f°C code=%d nice=%@ — %@", w.temperatureC, w.weatherCode, w.isNiceForWalk ? "yes" : "no", w.summary))
+            } else {
+                print("No weather (disabled or fetch failed).")
+            }
+            return true
+        case "learn-apply":
+            state.refreshLearnedSuggestion()
+            state.applyLearnedSchedule()
+            print(state.statusMessage)
+            return true
         case "help", "-h", "--help":
             print(helpText); return true
         default:
@@ -115,6 +133,9 @@ enum CLI {
       standup-reminder export [file.json]
       standup-reminder import <file.json>
       standup-reminder test|test-lunch|test-wind-down|test-guided
+      standup-reminder icloud-push|icloud-pull
+      standup-reminder weather
+      standup-reminder learn-apply
       standup-reminder help
     """
 }

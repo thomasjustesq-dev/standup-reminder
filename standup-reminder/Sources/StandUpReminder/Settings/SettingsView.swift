@@ -19,10 +19,12 @@ struct SettingsView: View {
                 .tabItem { Label("Prompts", systemImage: "text.bubble") }
             ProfilesSettingsTab().environmentObject(appState)
                 .tabItem { Label("Profiles", systemImage: "person.2") }
+            SyncPrivacySettingsTab().environmentObject(appState)
+                .tabItem { Label("Sync & Privacy", systemImage: "icloud") }
             StatsSettingsTab().environmentObject(appState)
                 .tabItem { Label("Stats", systemImage: "chart.bar") }
         }
-        .frame(width: 580, height: 480)
+        .frame(width: 600, height: 500)
     }
 }
 
@@ -382,6 +384,109 @@ private struct ProfilesSettingsTab: View {
                 .foregroundStyle(.secondary)
         }
         .padding()
+    }
+}
+
+private struct SyncPrivacySettingsTab: View {
+    @EnvironmentObject private var appState: AppState
+
+    var body: some View {
+        Form {
+            Section("iCloud multi-Mac sync") {
+                Toggle("Sync settings via iCloud Drive", isOn: featureBool(\.iCloudSyncEnabled))
+                Button("Push to iCloud now") { appState.pushToiCloud() }
+                Button("Pull from iCloud now") { appState.pullFromiCloud() }
+            }
+            Section("Team / office quiet hours") {
+                Toggle("Respect team quiet windows", isOn: Binding(
+                    get: { appState.config.features.teamQuiet.enabled },
+                    set: { v in var c = appState.config; c.features.teamQuiet.enabled = v; appState.config = c }
+                ))
+                TextField("Quiet-hours JSON feed URL", text: Binding(
+                    get: { appState.config.features.teamQuiet.feedURL },
+                    set: { v in var c = appState.config; c.features.teamQuiet.feedURL = v; appState.config = c }
+                ))
+                Button("Refresh feed") { Task { await appState.refreshTeamQuietHours() } }
+                Text("\(appState.config.features.teamQuiet.windows.count) window(s) loaded")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Voice & Watch") {
+                Toggle("Speak reminders", isOn: featureBool(\.voiceAnnouncementsEnabled))
+                Toggle("Speak only with headphones/external audio", isOn: featureBool(\.speakOnlyWithHeadphones))
+                Toggle("Apple Watch companion bridge", isOn: featureBool(\.watchCompanionEnabled))
+                Text("Watch reachable: \(WatchBridge.shared.isWatchReachable ? "yes" : "no")")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Learning & sensors (on-device)") {
+                Toggle("Learn my schedule from activity", isOn: featureBool(\.learnedScheduleEnabled))
+                if let suggestion = appState.learnedSuggestion {
+                    Text("Suggested hours: \(suggestion.startHour):00–\(suggestion.endHour):00")
+                    Button("Apply learned schedule to weekdays") { appState.applyLearnedSchedule() }
+                } else {
+                    Text("Need ~5 active days before a suggestion appears.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Toggle("Webcam stillness (local face boxes only)", isOn: featureBool(\.webcamStillnessEnabled))
+                Stepper(
+                    "Stillness threshold \(appState.config.features.webcamStillnessMinutes)m",
+                    value: Binding(
+                        get: { appState.config.features.webcamStillnessMinutes },
+                        set: { v in
+                            var c = appState.config
+                            c.features.webcamStillnessMinutes = v
+                            appState.config = c
+                            WebcamStillnessMonitor.shared.configure(enabled: c.features.webcamStillnessEnabled, thresholdMinutes: v)
+                        }
+                    ),
+                    in: 15...120,
+                    step: 5
+                )
+                Text("Camera: \(WebcamStillnessMonitor.shared.status)")
+                    .font(.caption).foregroundStyle(.secondary)
+                Toggle("Weather-aware outdoor walk tips", isOn: featureBool(\.weatherBreaksEnabled))
+                Button("Refresh weather") { Task { await appState.refreshWeather() } }
+                if let weather = appState.weather {
+                    Text(String(format: "%.0f°C · %@", weather.temperatureC, weather.summary))
+                        .font(.caption)
+                }
+            }
+            Section("Updates & diagnostics") {
+                TextField("Sparkle appcast URL", text: featureString(\.sparkleFeedURL))
+                Toggle("Prefer Sparkle when linked", isOn: featureBool(\.preferSparkleUpdates))
+                Toggle("Opt-in diagnostics breadcrumbs", isOn: featureBool(\.diagnosticsEnabled))
+                TextField("Diagnostics endpoint (POST JSON)", text: featureString(\.diagnosticsEndpoint))
+            }
+            Section("Accessibility") {
+                Toggle("Prefer reduced motion in UI", isOn: featureBool(\.reduceMotionOverrides))
+                Toggle("Break demo symbols", isOn: featureBool(\.breakDemoSymbolsEnabled))
+                Toggle("Offer sample-day tour", isOn: featureBool(\.showSampleDayTour))
+                Button("Replay sample-day tour") { appState.showSampleDayTour = true }
+            }
+        }
+        .padding()
+        .onChange(of: appState.config.features.webcamStillnessEnabled) { _, enabled in
+            WebcamStillnessMonitor.shared.configure(
+                enabled: enabled,
+                thresholdMinutes: appState.config.features.webcamStillnessMinutes
+            )
+        }
+        .onChange(of: appState.config.features.watchCompanionEnabled) { _, enabled in
+            WatchBridge.shared.start(enabled: enabled)
+        }
+    }
+
+    private func featureBool(_ keyPath: WritableKeyPath<FeatureFlags, Bool>) -> Binding<Bool> {
+        Binding(
+            get: { appState.config.features[keyPath: keyPath] },
+            set: { v in var c = appState.config; c.features[keyPath: keyPath] = v; appState.config = c }
+        )
+    }
+
+    private func featureString(_ keyPath: WritableKeyPath<FeatureFlags, String>) -> Binding<String> {
+        Binding(
+            get: { appState.config.features[keyPath: keyPath] },
+            set: { v in var c = appState.config; c.features[keyPath: keyPath] = v; appState.config = c }
+        )
     }
 }
 

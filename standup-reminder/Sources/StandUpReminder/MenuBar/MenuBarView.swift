@@ -52,6 +52,9 @@ struct MenuBarView: View {
         .onChange(of: appState.showGuidedBreak) { _, shouldOpen in
             if shouldOpen { openWindow(id: "guided-break") }
         }
+        .onChange(of: appState.showSampleDayTour) { _, shouldOpen in
+            if shouldOpen { openWindow(id: "sample-day") }
+        }
 
         Divider()
 
@@ -90,6 +93,7 @@ struct MenuBarView: View {
         Button("Settings…") { openSettings() }
             .keyboardShortcut(",", modifiers: .command)
         Button("Welcome / permissions…") { openWindow(id: "onboarding") }
+        Button("Sample day tour…") { openWindow(id: "sample-day") }
 
         if let update = appState.updateInfo, update.isNewer, let url = URL(string: update.htmlURL) {
             Button("Download update…") { NSWorkspace.shared.open(url) }

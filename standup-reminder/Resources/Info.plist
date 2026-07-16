@@ -15,9 +15,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>3.0.0</string>
+	<string>4.0.0</string>
 	<key>CFBundleVersion</key>
-	<string>3</string>
+	<string>4</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
 	<key>LSUIElement</key>
@@ -36,5 +36,11 @@
 	<string>Stand Up Reminder can save a short mindful session to Apple Health when you tap Done on a break.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>Stand Up Reminder can save a short mindful session to Apple Health when you tap Done on a break.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Optional on-device stillness detection uses face bounding boxes only. Video never leaves your Mac.</string>
+	<key>SUFeedURL</key>
+	<string></string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
 </dict>
 </plist>

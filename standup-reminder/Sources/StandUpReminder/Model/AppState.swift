@@ -41,7 +41,11 @@ final class AppState: ObservableObject {
     @Published var showGuidedBreak = false
     @Published var updateInfo: UpdateInfo?
     @Published var effectiveIntervalMinutes: Int = 30
+    @Published var weather: WeatherSnapshot?
+    @Published var learnedSuggestion: DaySchedule?
+    @Published var showSampleDayTour = false
 
+    private var learnedStore = LearnedScheduleStore.load()
     private var timer: Timer?
     private let notificationDelegate = NotificationDelegate()
     private var promptCursor: Int = 0
@@ -199,7 +203,41 @@ final class AppState: ObservableObject {
         tick()
         refreshNextFire()
         registerLoginItemIfPossible()
+
+        NotificationCenter.default.addObserver(
+            forName: .configDidSaveForCloud,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.config.features.iCloudSyncEnabled else { return }
+                CloudSync.push(config: self.config, profiles: self.profiles)
+            }
+        }
+
+        WatchBridge.shared.start(enabled: config.features.watchCompanionEnabled)
+        WebcamStillnessMonitor.shared.configure(
+            enabled: config.features.webcamStillnessEnabled,
+            thresholdMinutes: config.features.webcamStillnessMinutes
+        )
+        Diagnostics.installExceptionHook(
+            enabled: config.features.diagnosticsEnabled,
+            endpoint: config.features.diagnosticsEndpoint
+        )
+        SparkleUpdater.start(
+            feedURL: config.features.sparkleFeedURL,
+            preferSparkle: config.features.preferSparkleUpdates
+        )
+
+        if config.features.showSampleDayTour && !config.hasCompletedOnboarding {
+            showSampleDayTour = true
+            NotificationCenter.default.post(name: .openSampleDayTour, object: nil)
+        }
+
         Task { await self.maybeCheckForUpdates(force: false) }
+        Task { await self.refreshTeamQuietHours() }
+        Task { await self.refreshWeather() }
+        refreshLearnedSuggestion()
     }
 
     func completeOnboarding(enableCalendar: Bool, enableFocus: Bool, enableHealth: Bool) {
@@ -214,7 +252,72 @@ final class AppState: ObservableObject {
         }
         config.hasCompletedOnboarding = true
         showOnboarding = false
+        if config.features.showSampleDayTour {
+            showSampleDayTour = true
+        }
         statusMessage = "Reminders armed"
+    }
+
+    func pullFromiCloud() {
+        guard let pulled = CloudSync.pull() else {
+            statusMessage = "iCloud pull failed / empty"
+            return
+        }
+        config = pulled.0
+        profiles = pulled.1
+        statusMessage = "Pulled from iCloud"
+        refreshNextFire()
+    }
+
+    func pushToiCloud() {
+        CloudSync.push(config: config, profiles: profiles)
+        statusMessage = "Pushed to iCloud"
+    }
+
+    func refreshTeamQuietHours() async {
+        guard config.features.teamQuiet.enabled,
+              !config.features.teamQuiet.feedURL.isEmpty else { return }
+        let windows = await TeamQuietHours.fetch(from: config.features.teamQuiet.feedURL)
+        if !windows.isEmpty {
+            var c = config
+            c.features.teamQuiet.windows = windows
+            c.features.teamQuiet.lastFetchedAt = Date()
+            config = c
+        }
+    }
+
+    func refreshWeather() async {
+        guard config.features.weatherBreaksEnabled else {
+            weather = nil
+            return
+        }
+        let coords = WeatherService.approxCoordinates(for: config.scheduleTimeZone)
+        weather = await WeatherService.fetch(latitude: coords.0, longitude: coords.1)
+    }
+
+    func refreshLearnedSuggestion() {
+        learnedStore = LearnedScheduleStore.load()
+        learnedSuggestion = learnedStore.suggestion(calendar: config.scheduleCalendar)
+    }
+
+    func applyLearnedSchedule() {
+        guard let suggestion = learnedSuggestion else { return }
+        var c = config
+        for key in c.scheduleByWeekday.keys {
+            c.scheduleByWeekday[key] = suggestion
+        }
+        config = c
+        statusMessage = "Applied learned \(suggestion.startHour)–\(suggestion.endHour)"
+        refreshNextFire()
+        if config.features.diagnosticsEnabled {
+            Task {
+                await Diagnostics.report(
+                    event: "applied_learned_schedule",
+                    details: ["start": "\(suggestion.startHour)", "end": "\(suggestion.endHour)"],
+                    endpoint: config.features.diagnosticsEndpoint
+                )
+            }
+        }
     }
 
     func setEnabled(_ enabled: Bool) {
@@ -260,8 +363,21 @@ final class AppState: ObservableObject {
         if config.healthLoggingEnabled {
             HealthLogger.logMindfulMinutes(config.healthMindfulMinutes)
         }
+        WatchBridge.shared.sendStatus(
+            status: "done",
+            nextFire: nextFireAt,
+            countdownMinutes: countdownMinutes
+        )
         statusMessage = "Nice — break logged"
         showGuidedBreak = false
+        if config.features.diagnosticsEnabled {
+            Task {
+                await Diagnostics.report(
+                    event: "break_done",
+                    endpoint: config.features.diagnosticsEndpoint
+                )
+            }
+        }
     }
 
     func openGuidedBreak(_ payload: ReminderPayload) {
@@ -310,6 +426,12 @@ final class AppState: ObservableObject {
         guard isOnScheduleBoundary() || config.isLunchTime() || shouldFireSitStand() else { return }
         if let last = lastReminderAt, Date().timeIntervalSince(last) < 90 { return }
 
+        if config.features.webcamStillnessEnabled && WebcamStillnessMonitor.shared.isStillTooLong {
+            if let last = lastReminderAt, Date().timeIntervalSince(last) < 10 * 60 { return }
+            fire(force: true, mode: .breakPrompt)
+            return
+        }
+
         if config.isLunchTime() {
             fire(force: false, mode: .lunch)
         } else if config.sitStandModeEnabled && shouldFireSitStand() {
@@ -349,6 +471,10 @@ final class AppState: ObservableObject {
 
         if idle < 60 {
             if activeSince == nil { activeSince = Date().addingTimeInterval(-idle) }
+            if config.features.learnedScheduleEnabled {
+                learnedStore.recordActivity(at: Date(), calendar: config.scheduleCalendar)
+                LearnedScheduleStore.save(learnedStore)
+            }
         } else if idle >= TimeInterval(max(1, config.idleSkipMinutes) * 60) {
             activeSince = nil
         }
@@ -394,6 +520,10 @@ final class AppState: ObservableObject {
 
         if config.skipOnPTO && CalendarMonitor.isOutOfOffice(keywords: config.ptoKeywords, calendar: config.scheduleCalendar) {
             statusMessage = "PTO / OOO"
+            return false
+        }
+        if TeamQuietHours.isInTeamQuiet(config: config.features, calendar: config.scheduleCalendar) {
+            statusMessage = "Team quiet hours"
             return false
         }
         guard config.isWithinWorkHours() || config.isWindDownTime() else {
@@ -471,17 +601,47 @@ final class AppState: ObservableObject {
             promptCursor += 1
             persistRuntime()
             let prompt = prompts[index]
+            var body = prompt.body
+            if config.features.weatherBreaksEnabled, let weather, weather.isNiceForWalk,
+               prompt.id == "stand" || prompt.id == "walk" || prompt.id == "water" {
+                body += " \(weather.summary)"
+            }
             payload = ReminderPayload(
                 kind: .breakPrompt,
                 title: prompt.title,
-                body: prompt.body,
+                body: body,
                 promptId: prompt.id,
                 guidedSteps: prompt.guidedSteps
             )
         }
 
-        NotificationManager.deliver(payload, soundName: config.soundName)
+        var delivered = payload
+        if config.features.weatherBreaksEnabled, let weather, weather.isNiceForWalk, mode == .meetingCatchUp {
+            delivered = ReminderPayload(
+                kind: payload.kind,
+                title: payload.title,
+                body: payload.body + " " + weather.summary,
+                promptId: payload.promptId,
+                guidedSteps: payload.guidedSteps
+            )
+        }
+
+        NotificationManager.deliver(delivered, soundName: config.soundName)
         if let sound = NSSound(named: NSSound.Name(config.soundName)) { sound.play() }
+        if config.features.voiceAnnouncementsEnabled {
+            VoiceAnnouncer.speak(
+                "\(delivered.title). \(delivered.body)",
+                headphonesOnly: config.features.speakOnlyWithHeadphones
+            )
+        }
+        if config.features.watchCompanionEnabled {
+            WatchBridge.shared.notifyReminder(title: delivered.title, body: delivered.body)
+            WatchBridge.shared.sendStatus(
+                status: statusMessage,
+                nextFire: nextFireAt,
+                countdownMinutes: countdownMinutes
+            )
+        }
         lastReminderAt = Date()
         stats.recordShown(on: StatsSnapshot.dayKey())
 
