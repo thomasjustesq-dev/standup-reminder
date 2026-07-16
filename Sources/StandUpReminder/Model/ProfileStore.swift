@@ -27,7 +27,7 @@ enum ProfileStore {
     static func load() -> ProfileDocument {
         guard FileManager.default.fileExists(atPath: fileURL.path),
               let data = try? Data(contentsOf: fileURL),
-              let doc = try? JSONDecoder().decode(ProfileDocument.self, from: data),
+              let doc = try? JSONCoding.decoder().decode(ProfileDocument.self, from: data),
               !doc.profiles.isEmpty else {
             let doc = ProfileDocument.default
             save(doc)
@@ -37,9 +37,7 @@ enum ProfileStore {
     }
 
     static func save(_ document: ProfileDocument) {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        guard let data = try? encoder.encode(document) else { return }
+        guard let data = try? JSONCoding.encoder().encode(document) else { return }
         try? data.write(to: fileURL, options: .atomic)
     }
 

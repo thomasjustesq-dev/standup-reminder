@@ -431,7 +431,7 @@ enum ConfigStore {
         let url = Paths.configFile
         guard FileManager.default.fileExists(atPath: url.path),
               let data = try? Data(contentsOf: url),
-              let config = try? JSONDecoder().decode(AppConfig.self, from: data) else {
+              let config = try? JSONCoding.decoder().decode(AppConfig.self, from: data) else {
             let config = AppConfig.default
             save(config)
             return config
@@ -440,9 +440,7 @@ enum ConfigStore {
     }
 
     static func save(_ config: AppConfig) {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        guard let data = try? encoder.encode(config) else { return }
+        guard let data = try? JSONCoding.encoder().encode(config) else { return }
         try? data.write(to: Paths.configFile, options: .atomic)
         WidgetSnapshotWriter.write(from: config)
         if config.features.iCloudSyncEnabled {
@@ -452,13 +450,11 @@ enum ConfigStore {
     }
 
     static func exportJSON() throws -> Data {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        return try encoder.encode(load())
+        try JSONCoding.encoder().encode(load())
     }
 
     static func importJSON(_ data: Data) throws -> AppConfig {
-        let config = try JSONDecoder().decode(AppConfig.self, from: data)
+        let config = try JSONCoding.decoder().decode(AppConfig.self, from: data)
         save(config)
         return config
     }

@@ -25,8 +25,7 @@ struct RuntimeState: Codable, Equatable {
     static var fileURL: URL { Paths.appSupport.appendingPathComponent("runtime.json") }
 
     static func load() -> RuntimeState {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        let decoder = JSONCoding.decoder()
         guard FileManager.default.fileExists(atPath: fileURL.path),
               let data = try? Data(contentsOf: fileURL),
               let state = try? decoder.decode(RuntimeState.self, from: data) else {
@@ -36,10 +35,7 @@ struct RuntimeState: Codable, Equatable {
     }
 
     static func save(_ state: RuntimeState) {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
-        guard let data = try? encoder.encode(state) else { return }
+        guard let data = try? JSONCoding.encoder().encode(state) else { return }
         try? data.write(to: fileURL, options: .atomic)
     }
 }

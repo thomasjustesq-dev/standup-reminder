@@ -13,16 +13,14 @@ struct LearnedScheduleStore: Codable, Equatable {
 
     static func load() -> LearnedScheduleStore {
         guard let data = try? Data(contentsOf: fileURL),
-              let store = try? JSONDecoder().decode(LearnedScheduleStore.self, from: data) else {
+              let store = try? JSONCoding.decoder().decode(LearnedScheduleStore.self, from: data) else {
             return LearnedScheduleStore()
         }
         return store
     }
 
     static func save(_ store: LearnedScheduleStore) {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        if let data = try? encoder.encode(store) {
+        if let data = try? JSONCoding.encoder().encode(store) {
             try? data.write(to: fileURL, options: .atomic)
         }
     }

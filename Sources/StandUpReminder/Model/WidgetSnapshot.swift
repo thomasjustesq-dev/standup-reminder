@@ -39,10 +39,7 @@ enum WidgetSnapshotWriter {
             profileName: profileName,
             updatedAt: Date()
         )
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        if let data = try? encoder.encode(snap) {
+        if let data = try? JSONCoding.encoder().encode(snap) {
             try? data.write(to: WidgetSnapshot.fileURL, options: .atomic)
             if let defaults = UserDefaults(suiteName: WidgetSnapshot.appGroupID) {
                 defaults.set(data, forKey: "widgetSnapshot")

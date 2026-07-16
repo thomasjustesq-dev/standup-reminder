@@ -22,9 +22,7 @@ enum CloudSync {
             AppLog.write("iCloud unavailable — enable iCloud Drive for this Mac/user")
             return
         }
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
+        let encoder = JSONCoding.encoder()
         if let data = try? encoder.encode(config) {
             try? data.write(to: folder.appendingPathComponent("config.json"), options: .atomic)
         }
@@ -38,12 +36,11 @@ enum CloudSync {
         guard let folder = containerURL else { return nil }
         let configURL = folder.appendingPathComponent("config.json")
         let profilesURL = folder.appendingPathComponent("profiles.json")
+        let decoder = JSONCoding.decoder()
         guard let configData = try? Data(contentsOf: configURL),
-              let config = try? JSONDecoder().decode(AppConfig.self, from: configData) else {
+              let config = try? decoder.decode(AppConfig.self, from: configData) else {
             return nil
         }
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
         let profiles = (try? decoder.decode(ProfileDocument.self, from: Data(contentsOf: profilesURL))) ?? .default
         AppLog.write("iCloud sync pull OK")
         return (config, profiles)

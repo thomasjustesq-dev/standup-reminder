@@ -62,16 +62,14 @@ enum StatsStore {
         let url = Paths.statsFile
         guard FileManager.default.fileExists(atPath: url.path),
               let data = try? Data(contentsOf: url),
-              let stats = try? JSONDecoder().decode(StatsSnapshot.self, from: data) else {
+              let stats = try? JSONCoding.decoder().decode(StatsSnapshot.self, from: data) else {
             return StatsSnapshot()
         }
         return stats
     }
 
     static func save(_ stats: StatsSnapshot) {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        guard let data = try? encoder.encode(stats) else { return }
+        guard let data = try? JSONCoding.encoder().encode(stats) else { return }
         try? data.write(to: Paths.statsFile, options: .atomic)
     }
 }
