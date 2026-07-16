@@ -54,6 +54,8 @@ final class AppState: ObservableObject {
     private var pendingMeetingCatchUp = false
     private var lastMeetingState = false
     private var windDownFiredDayKey: String?
+    private var lunchFiredDayKey: String?
+    private var scheduledNext: Scheduler.Next?
     private var activitySamples: [Double] = []
     private var frontmostBundleId: String?
     private var frontmostSince: Date?
@@ -148,6 +150,7 @@ final class AppState: ObservableObject {
         pendingMeetingCatchUp = runtime.pendingMeetingCatchUp
         lastMeetingState = runtime.lastMeetingState
         windDownFiredDayKey = runtime.windDownFiredDayKey
+        lunchFiredDayKey = runtime.lunchFiredDayKey
         activitySamples = runtime.activitySamples
         frontmostBundleId = runtime.frontmostBundleId
         frontmostSince = runtime.frontmostSince
@@ -169,6 +172,7 @@ final class AppState: ObservableObject {
             pendingMeetingCatchUp: pendingMeetingCatchUp,
             lastMeetingState: lastMeetingState,
             windDownFiredDayKey: windDownFiredDayKey,
+            lunchFiredDayKey: lunchFiredDayKey,
             activitySamples: activitySamples,
             frontmostBundleId: frontmostBundleId,
             frontmostSince: frontmostSince,
@@ -201,6 +205,11 @@ final class AppState: ObservableObject {
             }
         }
         if let timer { RunLoop.main.add(timer, forMode: .common) }
+        // First run: establish the cadence anchor so the first break arrives
+        // one interval from launch rather than sliding forever.
+        if lastReminderAt == nil && lastAcknowledgedAt == nil {
+            lastAcknowledgedAt = Date()
+        }
         tick()
         refreshNextFire()
         registerLoginItemIfPossible()
@@ -405,10 +414,9 @@ final class AppState: ObservableObject {
     func tick() {
         updateActivityWindow()
         updateFrontmostTracking()
+        refreshNextFire()
         updateMeetingCatchUpFlag()
         persistRuntime()
-        effectiveIntervalMinutes = AdaptiveInterval.resolvedMinutes(config: config, samples: activitySamples)
-        refreshNextFire()
         publishWidget()
 
         if pendingMeetingCatchUp && config.meetingCatchUpEnabled && !CalendarMonitor.isInMeeting() {
@@ -418,45 +426,31 @@ final class AppState: ObservableObject {
             return
         }
 
-        if shouldFireWindDown() {
-            fire(force: false, mode: .windDown)
-            return
-        }
-
-        guard shouldFireNow(force: false) else { return }
-        guard isOnScheduleBoundary() || config.isLunchTime() || shouldFireSitStand() else { return }
         if let last = lastReminderAt, Date().timeIntervalSince(last) < 90 { return }
 
-        if config.features.webcamStillnessEnabled && WebcamStillnessMonitor.shared.isStillTooLong {
-            if let last = lastReminderAt, Date().timeIntervalSince(last) < 10 * 60 { return }
+        if config.features.webcamStillnessEnabled,
+           WebcamStillnessMonitor.shared.isStillTooLong,
+           lastReminderAt.map({ Date().timeIntervalSince($0) >= 10 * 60 }) ?? true,
+           shouldFireNow(force: false) {
             fire(force: true, mode: .breakPrompt)
             return
         }
 
-        if config.isLunchTime() {
-            fire(force: false, mode: .lunch)
-        } else if config.sitStandModeEnabled && shouldFireSitStand() {
-            fire(force: false, mode: .sitStand)
-        } else {
-            fire(force: false, mode: .breakPrompt)
+        guard let next = scheduledNext, Date() >= next.date else {
+            _ = shouldFireNow(force: false) // keeps the menu status message current
+            return
+        }
+
+        switch next.kind {
+        case .windDown: fire(force: false, mode: .windDown)
+        case .lunch: fire(force: false, mode: .lunch)
+        case .sitStand: fire(force: false, mode: .sitStand)
+        case .breakPrompt: fire(force: false, mode: .breakPrompt)
         }
     }
 
     private enum FireMode {
         case lunch, windDown, sitStand, breakPrompt, meetingCatchUp
-    }
-
-    private func shouldFireWindDown() -> Bool {
-        guard config.windDown.enabled, config.isWindDownTime() else { return false }
-        let day = StatsSnapshot.dayKey(calendar: config.scheduleCalendar)
-        if windDownFiredDayKey == day { return false }
-        return shouldFireNow(force: false) || (!isPaused && config.enabled && !isSkipTodayActive)
-    }
-
-    private func shouldFireSitStand() -> Bool {
-        guard config.sitStandModeEnabled else { return false }
-        let started = deskPhaseStartedAt ?? lastReminderAt ?? Date().addingTimeInterval(-TimeInterval(config.sitStandPhaseMinutes * 60))
-        return Date().timeIntervalSince(started) >= TimeInterval(config.sitStandPhaseMinutes * 60)
     }
 
     private func toggleDeskPhase() {
@@ -500,16 +494,14 @@ final class AppState: ObservableObject {
                 pendingMeetingCatchUp = true
             }
         }
-        if inMeeting && config.meetingCatchUpEnabled && isOnScheduleBoundary() {
+        // A break that comes due while in a meeting converts into a catch-up.
+        if inMeeting, config.meetingCatchUpEnabled,
+           let next = scheduledNext,
+           next.kind == .breakPrompt || next.kind == .sitStand,
+           Date() >= next.date {
             pendingMeetingCatchUp = true
         }
         lastMeetingState = inMeeting
-    }
-
-    private func isOnScheduleBoundary(now: Date = Date()) -> Bool {
-        let minute = config.scheduleCalendar.component(.minute, from: now)
-        let interval = max(1, effectiveIntervalMinutes)
-        return minute % interval == 0
     }
 
     func shouldFireNow(force: Bool) -> Bool {
@@ -586,6 +578,8 @@ final class AppState: ObservableObject {
                 promptId: "lunch",
                 guidedSteps: ["Stand up", "Step away from the desk", "Eat without screens if you can"]
             )
+            lunchFiredDayKey = StatsSnapshot.dayKey(calendar: config.scheduleCalendar)
+            persistRuntime()
         case .windDown:
             payload = ReminderContent.windDown(config: config)
             windDownFiredDayKey = StatsSnapshot.dayKey(calendar: config.scheduleCalendar)
@@ -667,60 +661,20 @@ final class AppState: ObservableObject {
 
     func refreshNextFire() {
         effectiveIntervalMinutes = AdaptiveInterval.resolvedMinutes(config: config, samples: activitySamples)
-        nextFireAt = Self.computeNextFire(
+        scheduledNext = Scheduler.next(Scheduler.Input(
             config: config,
             intervalMinutes: effectiveIntervalMinutes,
-            from: Date(),
+            now: Date(),
             paused: isPaused || !config.enabled || isSkipTodayActive,
             snoozeUntil: snoozeUntil,
+            lastReminderAt: lastReminderAt,
+            lastAcknowledgedAt: lastAcknowledgedAt,
             deskPhaseStartedAt: deskPhaseStartedAt,
-            sitStandEnabled: config.sitStandModeEnabled
-        )
+            lunchFiredDayKey: lunchFiredDayKey,
+            windDownFiredDayKey: windDownFiredDayKey
+        ))
+        nextFireAt = scheduledNext?.date
         publishWidget()
-    }
-
-    nonisolated static func computeNextFire(
-        config: AppConfig,
-        intervalMinutes: Int,
-        from date: Date,
-        paused: Bool,
-        snoozeUntil: Date?,
-        deskPhaseStartedAt: Date?,
-        sitStandEnabled: Bool
-    ) -> Date? {
-        if paused { return nil }
-        let calendar = config.scheduleCalendar
-        var cursor = date.addingTimeInterval(60)
-        if let snoozeUntil, snoozeUntil > cursor { cursor = snoozeUntil }
-
-        for _ in 0..<(60 * 24 * 14) {
-            if let snoozeUntil, cursor < snoozeUntil { cursor = snoozeUntil }
-
-            if config.isWindDownTime(at: cursor) {
-                return flooredMinute(cursor, calendar: calendar)
-            }
-            if sitStandEnabled, let started = deskPhaseStartedAt {
-                let due = started.addingTimeInterval(TimeInterval(config.sitStandPhaseMinutes * 60))
-                if due >= date && config.isWithinWorkHours(at: due) {
-                    // Candidate; still scan for sooner lunch/boundary
-                }
-            }
-            if config.isWithinWorkHours(at: cursor) {
-                let minute = calendar.component(.minute, from: cursor)
-                let onBoundary = minute % max(1, intervalMinutes) == 0
-                if onBoundary || config.isLunchTime(at: cursor) {
-                    return flooredMinute(cursor, calendar: calendar)
-                }
-            }
-            cursor = cursor.addingTimeInterval(60)
-        }
-        return nil
-    }
-
-    nonisolated private static func flooredMinute(_ date: Date, calendar: Calendar) -> Date {
-        var comps = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
-        comps.second = 0
-        return calendar.date(from: comps) ?? date
     }
 
     private func publishWidget() {

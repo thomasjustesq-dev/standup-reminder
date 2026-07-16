@@ -17,6 +17,7 @@ struct RuntimeState: Codable, Equatable {
     var pendingMeetingCatchUp: Bool = false
     var lastMeetingState: Bool = false
     var windDownFiredDayKey: String?
+    var lunchFiredDayKey: String?
     var activitySamples: [Double] = [] // recent idle-seconds samples for adaptive interval
     var frontmostBundleId: String?
     var frontmostSince: Date?
