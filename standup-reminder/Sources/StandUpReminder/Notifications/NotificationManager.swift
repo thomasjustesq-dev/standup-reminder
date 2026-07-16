@@ -5,6 +5,7 @@ enum NotificationAction: String {
     case done = "DONE_ACTION"
     case snooze = "SNOOZE_ACTION"
     case skipToday = "SKIP_TODAY_ACTION"
+    case guided = "GUIDED_ACTION"
 }
 
 enum NotificationManager {
@@ -12,24 +13,13 @@ enum NotificationManager {
     static let requestIdPrefix = "standup-"
 
     static func configure() {
-        let done = UNNotificationAction(
-            identifier: NotificationAction.done.rawValue,
-            title: "Done",
-            options: []
-        )
-        let snooze = UNNotificationAction(
-            identifier: NotificationAction.snooze.rawValue,
-            title: "Snooze 10m",
-            options: []
-        )
-        let skip = UNNotificationAction(
-            identifier: NotificationAction.skipToday.rawValue,
-            title: "Skip today",
-            options: [.destructive]
-        )
+        let done = UNNotificationAction(identifier: NotificationAction.done.rawValue, title: "Done", options: [])
+        let snooze = UNNotificationAction(identifier: NotificationAction.snooze.rawValue, title: "Snooze 10m", options: [])
+        let guided = UNNotificationAction(identifier: NotificationAction.guided.rawValue, title: "Guided break", options: [.foreground])
+        let skip = UNNotificationAction(identifier: NotificationAction.skipToday.rawValue, title: "Skip today", options: [.destructive])
         let category = UNNotificationCategory(
             identifier: categoryId,
-            actions: [done, snooze, skip],
+            actions: [done, guided, snooze, skip],
             intentIdentifiers: [],
             options: []
         )
@@ -52,7 +42,8 @@ enum NotificationManager {
         content.userInfo = [
             "kind": payload.kind.rawValue,
             "promptId": payload.promptId,
-            "soundName": soundName
+            "soundName": soundName,
+            "guidedSteps": payload.guidedSteps
         ]
         content.interruptionLevel = .timeSensitive
 
@@ -72,6 +63,7 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     var onDone: (() -> Void)?
     var onSnooze: (() -> Void)?
     var onSkipToday: (() -> Void)?
+    var onGuided: ((ReminderPayload) -> Void)?
 
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
@@ -86,6 +78,7 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
+        let info = response.notification.request.content.userInfo
         DispatchQueue.main.async {
             switch response.actionIdentifier {
             case NotificationAction.done.rawValue:
@@ -94,6 +87,18 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
                 self.onSnooze?()
             case NotificationAction.skipToday.rawValue:
                 self.onSkipToday?()
+            case NotificationAction.guided.rawValue, UNNotificationDefaultActionIdentifier:
+                if response.actionIdentifier == NotificationAction.guided.rawValue {
+                    let steps = info["guidedSteps"] as? [String] ?? ["Stand up", "Move", "Reset"]
+                    let payload = ReminderPayload(
+                        kind: ReminderKind(rawValue: info["kind"] as? String ?? "") ?? .breakPrompt,
+                        title: response.notification.request.content.title,
+                        body: response.notification.request.content.body,
+                        promptId: info["promptId"] as? String ?? "",
+                        guidedSteps: steps
+                    )
+                    self.onGuided?(payload)
+                }
             default:
                 break
             }

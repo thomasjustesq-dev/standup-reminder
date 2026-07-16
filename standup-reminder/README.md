@@ -1,26 +1,26 @@
-# Stand Up Reminder (macOS)
+# Stand Up Reminder (macOS) · v3
 
-Menu bar app that reminds you to move during the workday, eat lunch at noon, and take light wellness breaks — built for **iMac, MacBook, Mac Mini, and Mac Studio** (macOS 14+).
+Menu bar wellness companion for **iMac / MacBook / Mac Mini / Mac Studio** (macOS 14+).
 
-## Features
+## Highlights
 
-| Area | What you get |
-| --- | --- |
-| Menu bar | Enable/disable, pause/resume, snooze 10m, skip today, test alerts |
-| Schedule | Every 30 minutes, 9–5, per-day hours |
-| Lunch | Noon lunch reminder (configurable window) |
-| Rotating prompts | Stand/move, stretch, water, 20-20-20 eyes, posture |
-| Quiet rules | Skip when locked, display asleep, Focus/DND, or in a calendar meeting |
-| Presence | Skip when idle; optional warm-up after you return |
-| Notifications | Actions: **Done**, **Snooze 10m**, **Skip today** |
-| Stats | Weekly + all-time shown/done/snoozed/skipped (local only) |
-| Onboarding | First-run permissions guide |
-| CLI | `status`, `pause`, `resume`, `snooze`, `test`, … |
-| Install | `scripts/install.sh` → `~/Applications`, optional Homebrew formula |
+- **Break cadence** — every ~30 minutes (adaptive), Mon–Fri 9–5, per-day hours, time-zone aware  
+- **Lunch + end-of-day wind-down**  
+- **Sit/stand desk mode** — alternating phase cues  
+- **Reminder packs** — Balanced, Developer, Meeting-heavy, Recovery  
+- **Quiet rules** — lock, display sleep, Focus, meetings, PTO/OOO, deep work, app denylist  
+- **Meeting catch-up** — one nudge when a call ends  
+- **Guided break UI** — short timed stretch cards  
+- **Menu bar countdown** — minutes until next break  
+- **Profiles** — e.g. Office Mac vs Laptop  
+- **Export / import** settings JSON  
+- **Apple Health** optional mindful minutes on **Done**  
+- **Widget** (optional via XcodeGen) + `widget.json` snapshot  
+- **Update check** via GitHub Releases API URL  
+- **Notarization script** for Developer ID distribution  
+- **CLI** for status/pause/profile/pack/import/export/tests  
 
-## Install (recommended)
-
-On your Mac, with Xcode or the Swift toolchain installed:
+## Install
 
 ```bash
 cd standup-reminder
@@ -28,50 +28,55 @@ chmod +x scripts/*.sh
 ./scripts/install.sh
 ```
 
-That builds `StandUpReminder.app`, copies it to `~/Applications`, opens it, and symlinks the CLI to `~/.local/bin/standup-reminder`.
+Builds to `~/Applications/StandUpReminder.app` and symlinks `~/.local/bin/standup-reminder`.
 
-If macOS blocks the app: **right-click → Open**, or allow it under **System Settings → Privacy & Security**.
-
-### Homebrew (from this folder)
+### Widget (optional)
 
 ```bash
-./scripts/build-app.sh
-# then either use scripts/install.sh, or:
-brew install --build-from-source ./Formula/standup-reminder.rb
+brew install xcodegen
+./scripts/build-app.sh   # uses xcodegen when present
 ```
 
-> The formula builds from the local checkout. Prefer `scripts/install.sh` if Homebrew complains about the URL.
+Then add the widget from Notification Center.
+
+### Notarized distribution (optional)
+
+```bash
+export APPLE_ID=...
+export APPLE_TEAM_ID=...
+export APPLE_APP_PASSWORD=...
+./scripts/build-app.sh
+./scripts/notarize.sh
+```
+
+### Updates
+
+In **Settings → General**, set **GitHub Releases API URL**, e.g.  
+`https://api.github.com/repos/<you>/<repo>/releases/latest`
 
 ## CLI
 
 ```bash
 standup-reminder status
-standup-reminder pause
-standup-reminder resume
-standup-reminder snooze 15
-standup-reminder skip-today
-standup-reminder test
-standup-reminder test-lunch
-standup-reminder help
+standup-reminder pause|resume|snooze|skip-today
+standup-reminder profile            # list
+standup-reminder profile "Laptop"   # switch
+standup-reminder pack developer
+standup-reminder export settings.json
+standup-reminder import settings.json
+standup-reminder test|test-lunch|test-wind-down|test-guided
 ```
 
-Add `~/.local/bin` to your `PATH` if the command is not found.
+## Settings storage
 
-## Settings
-
-Open **Settings…** from the menu bar icon (`figure.stand`).
-
-Config is stored at:
-
-`~/Library/Application Support/StandUpReminder/config.json`
-
-Runtime pause/snooze state:
-
-`~/Library/Application Support/StandUpReminder/runtime.json`
-
-Logs:
-
-`~/Library/Logs/standup-reminder.log`
+| File | Purpose |
+| --- | --- |
+| `~/Library/Application Support/StandUpReminder/config.json` | Active settings |
+| `~/Library/Application Support/StandUpReminder/profiles.json` | Named profiles |
+| `~/Library/Application Support/StandUpReminder/runtime.json` | Pause/snooze/desk phase |
+| `~/Library/Application Support/StandUpReminder/stats.json` | Local stats |
+| `~/Library/Application Support/StandUpReminder/widget.json` | Widget snapshot |
+| `~/Library/Logs/standup-reminder.log` | Log |
 
 ## Uninstall
 
@@ -79,9 +84,9 @@ Logs:
 ./scripts/uninstall.sh
 ```
 
-## Legacy shell / LaunchAgent version
+## Legacy
 
-The original bash + `launchd` installer lives in [`legacy/`](legacy/) if you want a no-compile option. The Swift app replaces it and `install.sh` removes the old LaunchAgent when present.
+Shell + LaunchAgent installer remains under [`legacy/`](legacy/).
 
 ## Develop
 
@@ -90,5 +95,3 @@ swift build
 swift run StandUpReminder
 ./scripts/build-app.sh
 ```
-
-Requires **macOS 14+** and **Swift 5.9+** / Xcode 15+.

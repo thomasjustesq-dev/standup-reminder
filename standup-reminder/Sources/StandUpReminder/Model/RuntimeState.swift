@@ -1,5 +1,10 @@
 import Foundation
 
+enum DeskPhase: String, Codable {
+    case sit
+    case stand
+}
+
 struct RuntimeState: Codable, Equatable {
     var isPaused: Bool = false
     var snoozeUntil: Date?
@@ -7,6 +12,15 @@ struct RuntimeState: Codable, Equatable {
     var lastReminderAt: Date?
     var lastAcknowledgedAt: Date?
     var promptCursor: Int = 0
+    var deskPhase: DeskPhase = .sit
+    var deskPhaseStartedAt: Date?
+    var pendingMeetingCatchUp: Bool = false
+    var lastMeetingState: Bool = false
+    var windDownFiredDayKey: String?
+    var activitySamples: [Double] = [] // recent idle-seconds samples for adaptive interval
+    var frontmostBundleId: String?
+    var frontmostSince: Date?
+    var lastUpdateCheckAt: Date?
 
     static var fileURL: URL { Paths.appSupport.appendingPathComponent("runtime.json") }
 

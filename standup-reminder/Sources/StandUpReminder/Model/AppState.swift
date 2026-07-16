@@ -9,44 +9,77 @@ final class AppState: ObservableObject {
     static let shared = AppState()
 
     @Published var config: AppConfig {
-        didSet { ConfigStore.save(config) }
+        didSet {
+            ConfigStore.save(config)
+            syncActiveProfileConfig()
+            publishWidget()
+        }
     }
 
     @Published var stats: StatsSnapshot {
-        didSet { StatsStore.save(stats) }
+        didSet {
+            StatsStore.save(stats)
+            publishWidget()
+        }
     }
 
-    @Published var isPaused = false {
-        didSet { persistRuntime() }
+    @Published var profiles: ProfileDocument {
+        didSet { ProfileStore.save(profiles) }
     }
-    @Published var snoozeUntil: Date? {
-        didSet { persistRuntime() }
-    }
-    @Published var skipRestOfDayDate: Date? {
-        didSet { persistRuntime() }
-    }
-    @Published var lastReminderAt: Date? {
-        didSet { persistRuntime() }
-    }
-    @Published var lastAcknowledgedAt: Date? {
-        didSet { persistRuntime() }
-    }
+
+    @Published var isPaused = false { didSet { persistRuntime() } }
+    @Published var snoozeUntil: Date? { didSet { persistRuntime() } }
+    @Published var skipRestOfDayDate: Date? { didSet { persistRuntime() } }
+    @Published var lastReminderAt: Date? { didSet { persistRuntime() } }
+    @Published var lastAcknowledgedAt: Date? { didSet { persistRuntime() } }
     @Published var nextFireAt: Date?
-    @Published var statusMessage: String = "Starting…"
+    @Published var statusMessage: String = "Starting…" { didSet { publishWidget() } }
     @Published var showOnboarding = false
     @Published var activeSince: Date?
+    @Published var deskPhase: DeskPhase = .sit { didSet { persistRuntime() } }
+    @Published var pendingGuidedPayload: ReminderPayload?
+    @Published var showGuidedBreak = false
+    @Published var updateInfo: UpdateInfo?
+    @Published var effectiveIntervalMinutes: Int = 30
 
     private var timer: Timer?
     private let notificationDelegate = NotificationDelegate()
     private var promptCursor: Int = 0
     private var suppressRuntimePersist = false
+    private var deskPhaseStartedAt: Date?
+    private var pendingMeetingCatchUp = false
+    private var lastMeetingState = false
+    private var windDownFiredDayKey: String?
+    private var activitySamples: [Double] = []
+    private var frontmostBundleId: String?
+    private var frontmostSince: Date?
+    private var lastUpdateCheckAt: Date?
+
+    var activeProfileName: String {
+        ProfileStore.activeProfile(in: profiles).name
+    }
 
     var menuBarSymbolName: String {
         if !config.enabled { return "pause.circle" }
         if isPaused { return "pause.circle.fill" }
         if isSnoozing { return "zzz" }
         if isSkipTodayActive { return "moon.zzz" }
+        if config.sitStandModeEnabled {
+            return deskPhase == .stand ? "figure.stand" : "desktopcomputer"
+        }
         return "figure.stand"
+    }
+
+    var menuBarTitle: String {
+        if config.showMenuBarCountdown, let mins = countdownMinutes {
+            return "\(mins)m"
+        }
+        return ""
+    }
+
+    var countdownMinutes: Int? {
+        guard let nextFireAt else { return nil }
+        return max(0, Int(ceil(nextFireAt.timeIntervalSinceNow / 60)))
     }
 
     var isSnoozing: Bool {
@@ -60,10 +93,45 @@ final class AppState: ObservableObject {
     }
 
     private init() {
-        config = ConfigStore.load()
+        profiles = ProfileStore.load()
+        let active = ProfileStore.activeProfile(in: profiles)
+        // Prefer profile config; fall back to legacy config.json once.
+        if FileManager.default.fileExists(atPath: Paths.configFile.path),
+           profiles.profiles.count <= 2 {
+            config = ConfigStore.load()
+        } else {
+            config = active.config
+        }
         stats = StatsStore.load()
         showOnboarding = !config.hasCompletedOnboarding
+        effectiveIntervalMinutes = config.intervalMinutes
         applyRuntime(RuntimeState.load())
+    }
+
+    private func syncActiveProfileConfig() {
+        guard let idx = profiles.profiles.firstIndex(where: { $0.id == profiles.activeProfileId }) else { return }
+        var docs = profiles
+        docs.profiles[idx].config = config
+        // Avoid recursive thrash: only write if changed
+        if docs != profiles {
+            profiles = docs
+        } else {
+            ProfileStore.save(docs)
+        }
+    }
+
+    func switchProfile(id: String) {
+        guard let profile = profiles.profiles.first(where: { $0.id == id }) else { return }
+        var docs = profiles
+        docs.activeProfileId = id
+        profiles = docs
+        config = profile.config
+        statusMessage = "Profile: \(profile.name)"
+        refreshNextFire()
+    }
+
+    func applyReminderPack(_ pack: ReminderPack) {
+        config = config.applying(pack: pack)
     }
 
     private func applyRuntime(_ runtime: RuntimeState) {
@@ -74,6 +142,15 @@ final class AppState: ObservableObject {
         lastReminderAt = runtime.lastReminderAt
         lastAcknowledgedAt = runtime.lastAcknowledgedAt
         promptCursor = runtime.promptCursor
+        deskPhase = runtime.deskPhase
+        deskPhaseStartedAt = runtime.deskPhaseStartedAt
+        pendingMeetingCatchUp = runtime.pendingMeetingCatchUp
+        lastMeetingState = runtime.lastMeetingState
+        windDownFiredDayKey = runtime.windDownFiredDayKey
+        activitySamples = runtime.activitySamples
+        frontmostBundleId = runtime.frontmostBundleId
+        frontmostSince = runtime.frontmostSince
+        lastUpdateCheckAt = runtime.lastUpdateCheckAt
         suppressRuntimePersist = false
     }
 
@@ -85,7 +162,16 @@ final class AppState: ObservableObject {
             skipRestOfDayDate: skipRestOfDayDate,
             lastReminderAt: lastReminderAt,
             lastAcknowledgedAt: lastAcknowledgedAt,
-            promptCursor: promptCursor
+            promptCursor: promptCursor,
+            deskPhase: deskPhase,
+            deskPhaseStartedAt: deskPhaseStartedAt,
+            pendingMeetingCatchUp: pendingMeetingCatchUp,
+            lastMeetingState: lastMeetingState,
+            windDownFiredDayKey: windDownFiredDayKey,
+            activitySamples: activitySamples,
+            frontmostBundleId: frontmostBundleId,
+            frontmostSince: frontmostSince,
+            lastUpdateCheckAt: lastUpdateCheckAt
         )
         RuntimeState.save(runtime)
     }
@@ -101,6 +187,7 @@ final class AppState: ObservableObject {
         notificationDelegate.onDone = { [weak self] in self?.acknowledgeDone() }
         notificationDelegate.onSnooze = { [weak self] in self?.snooze(minutes: 10) }
         notificationDelegate.onSkipToday = { [weak self] in self?.skipToday() }
+        notificationDelegate.onGuided = { [weak self] payload in self?.openGuidedBreak(payload) }
 
         DisplaySleepMonitor.shared.start()
         FocusMonitor.requestAuthorizationIfNeeded()
@@ -112,23 +199,22 @@ final class AppState: ObservableObject {
                 self?.tick()
             }
         }
-        if let timer {
-            RunLoop.main.add(timer, forMode: .common)
-        }
+        if let timer { RunLoop.main.add(timer, forMode: .common) }
         tick()
         refreshNextFire()
         registerLoginItemIfPossible()
+        Task { await self.maybeCheckForUpdates(force: false) }
     }
 
-    func completeOnboarding(enableCalendar: Bool, enableFocus: Bool) {
+    func completeOnboarding(enableCalendar: Bool, enableFocus: Bool, enableHealth: Bool) {
         NotificationManager.requestAuthorization { _ in }
         if enableCalendar {
-            CalendarMonitor.requestAccess { granted in
-                AppLog.write("Calendar granted: \(granted)")
-            }
+            CalendarMonitor.requestAccess { granted in AppLog.write("Calendar granted: \(granted)") }
         }
-        if enableFocus {
-            FocusMonitor.requestAuthorizationIfNeeded()
+        if enableFocus { FocusMonitor.requestAuthorizationIfNeeded() }
+        if enableHealth {
+            config.healthLoggingEnabled = true
+            HealthLogger.requestAuthorization { granted in AppLog.write("Health granted: \(granted)") }
         }
         config.hasCompletedOnboarding = true
         showOnboarding = false
@@ -160,7 +246,6 @@ final class AppState: ObservableObject {
         stats.recordSnooze(on: StatsSnapshot.dayKey())
         statusMessage = "Snoozed \(minutes)m"
         refreshNextFire()
-        AppLog.write("snoozed \(minutes)m")
     }
 
     func skipToday() {
@@ -168,32 +253,104 @@ final class AppState: ObservableObject {
         stats.recordSkip(on: StatsSnapshot.dayKey())
         statusMessage = "Skipping rest of today"
         refreshNextFire()
-        AppLog.write("skip today")
     }
 
     func acknowledgeDone() {
         lastAcknowledgedAt = Date()
         stats.recordDone(on: StatsSnapshot.dayKey())
+        if config.sitStandModeEnabled {
+            toggleDeskPhase()
+        }
+        if config.healthLoggingEnabled {
+            HealthLogger.logMindfulMinutes(config.healthMindfulMinutes)
+        }
         statusMessage = "Nice — break logged"
-        AppLog.write("acknowledged done")
+        showGuidedBreak = false
     }
 
-    func testStandUp() { fire(force: true, preferLunch: false) }
-    func testLunch() { fire(force: true, preferLunch: true) }
+    func openGuidedBreak(_ payload: ReminderPayload) {
+        pendingGuidedPayload = payload
+        showGuidedBreak = true
+        NSApp.activate(ignoringOtherApps: true)
+        NotificationCenter.default.post(name: .openGuidedBreakWindow, object: nil)
+    }
+
+    func testStandUp() { fire(force: true, mode: .breakPrompt) }
+    func testLunch() { fire(force: true, mode: .lunch) }
+    func testWindDown() { fire(force: true, mode: .windDown) }
+    func testGuided() {
+        let payload = ReminderPayload(
+            kind: .breakPrompt,
+            title: "Guided Break",
+            body: "Follow the short sequence.",
+            promptId: "guided-test",
+            guidedSteps: ["Stand up", "Shoulder rolls ×10", "Look far away 20s", "Drink water"]
+        )
+        openGuidedBreak(payload)
+    }
 
     func tick() {
         updateActivityWindow()
+        updateFrontmostTracking()
+        updateMeetingCatchUpFlag()
+        effectiveIntervalMinutes = AdaptiveInterval.resolvedMinutes(config: config, samples: activitySamples)
         refreshNextFire()
-        guard shouldFireNow(force: false) else { return }
-        guard isOnScheduleBoundary() || config.isLunchTime() else { return }
-        if let last = lastReminderAt, Date().timeIntervalSince(last) < 90 {
+        publishWidget()
+
+        if pendingMeetingCatchUp && config.meetingCatchUpEnabled && !CalendarMonitor.isInMeeting() {
+            pendingMeetingCatchUp = false
+            persistRuntime()
+            fire(force: true, mode: .meetingCatchUp)
             return
         }
-        fire(force: false, preferLunch: config.isLunchTime())
+
+        if shouldFireWindDown() {
+            fire(force: false, mode: .windDown)
+            return
+        }
+
+        guard shouldFireNow(force: false) else { return }
+        guard isOnScheduleBoundary() || config.isLunchTime() || shouldFireSitStand() else { return }
+        if let last = lastReminderAt, Date().timeIntervalSince(last) < 90 { return }
+
+        if config.isLunchTime() {
+            fire(force: false, mode: .lunch)
+        } else if config.sitStandModeEnabled && shouldFireSitStand() {
+            fire(force: false, mode: .sitStand)
+        } else {
+            fire(force: false, mode: .breakPrompt)
+        }
+    }
+
+    private enum FireMode {
+        case lunch, windDown, sitStand, breakPrompt, meetingCatchUp
+    }
+
+    private func shouldFireWindDown() -> Bool {
+        guard config.windDown.enabled, config.isWindDownTime() else { return false }
+        let day = StatsSnapshot.dayKey(calendar: config.scheduleCalendar)
+        if windDownFiredDayKey == day { return false }
+        return shouldFireNow(force: false) || (!isPaused && config.enabled && !isSkipTodayActive)
+    }
+
+    private func shouldFireSitStand() -> Bool {
+        guard config.sitStandModeEnabled else { return false }
+        let started = deskPhaseStartedAt ?? lastReminderAt ?? Date().addingTimeInterval(-TimeInterval(config.sitStandPhaseMinutes * 60))
+        return Date().timeIntervalSince(started) >= TimeInterval(config.sitStandPhaseMinutes * 60)
+    }
+
+    private func toggleDeskPhase() {
+        deskPhase = (deskPhase == .stand) ? .sit : .stand
+        deskPhaseStartedAt = Date()
+        persistRuntime()
     }
 
     private func updateActivityWindow() {
         let idle = IdleMonitor.secondsIdle()
+        activitySamples.append(idle)
+        if activitySamples.count > 24 { activitySamples.removeFirst(activitySamples.count - 24) }
+        persistRuntime()
+
         if idle < 60 {
             if activeSince == nil { activeSince = Date().addingTimeInterval(-idle) }
         } else if idle >= TimeInterval(max(1, config.idleSkipMinutes) * 60) {
@@ -201,55 +358,83 @@ final class AppState: ObservableObject {
         }
     }
 
-    private func isOnScheduleBoundary(now: Date = Date(), calendar: Calendar = .current) -> Bool {
-        let minute = calendar.component(.minute, from: now)
-        let interval = max(1, config.intervalMinutes)
+    private func updateFrontmostTracking() {
+        let current = DeepWorkMonitor.frontmostBundleId()
+        if current != frontmostBundleId {
+            frontmostBundleId = current
+            frontmostSince = Date()
+            persistRuntime()
+        }
+    }
+
+    private func updateMeetingCatchUpFlag() {
+        let inMeeting = CalendarMonitor.isInMeeting()
+        if lastMeetingState && !inMeeting && config.meetingCatchUpEnabled {
+            // Left a meeting — if we were due for a break recently, catch up.
+            if let last = lastReminderAt {
+                if Date().timeIntervalSince(last) >= TimeInterval(effectiveIntervalMinutes * 60) {
+                    pendingMeetingCatchUp = true
+                }
+            } else {
+                pendingMeetingCatchUp = true
+            }
+        }
+        if inMeeting && config.meetingCatchUpEnabled {
+            // Remember we suppressed during meeting
+            if isOnScheduleBoundary() { pendingMeetingCatchUp = true }
+        }
+        lastMeetingState = inMeeting
+        persistRuntime()
+    }
+
+    private func isOnScheduleBoundary(now: Date = Date()) -> Bool {
+        let minute = config.scheduleCalendar.component(.minute, from: now)
+        let interval = max(1, effectiveIntervalMinutes)
         return minute % interval == 0
     }
 
     func shouldFireNow(force: Bool) -> Bool {
         if force { return true }
-        guard config.enabled else {
-            statusMessage = "Disabled"
+        guard config.enabled else { statusMessage = "Disabled"; return false }
+        guard !isPaused else { statusMessage = "Paused"; return false }
+        if isSkipTodayActive { statusMessage = "Skipped today"; return false }
+        if isSnoozing { statusMessage = "Snoozing"; return false }
+
+        if config.skipOnPTO && CalendarMonitor.isOutOfOffice(keywords: config.ptoKeywords, calendar: config.scheduleCalendar) {
+            statusMessage = "PTO / OOO"
             return false
         }
-        guard !isPaused else {
-            statusMessage = "Paused"
-            return false
-        }
-        if isSkipTodayActive {
-            statusMessage = "Skipped today"
-            return false
-        }
-        if isSnoozing {
-            statusMessage = "Snoozing"
-            return false
-        }
-        guard config.isWithinWorkHours() else {
+        guard config.isWithinWorkHours() || config.isWindDownTime() else {
             statusMessage = "Outside work hours"
             return false
         }
         if config.skipWhenDisplayAsleep && DisplaySleepMonitor.shared.isDisplayAsleep {
-            statusMessage = "Display asleep"
-            return false
+            statusMessage = "Display asleep"; return false
         }
         if config.skipWhenLocked && DisplaySleepMonitor.isScreenLocked() {
-            statusMessage = "Screen locked"
-            return false
+            statusMessage = "Screen locked"; return false
         }
         if config.skipWhenFocused && FocusMonitor.isFocused() {
-            statusMessage = "Focus mode on"
-            return false
+            statusMessage = "Focus mode on"; return false
         }
         if config.skipWhenInMeeting && CalendarMonitor.isInMeeting() {
-            statusMessage = "In a meeting"
-            return false
+            statusMessage = "In a meeting"; return false
+        }
+        if DeepWorkMonitor.isDenylisted(bundleId: frontmostBundleId, denylist: config.denylistBundleIds) {
+            statusMessage = "Quiet app (denylist)"; return false
+        }
+        if config.deepWorkEnabled && DeepWorkMonitor.isInDeepWork(
+            frontmostBundleId: frontmostBundleId,
+            frontmostSince: frontmostSince,
+            quietMinutes: config.deepWorkQuietMinutes,
+            requireFullscreen: config.deepWorkRequireFullscreen
+        ) {
+            statusMessage = "Deep work"; return false
         }
         if IdleMonitor.isIdle(thresholdMinutes: config.idleSkipMinutes) {
-            statusMessage = "Idle — skipped"
-            return false
+            statusMessage = "Idle — skipped"; return false
         }
-        if config.minActiveMinutes > 0, !config.isLunchTime() {
+        if config.minActiveMinutes > 0, !config.isLunchTime(), !config.isWindDownTime() {
             let activeFor = activeSince.map { Date().timeIntervalSince($0) } ?? 0
             if activeFor < TimeInterval(config.minActiveMinutes * 60) {
                 statusMessage = "Warming up (active \(Int(activeFor / 60))m)"
@@ -260,18 +445,35 @@ final class AppState: ObservableObject {
         return true
     }
 
-    private func fire(force: Bool, preferLunch: Bool) {
-        guard shouldFireNow(force: force) else { return }
+    private func fire(force: Bool, mode: FireMode) {
+        // Wind-down / catch-up can bypass some quiet rules when forced
+        if mode != .windDown && mode != .meetingCatchUp {
+            guard shouldFireNow(force: force) else { return }
+        } else if !force {
+            guard config.enabled, !isPaused, !isSkipTodayActive else { return }
+        }
 
         let payload: ReminderPayload
-        if preferLunch {
+        switch mode {
+        case .lunch:
             payload = ReminderPayload(
                 kind: .lunch,
                 title: config.lunch.title,
                 body: config.lunch.body,
-                promptId: "lunch"
+                promptId: "lunch",
+                guidedSteps: ["Stand up", "Step away from the desk", "Eat without screens if you can"]
             )
-        } else {
+        case .windDown:
+            payload = ReminderContent.windDown(config: config)
+            windDownFiredDayKey = StatsSnapshot.dayKey(calendar: config.scheduleCalendar)
+            persistRuntime()
+        case .sitStand:
+            // Announce the phase we want the user to switch INTO
+            let next: DeskPhase = deskPhase == .stand ? .sit : .stand
+            payload = ReminderContent.sitStandPayload(phase: next)
+        case .meetingCatchUp:
+            payload = ReminderContent.meetingCatchUp()
+        case .breakPrompt:
             let prompts = config.prompts.isEmpty ? BreakPrompt.defaults : config.prompts
             let index = promptCursor % prompts.count
             promptCursor += 1
@@ -281,54 +483,80 @@ final class AppState: ObservableObject {
                 kind: .breakPrompt,
                 title: prompt.title,
                 body: prompt.body,
-                promptId: prompt.id
+                promptId: prompt.id,
+                guidedSteps: prompt.guidedSteps
             )
         }
 
         NotificationManager.deliver(payload, soundName: config.soundName)
-        if let sound = NSSound(named: NSSound.Name(config.soundName)) {
-            sound.play()
-        }
+        if let sound = NSSound(named: NSSound.Name(config.soundName)) { sound.play() }
         lastReminderAt = Date()
         stats.recordShown(on: StatsSnapshot.dayKey())
+
+        if mode == .sitStand {
+            deskPhaseStartedAt = Date()
+            // Phase flips when user taps Done; still advance timer baseline now
+            persistRuntime()
+        }
+
+        if config.guidedBreakEnabled && (mode == .breakPrompt || mode == .sitStand || mode == .meetingCatchUp) {
+            // Auto-open guided UI optionally — only if user prefers; keep subtle: don't auto-steal focus every time
+            // Open only when guidedBreakSeconds > 0 and mode is catch-up or sitStand
+            if mode == .meetingCatchUp || mode == .sitStand {
+                openGuidedBreak(payload)
+            }
+        }
+
         statusMessage = "Reminded"
         refreshNextFire()
+        publishWidget()
     }
 
     func refreshNextFire() {
+        effectiveIntervalMinutes = AdaptiveInterval.resolvedMinutes(config: config, samples: activitySamples)
         nextFireAt = Self.computeNextFire(
             config: config,
+            intervalMinutes: effectiveIntervalMinutes,
             from: Date(),
             paused: isPaused || !config.enabled || isSkipTodayActive,
-            snoozeUntil: snoozeUntil
+            snoozeUntil: snoozeUntil,
+            deskPhaseStartedAt: deskPhaseStartedAt,
+            sitStandEnabled: config.sitStandModeEnabled
         )
+        publishWidget()
     }
 
     nonisolated static func computeNextFire(
         config: AppConfig,
+        intervalMinutes: Int,
         from date: Date,
         paused: Bool,
         snoozeUntil: Date?,
-        calendar: Calendar = .current
+        deskPhaseStartedAt: Date?,
+        sitStandEnabled: Bool
     ) -> Date? {
         if paused { return nil }
+        let calendar = config.scheduleCalendar
         var cursor = date.addingTimeInterval(60)
-        if let snoozeUntil, snoozeUntil > cursor {
-            cursor = snoozeUntil
-        }
+        if let snoozeUntil, snoozeUntil > cursor { cursor = snoozeUntil }
 
         for _ in 0..<(60 * 24 * 14) {
-            if let snoozeUntil, cursor < snoozeUntil {
-                cursor = snoozeUntil
+            if let snoozeUntil, cursor < snoozeUntil { cursor = snoozeUntil }
+
+            if config.isWindDownTime(at: cursor) {
+                return flooredMinute(cursor, calendar: calendar)
             }
-            if config.isWithinWorkHours(at: cursor, calendar: calendar) {
+            if sitStandEnabled, let started = deskPhaseStartedAt {
+                let due = started.addingTimeInterval(TimeInterval(config.sitStandPhaseMinutes * 60))
+                if due >= date && config.isWithinWorkHours(at: due) {
+                    // Candidate; still scan for sooner lunch/boundary
+                }
+            }
+            if config.isWithinWorkHours(at: cursor) {
                 let minute = calendar.component(.minute, from: cursor)
-                let onBoundary = minute % max(1, config.intervalMinutes) == 0
-                let lunch = config.isLunchTime(at: cursor, calendar: calendar)
-                if onBoundary || lunch {
-                    var comps = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: cursor)
-                    comps.second = 0
-                    return calendar.date(from: comps)
+                let onBoundary = minute % max(1, intervalMinutes) == 0
+                if onBoundary || config.isLunchTime(at: cursor) {
+                    return flooredMinute(cursor, calendar: calendar)
                 }
             }
             cursor = cursor.addingTimeInterval(60)
@@ -336,14 +564,41 @@ final class AppState: ObservableObject {
         return nil
     }
 
+    nonisolated private static func flooredMinute(_ date: Date, calendar: Calendar) -> Date {
+        var comps = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        comps.second = 0
+        return calendar.date(from: comps) ?? date
+    }
+
+    private func publishWidget() {
+        WidgetSnapshotWriter.write(
+            from: config,
+            nextFireAt: nextFireAt,
+            statusMessage: statusMessage,
+            stats: stats,
+            deskPhase: config.sitStandModeEnabled ? deskPhase : nil,
+            profileName: activeProfileName
+        )
+    }
+
     private func registerLoginItemIfPossible() {
         if #available(macOS 13.0, *) {
             do {
                 try SMAppService.mainApp.register()
-                AppLog.write("Login item registered")
             } catch {
                 AppLog.write("Login item not registered: \(error.localizedDescription)")
             }
+        }
+    }
+
+    func maybeCheckForUpdates(force: Bool = false) async {
+        guard config.updateCheckEnabled else { return }
+        if !force, let last = lastUpdateCheckAt, Date().timeIntervalSince(last) < 12 * 3600 { return }
+        lastUpdateCheckAt = Date()
+        persistRuntime()
+        if let info = await UpdateChecker.check(releasesURL: config.githubReleasesURL), info.isNewer {
+            updateInfo = info
+            AppLog.write("Update available: \(info.tagName)")
         }
     }
 
@@ -356,19 +611,34 @@ final class AppState: ObservableObject {
         let next: String = {
             guard let nextFireAt else { return "none" }
             let formatter = DateFormatter()
+            formatter.timeZone = config.scheduleTimeZone
             formatter.dateStyle = .none
             formatter.timeStyle = .short
             return formatter.string(from: nextFireAt)
         }()
         return """
+        profile: \(activeProfileName)
         enabled: \(config.enabled)
         paused: \(isPaused)
-        snoozing: \(isSnoozing)
-        skipToday: \(isSkipTodayActive)
+        interval: \(effectiveIntervalMinutes)m (base \(config.intervalMinutes))
+        deskPhase: \(config.sitStandModeEnabled ? deskPhase.rawValue : "off")
+        timezone: \(config.scheduleTimeZone.identifier)
         status: \(statusMessage)
         next: \(next)
+        update: \(updateInfo.map { "\($0.tagName) \($0.isNewer ? "(newer)" : "")" } ?? "n/a")
         \(weekStatsText())
         config: \(Paths.configFile.path)
         """
+    }
+
+    // MARK: Import / Export
+
+    func exportSettings() throws -> Data {
+        try ConfigStore.exportJSON()
+    }
+
+    func importSettings(_ data: Data) throws {
+        config = try ConfigStore.importJSON(data)
+        refreshNextFire()
     }
 }

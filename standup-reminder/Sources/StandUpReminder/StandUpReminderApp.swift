@@ -11,7 +11,11 @@ struct StandUpReminderApp: App {
             MenuBarView()
                 .environmentObject(appState)
         } label: {
-            Label("Stand Up Reminder", systemImage: appState.menuBarSymbolName)
+            if appState.config.showMenuBarCountdown, !appState.menuBarTitle.isEmpty {
+                Text("\(appState.menuBarTitle)")
+            } else {
+                Image(systemName: appState.menuBarSymbolName)
+            }
         }
         .menuBarExtraStyle(.menu)
 
@@ -25,16 +29,21 @@ struct StandUpReminderApp: App {
                 .environmentObject(appState)
         }
         .windowResizability(.contentSize)
+
+        Window("Guided Break", id: "guided-break") {
+            GuidedBreakView()
+                .environmentObject(appState)
+        }
+        .windowResizability(.contentSize)
     }
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private var cliExitPending = false
+    private var guidedObserver: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Task { @MainActor in
             if CLI.runIfNeeded() {
-                self.cliExitPending = true
                 try? await Task.sleep(nanoseconds: 700_000_000)
                 NSApp.terminate(nil)
                 return
@@ -42,10 +51,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
             NSApp.setActivationPolicy(.accessory)
             AppState.shared.start()
+
+            // Open guided break window when requested.
+            guidedObserver = NotificationCenter.default.addObserver(
+                forName: .openGuidedBreakWindow,
+                object: nil,
+                queue: .main
+            ) { _ in
+                NSApp.activate(ignoringOtherApps: true)
+                for window in NSApp.windows where window.identifier?.rawValue == "guided-break" {
+                    window.makeKeyAndOrderFront(nil)
+                    return
+                }
+                // SwiftUI Window scenes open via openWindow from views; fallback activate.
+            }
         }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
     }
+}
+
+extension Notification.Name {
+    static let openGuidedBreakWindow = Notification.Name("openGuidedBreakWindow")
 }

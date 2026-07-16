@@ -55,6 +55,8 @@ struct StatsSnapshot: Codable, Equatable {
     }
 }
 
+// Note: callers may pass a schedule-specific calendar (time zone aware).
+
 enum StatsStore {
     static func load() -> StatsSnapshot {
         let url = Paths.statsFile
