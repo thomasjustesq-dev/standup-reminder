@@ -36,13 +36,8 @@ struct GuidedBreakView: View {
                     Image(systemName: demo.systemImage)
                         .font(.system(size: 40))
                         .accessibilityHidden(true)
-                    VStack(alignment: .leading) {
-                        Text(demo.caption)
-                            .font(.headline)
-                        Text("Demo style: on-device symbols\(demo.assetName == nil ? "" : " · asset \(demo.assetName!)")")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                    Text(demo.caption)
+                        .font(.headline)
                 }
                 .padding()
                 .frame(maxWidth: .infinity, alignment: .leading)

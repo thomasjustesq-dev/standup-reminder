@@ -1,6 +1,44 @@
-# Stand Up Reminder (macOS) · v4.1
+# Stand Up Reminder · v4.2
 
-Menu bar wellness companion for **iMac / MacBook / Mac Mini / Mac Studio** (macOS 14+).
+Movement-break companion: macOS menu bar app (macOS 14+), iPhone app, and
+Apple Watch companion on one shared scheduler core.
+
+## What’s new in v4.2
+
+- **Settings can no longer be silently wiped** — a config or profiles file
+  that fails to decode is preserved as `*.corrupt` and the app runs on
+  in-memory defaults; every nested config struct decodes per-field, so a
+  flag added in an update can't fail the whole document. Numeric fields
+  clamp to sane ranges on load/import.
+- **Notifications you can trust** — denied authorization is detected and
+  surfaced (menu warning + System Settings shortcut) instead of chiming
+  with no banner; Focus/DND suppresses sound and voice too; time-sensitive
+  and focus-status entitlements are actually declared; clicking a banner
+  opens the guided break (previously a no-op); stale banners are cleared.
+- **Smarter quiet rules** — meeting catch-up and wind-down defer around a
+  locked screen, sleeping display, off-hours, or empty desk instead of
+  discarding or barging through; deep-work suppression is bounded at 2×
+  your interval; returning from an away stretch credits the break; break
+  and sit/stand reminders won't double-fire right after lunch/wind-down.
+- **iOS reminders that don't silently stop** — background app refresh
+  refills the pre-scheduled queue, overdue entries fire instead of mapping
+  to past dates, delivered-notification stats reconcile correctly, and a
+  sentinel notification makes queue exhaustion visible.
+- **One schedule across devices** — with iCloud sync on, Done/Snooze/Skip
+  on any device re-anchors every device (newest-wins runtime doc), stats
+  merge across devices for the weekly line, and sync itself is stamped and
+  refuses to clobber newer local state. iOS finally ships the entitlements
+  this needed.
+- **Glanceables** — Lock Screen widgets, a Watch complication, and a Live
+  Activity countdown (Dynamic Island included), all with live timers.
+- **Health-aware** — optional read-only HealthKit: a workout that just
+  ended counts as your movement break. Optional Fighting Shape hook
+  tightens cadence on low-recovery days (off by default).
+- **Weather that knows where you are** — persisted CoreLocation fix or
+  explicit `weatherLatitude`/`weatherLongitude` config, not a timezone
+  city table that reported Chicago for all of US Central.
+- CLI test commands run inside the running app; `icloud-push`/`icloud-pull`
+  report real outcomes and exit nonzero on failure.
 
 ## What’s new in v4.1
 
@@ -48,8 +86,8 @@ profiles, iCloud sync, notifications) drives three apps:
 | App | How it reminds | Build |
 | --- | --- | --- |
 | **macOS menu bar** | 15 s tick loop; meeting/focus/idle/deep-work suppression | `swift build` or Xcode project |
-| **iOS** | Pre-schedules the next 24 reminders as local notifications (`Scheduler.upcoming`); rebuilds the queue on every interaction and foreground | Xcode project |
-| **watchOS** | Companion to the iPhone app: status, countdown, Done / Snooze / Skip with haptics; iOS notifications also mirror to the Watch automatically | Embedded in the iOS app |
+| **iOS** | Pre-schedules the next 24 reminders as local notifications (`Scheduler.upcoming`); rebuilds the queue on interaction, foreground, and background app refresh; Lock Screen widget + Live Activity | Xcode project |
+| **watchOS** | Companion to the iPhone app: status, live countdown, Done / Snooze / Skip with haptics, complication; iOS notifications also mirror to the Watch automatically | Embedded in the iOS app |
 
 Architecture note: an Apple Watch pairs only with an iPhone — there is no
 Mac↔Watch channel — so the Watch talks to the iOS app via WatchConnectivity
@@ -62,17 +100,20 @@ xcodebuild -scheme StandUpReminderiOS \
 ```
 
 Device installs and App Store distribution need your Apple Developer team set
-as the signing team in Xcode. iOS limitations vs. the Mac app: no meeting /
-focus / idle / deep-work suppression (the app cannot observe those in the
-background), and the queue covers ~2 days if you never open the app.
+as the signing team in Xcode; the iOS/Watch/widget targets declare iCloud,
+App Group, HealthKit, and time-sensitive-notification entitlements, so the
+matching capabilities must be enabled on the App ID (automatic signing
+normally handles this — if signing fails, remove the offending key from the
+entitlements file). iOS limitations vs. the Mac app: no meeting / focus /
+idle / deep-work suppression (the app cannot observe those in the
+background). Background app refresh tops the queue up opportunistically, but
+iOS decides when it runs — the sentinel notification covers the gap.
 
 ### Roadmap / not wired up yet
 
 - **Sparkle appcast** — template only (`docs/appcast.xml`); the app uses the
   GitHub releases checker unless Sparkle is linked in a distribution build.
 - **MAS / Homebrew** — entitlements and cask/formula files are templates.
-- **iOS extras** — HealthKit logging, widgets/complications, background app
-  refresh to keep the notification queue topped up.
 
 ## Install
 

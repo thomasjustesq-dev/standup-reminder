@@ -7,6 +7,7 @@ import Foundation
 /// Config carries only the base URL (it syncs across devices); the API key
 /// is read from `fightingshape-api-key` in Application Support and never
 /// leaves this machine.
+@MainActor
 final class FightingShapeMonitor {
     static let shared = FightingShapeMonitor()
 
@@ -37,22 +38,24 @@ final class FightingShapeMonitor {
                 guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode),
                       let json = try? JSONSerialization.jsonObject(with: data) else { return }
                 guard let score = Self.findRecovery(in: json) else { return }
-                await MainActor.run {
-                    self?.lastRecoveryScore = score
-                    self?.lowRecovery = score < Self.redThreshold
-                    if score < Self.redThreshold {
-                        AppLog.write("Fighting Shape recovery \(Int(score))% — tightening break cadence")
-                    }
-                }
+                self?.apply(score: score)
             } catch {
                 AppLog.write("Fighting Shape fetch failed: \(error.localizedDescription)")
             }
         }
     }
 
+    private func apply(score: Double) {
+        lastRecoveryScore = score
+        lowRecovery = score < Self.redThreshold
+        if lowRecovery {
+            AppLog.write("Fighting Shape recovery \(Int(score))% — tightening break cadence")
+        }
+    }
+
     /// Shallow search for a recovery-like score so minor backend payload
     /// changes don't break the integration.
-    static func findRecovery(in json: Any, depth: Int = 0) -> Double? {
+    nonisolated static func findRecovery(in json: Any, depth: Int = 0) -> Double? {
         guard depth < 4 else { return nil }
         guard let dict = json as? [String: Any] else { return nil }
         for key in ["recovery", "recovery_score", "recoveryScore", "readiness"] {

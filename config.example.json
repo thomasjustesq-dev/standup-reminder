@@ -30,7 +30,7 @@
     "minute": 0,
     "windowMinutes": 2,
     "title": "Lunch Reminder",
-    "body": "It's noon — time to take a break and eat lunch."
+    "body": "It's noon \u2014 time to take a break and eat lunch."
   },
   "windDown": {
     "enabled": true,
@@ -38,7 +38,7 @@
     "minute": 0,
     "windowMinutes": 2,
     "title": "End of Day",
-    "body": "Workday wrap-up — stretch, tidy your desk, and log off when you can."
+    "body": "Workday wrap-up \u2014 stretch, tidy your desk, and log off when you can."
   },
   "features": {
     "iCloudSyncEnabled": false,
@@ -61,6 +61,11 @@
       "enabled": false,
       "feedURL": "",
       "windows": []
-    }
+    },
+    "liveActivityEnabled": true,
+    "fightingShapeEnabled": false,
+    "fightingShapeBaseURL": "",
+    "weatherLatitude": 30.27,
+    "weatherLongitude": -97.74
   }
 }
