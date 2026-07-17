@@ -9,3 +9,4 @@ xcuserdata/
 StandUpReminder.xcodeproj/
 Resources/iOS-Info.plist
 Resources/Watch-Info.plist
+.build-sim/
