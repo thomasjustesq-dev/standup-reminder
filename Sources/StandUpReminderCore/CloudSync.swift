@@ -129,4 +129,82 @@ enum CloudSync {
     static func defaultDeviceName() -> String {
         ProcessInfo.processInfo.hostName
     }
+
+    // MARK: Cross-device runtime + stats
+
+    /// Break-cadence state shared across devices so "Done" on the phone
+    /// re-anchors the Mac (and vice versa) instead of each device running its
+    /// own drifting schedule.
+    struct RuntimeDoc: Codable {
+        var updatedAt: Date
+        var deviceName: String
+        var lastReminderAt: Date?
+        var lastAcknowledgedAt: Date?
+        var snoozeUntil: Date?
+        var skipRestOfDayDate: Date?
+    }
+
+    /// Stable per-install identifier for the per-device stats file.
+    static func deviceId() -> String {
+        let url = Paths.appSupport.appendingPathComponent("device-id")
+        if let existing = try? String(contentsOf: url, encoding: .utf8),
+           !existing.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return existing.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        let fresh = UUID().uuidString
+        try? fresh.write(to: url, atomically: true, encoding: .utf8)
+        return fresh
+    }
+
+    @discardableResult
+    static func pushRuntime(_ doc: RuntimeDoc) -> Bool {
+        guard let folder = ensureFolder(),
+              let data = try? JSONCoding.encoder().encode(doc) else { return false }
+        do {
+            try data.write(to: folder.appendingPathComponent("runtime.json"), options: .atomic)
+            return true
+        } catch {
+            AppLog.write("iCloud runtime push failed: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    static func pullRuntime() -> RuntimeDoc? {
+        guard let folder = containerURL else { return nil }
+        let url = folder.appendingPathComponent("runtime.json")
+        startDownloadIfNeeded(url)
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return try? JSONCoding.decoder().decode(RuntimeDoc.self, from: data)
+    }
+
+    @discardableResult
+    static func pushStats(_ stats: StatsSnapshot, deviceId: String) -> Bool {
+        guard let folder = ensureFolder(),
+              let data = try? JSONCoding.encoder().encode(stats) else { return false }
+        do {
+            try data.write(to: folder.appendingPathComponent("stats-\(deviceId).json"), options: .atomic)
+            return true
+        } catch {
+            AppLog.write("iCloud stats push failed: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    /// Every other device's stats snapshot, for a display-time merge. The
+    /// local snapshot is never overwritten by remote data.
+    static func pullRemoteStats(excludingDeviceId: String) -> [StatsSnapshot] {
+        guard let folder = containerURL,
+              let entries = try? FileManager.default.contentsOfDirectory(
+                at: folder, includingPropertiesForKeys: nil
+              ) else { return [] }
+        let decoder = JSONCoding.decoder()
+        return entries.compactMap { url in
+            let name = url.lastPathComponent
+            guard name.hasPrefix("stats-"), name.hasSuffix(".json"),
+                  !name.contains(excludingDeviceId) else { return nil }
+            startDownloadIfNeeded(url)
+            guard let data = try? Data(contentsOf: url) else { return nil }
+            return try? decoder.decode(StatsSnapshot.self, from: data)
+        }
+    }
 }

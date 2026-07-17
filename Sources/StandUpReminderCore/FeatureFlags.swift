@@ -88,6 +88,17 @@ struct FeatureFlags: Codable, Equatable {
     var showSampleDayTour: Bool
     var reduceMotionOverrides: Bool
     var breakDemoSymbolsEnabled: Bool
+    /// Manual weather coordinates. When set they beat both CoreLocation and
+    /// the timezone city table (which maps all of US Central to Chicago).
+    var weatherLatitude: Double?
+    var weatherLongitude: Double?
+    /// iOS Lock Screen / Dynamic Island countdown.
+    var liveActivityEnabled: Bool
+    /// Optional Fighting Shape backend: on low-recovery days the cadence
+    /// gently tightens. Base URL only — the API key lives in a local file
+    /// (fightingshape-api-key in Application Support), never in synced config.
+    var fightingShapeEnabled: Bool
+    var fightingShapeBaseURL: String
 
     static let `default` = FeatureFlags(
         iCloudSyncEnabled: false,
@@ -106,7 +117,12 @@ struct FeatureFlags: Codable, Equatable {
         preferSparkleUpdates: true,
         showSampleDayTour: true,
         reduceMotionOverrides: true,
-        breakDemoSymbolsEnabled: true
+        breakDemoSymbolsEnabled: true,
+        weatherLatitude: nil,
+        weatherLongitude: nil,
+        liveActivityEnabled: true,
+        fightingShapeEnabled: false,
+        fightingShapeBaseURL: ""
     )
 
     init(
@@ -115,7 +131,10 @@ struct FeatureFlags: Codable, Equatable {
         applyLearnedScheduleAutomatically: Bool, webcamStillnessEnabled: Bool, webcamStillnessMinutes: Int,
         weatherBreaksEnabled: Bool, diagnosticsEnabled: Bool, diagnosticsEndpoint: String,
         sparkleFeedURL: String, preferSparkleUpdates: Bool, showSampleDayTour: Bool,
-        reduceMotionOverrides: Bool, breakDemoSymbolsEnabled: Bool
+        reduceMotionOverrides: Bool, breakDemoSymbolsEnabled: Bool,
+        weatherLatitude: Double? = nil, weatherLongitude: Double? = nil,
+        liveActivityEnabled: Bool = true,
+        fightingShapeEnabled: Bool = false, fightingShapeBaseURL: String = ""
     ) {
         self.iCloudSyncEnabled = iCloudSyncEnabled
         self.teamQuiet = teamQuiet
@@ -134,6 +153,11 @@ struct FeatureFlags: Codable, Equatable {
         self.showSampleDayTour = showSampleDayTour
         self.reduceMotionOverrides = reduceMotionOverrides
         self.breakDemoSymbolsEnabled = breakDemoSymbolsEnabled
+        self.weatherLatitude = weatherLatitude
+        self.weatherLongitude = weatherLongitude
+        self.liveActivityEnabled = liveActivityEnabled
+        self.fightingShapeEnabled = fightingShapeEnabled
+        self.fightingShapeBaseURL = fightingShapeBaseURL
     }
 
     enum CodingKeys: String, CodingKey {
@@ -142,6 +166,8 @@ struct FeatureFlags: Codable, Equatable {
         case webcamStillnessEnabled, webcamStillnessMinutes, weatherBreaksEnabled
         case diagnosticsEnabled, diagnosticsEndpoint, sparkleFeedURL, preferSparkleUpdates
         case showSampleDayTour, reduceMotionOverrides, breakDemoSymbolsEnabled
+        case weatherLatitude, weatherLongitude
+        case liveActivityEnabled, fightingShapeEnabled, fightingShapeBaseURL
     }
 
     init(from decoder: Decoder) throws {
@@ -164,5 +190,10 @@ struct FeatureFlags: Codable, Equatable {
         showSampleDayTour = try d.decodeIfPresent(Bool.self, forKey: .showSampleDayTour) ?? base.showSampleDayTour
         reduceMotionOverrides = try d.decodeIfPresent(Bool.self, forKey: .reduceMotionOverrides) ?? base.reduceMotionOverrides
         breakDemoSymbolsEnabled = try d.decodeIfPresent(Bool.self, forKey: .breakDemoSymbolsEnabled) ?? base.breakDemoSymbolsEnabled
+        weatherLatitude = try d.decodeIfPresent(Double.self, forKey: .weatherLatitude)
+        weatherLongitude = try d.decodeIfPresent(Double.self, forKey: .weatherLongitude)
+        liveActivityEnabled = try d.decodeIfPresent(Bool.self, forKey: .liveActivityEnabled) ?? base.liveActivityEnabled
+        fightingShapeEnabled = try d.decodeIfPresent(Bool.self, forKey: .fightingShapeEnabled) ?? base.fightingShapeEnabled
+        fightingShapeBaseURL = try d.decodeIfPresent(String.self, forKey: .fightingShapeBaseURL) ?? base.fightingShapeBaseURL
     }
 }

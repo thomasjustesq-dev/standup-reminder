@@ -89,8 +89,17 @@ enum NotificationManager {
         ]
         content.interruptionLevel = .timeSensitive
 
-        let comps = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
-        let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+        // A calendar trigger for a past date never fires — and the scheduler
+        // deliberately keeps overdue entries (an expired snooze or a resumed
+        // pause is due *now*). Deliver those after a short interval instead
+        // of silently dropping them.
+        let trigger: UNNotificationTrigger
+        if date.timeIntervalSinceNow <= 1 {
+            trigger = UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false)
+        } else {
+            let comps = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
+            trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+        }
         let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
         UNUserNotificationCenter.current().add(request) { error in
             if let error {
@@ -99,14 +108,20 @@ enum NotificationManager {
         }
     }
 
-    /// Identifier prefix for the pre-scheduled queue; slots are numbered so
-    /// they can be cancelled synchronously (no async getPending race).
+    /// Identifier prefix for the pre-scheduled queue. Each rebuild uses a
+    /// fresh generation stamp in the identifier so a delivered slot is never
+    /// confused with a later rebuild reusing the same slot number.
     static let queuedIdPrefix = requestIdPrefix + "queued-"
 
-    /// Remove every pre-scheduled (not yet delivered) reminder in the queue.
-    static func cancelScheduledQueue(upTo count: Int = 64) {
-        let ids = (0..<count).map { "\(queuedIdPrefix)\($0)" }
-        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ids)
+    static func queuedIdentifier(generation: Int, slot: String) -> String {
+        "\(queuedIdPrefix)\(generation)-\(slot)"
+    }
+
+    /// Remove every pending local notification. The queue is the only thing
+    /// this app schedules, so a full clear is the race-free way to cancel a
+    /// generation whose identifiers embed a stamp.
+    static func cancelScheduledQueue() {
+        UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
     }
 }
 

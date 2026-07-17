@@ -392,10 +392,6 @@ final class AppState: ObservableObject {
            config.features.teamQuiet.lastFetchedAt.map({ Date().timeIntervalSince($0) >= 6 * 3600 }) ?? true {
             Task { await self.refreshTeamQuietHours() }
         }
-        FightingShapeMonitor.shared.refreshIfDue(
-            enabled: config.features.fightingShapeEnabled,
-            baseURL: config.features.fightingShapeBaseURL
-        )
         if config.features.iCloudSyncEnabled,
            lastRuntimeSyncAt.map({ Date().timeIntervalSince($0) >= 60 }) ?? true {
             lastRuntimeSyncAt = Date()
@@ -935,11 +931,7 @@ final class AppState: ObservableObject {
         let anchor = Scheduler.cadenceAnchor(lastReminderAt: lastReminderAt, lastAcknowledgedAt: lastAcknowledgedAt)
         let recomputeDue = lastAdaptiveComputedAt.map { Date().timeIntervalSince($0) >= 5 * 60 } ?? true
         if recomputeDue || anchor != lastAdaptiveAnchor {
-            var minutes = AdaptiveInterval.resolvedMinutes(config: config, samples: activitySamples)
-            if FightingShapeMonitor.shared.lowRecovery {
-                minutes = max(config.adaptiveMinMinutes, Int(Double(minutes) * 0.8))
-            }
-            effectiveIntervalMinutes = minutes
+            effectiveIntervalMinutes = AdaptiveInterval.resolvedMinutes(config: config, samples: activitySamples)
             lastAdaptiveComputedAt = Date()
             lastAdaptiveAnchor = anchor
         }

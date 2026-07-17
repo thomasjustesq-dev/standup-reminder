@@ -1,7 +1,10 @@
 #if os(iOS)
+import ActivityKit
+import BackgroundTasks
 import Combine
 import Foundation
 import UserNotifications
+import WidgetKit
 
 /// iOS counterpart of the Mac's AppState. iOS apps cannot run a background
 /// timer, so instead of ticking, the model pre-schedules the next batch of
@@ -33,6 +36,9 @@ final class PhoneModel: ObservableObject {
     @Published var lastAcknowledgedAt: Date? { didSet { persistRuntime() } }
     @Published var upcoming: [Scheduler.Next] = []
     @Published var notificationsAuthorized = false
+    @Published var pendingGuidedPayload: GuidedSheetPayload?
+
+    static let backgroundRefreshTaskId = "com.thomasjust.standupreminder.refresh"
 
     private let notificationDelegate = NotificationDelegate()
     private var suppressPersist = false
@@ -42,6 +48,13 @@ final class PhoneModel: ObservableObject {
     private var lunchFiredDayKey: String?
     private var windDownFiredDayKey: String?
     private var countedDeliveredIds = Set<String>()
+    private var lastPushedStats: StatsSnapshot?
+    private var remoteStats: [StatsSnapshot] = []
+
+    struct GuidedSheetPayload: Identifiable {
+        let id = UUID()
+        let payload: ReminderPayload
+    }
 
     var nextFireAt: Date? { upcoming.first?.date }
 
@@ -80,7 +93,11 @@ final class PhoneModel: ObservableObject {
         notificationDelegate.onDone = { [weak self] in self?.acknowledgeDone() }
         notificationDelegate.onSnooze = { [weak self] in self?.snooze(minutes: 10) }
         notificationDelegate.onSkipToday = { [weak self] in self?.skipToday() }
-        notificationDelegate.onGuided = { _ in }
+        notificationDelegate.onGuided = { [weak self] payload in
+            Task { @MainActor in
+                self?.pendingGuidedPayload = GuidedSheetPayload(payload: payload)
+            }
+        }
 
         NotificationManager.requestAuthorization { [weak self] granted in
             Task { @MainActor in
@@ -93,8 +110,27 @@ final class PhoneModel: ObservableObject {
             lastAcknowledgedAt = Date()
         }
 
+        if config.healthLoggingEnabled {
+            HealthCredit.requestAuthorizationIfNeeded()
+        }
+
         PhoneWatchBridge.shared.start()
         rescheduleNotifications()
+    }
+
+    /// A workout that just ended (swim, lift, Bikram) IS the movement break —
+    /// credit it so the app doesn't nag right after training.
+    func creditRecentWorkoutIfAny() {
+        guard config.healthLoggingEnabled else { return }
+        HealthCredit.recentWorkoutEnd { [weak self] end in
+            Task { @MainActor in
+                guard let self, let end, end <= Date() else { return }
+                if (self.lastAcknowledgedAt ?? .distantPast) < end {
+                    self.lastAcknowledgedAt = end
+                    self.rescheduleNotifications()
+                }
+            }
+        }
     }
 
     // MARK: Actions
@@ -108,16 +144,19 @@ final class PhoneModel: ObservableObject {
             persistRuntime()
         }
         rescheduleNotifications()
+        syncRuntimeToCloud()
     }
 
     func snooze(minutes: Int) {
         snoozeUntil = Date().addingTimeInterval(TimeInterval(minutes * 60))
         stats.recordSnooze(on: StatsSnapshot.dayKey(calendar: config.scheduleCalendar))
+        syncRuntimeToCloud()
     }
 
     func skipToday() {
         skipRestOfDayDate = Date()
         stats.recordSkip(on: StatsSnapshot.dayKey(calendar: config.scheduleCalendar))
+        syncRuntimeToCloud()
     }
 
     func pause() { isPaused = true }
@@ -132,15 +171,57 @@ final class PhoneModel: ObservableObject {
 
     // MARK: iCloud
 
-    func pushToiCloud() {
+    @discardableResult
+    func pushToiCloud() -> Bool {
         CloudSync.push(config: config, profiles: ProfileStore.load())
     }
 
-    func pullFromiCloud() -> Bool {
-        guard let pulled = CloudSync.pull() else { return false }
-        config = pulled.0
-        ProfileStore.save(pulled.1)
-        return true
+    func pullFromiCloud() -> CloudSync.PullOutcome {
+        let mtime = (try? FileManager.default.attributesOfItem(atPath: Paths.configFile.path))?[.modificationDate] as? Date
+        let outcome = CloudSync.pull(localModifiedAt: mtime)
+        if case let .success(pulledConfig, pulledProfiles, _) = outcome {
+            config = pulledConfig
+            if let pulledProfiles { ProfileStore.save(pulledProfiles) }
+        }
+        return outcome
+    }
+
+    private func syncRuntimeToCloud() {
+        guard config.features.iCloudSyncEnabled else { return }
+        CloudSync.pushRuntime(CloudSync.RuntimeDoc(
+            updatedAt: Date(),
+            deviceName: CloudSync.defaultDeviceName(),
+            lastReminderAt: lastReminderAt,
+            lastAcknowledgedAt: lastAcknowledgedAt,
+            snoozeUntil: snoozeUntil,
+            skipRestOfDayDate: skipRestOfDayDate
+        ))
+    }
+
+    /// Newest-wins per field, forward-in-time only (mirror of the Mac's merge).
+    private func syncRuntimeFromCloud() {
+        guard config.features.iCloudSyncEnabled else { return }
+        if let doc = CloudSync.pullRuntime() {
+            var changed = false
+            if let remote = doc.lastAcknowledgedAt, (lastAcknowledgedAt ?? .distantPast) < remote {
+                lastAcknowledgedAt = remote; changed = true
+            }
+            if let remote = doc.lastReminderAt, (lastReminderAt ?? .distantPast) < remote {
+                lastReminderAt = remote; changed = true
+            }
+            if let remote = doc.snoozeUntil, remote > Date(), (snoozeUntil ?? .distantPast) < remote {
+                snoozeUntil = remote; changed = true
+            }
+            if let remote = doc.skipRestOfDayDate, Calendar.current.isDateInToday(remote), !isSkipTodayActive {
+                skipRestOfDayDate = remote; changed = true
+            }
+            if changed { rescheduleNotifications() }
+        }
+        if stats != lastPushedStats {
+            CloudSync.pushStats(stats, deviceId: CloudSync.deviceId())
+            lastPushedStats = stats
+        }
+        remoteStats = CloudSync.pullRemoteStats(excludingDeviceId: CloudSync.deviceId())
     }
 
     // MARK: Scheduling
@@ -163,7 +244,13 @@ final class PhoneModel: ObservableObject {
     func rescheduleNotifications() {
         guard !suppressReschedule else { return }
         NotificationManager.cancelScheduledQueue()
-        let chain = Scheduler.upcoming(schedulerInput(now: Date()), count: Self.queueDepth)
+        let generation = Int(Date().timeIntervalSince1970)
+        var chain = Scheduler.upcoming(schedulerInput(now: Date()), count: Self.queueDepth)
+        // Honor team quiet windows here too — the Mac gates them at fire
+        // time, but a pre-scheduled iOS banner would sail through them.
+        chain = chain.filter { next in
+            !TeamQuietHours.isInTeamQuiet(config: config.features, at: next.date, calendar: config.scheduleCalendar)
+        }
         var promptIndex = 0
         var phase = deskPhase
         for (index, next) in chain.enumerated() {
@@ -172,11 +259,71 @@ final class PhoneModel: ObservableObject {
                 payload,
                 at: next.date,
                 calendar: config.scheduleCalendar,
-                identifier: "\(NotificationManager.queuedIdPrefix)\(index)"
+                identifier: NotificationManager.queuedIdentifier(generation: generation, slot: "\(index)")
+            )
+        }
+        // With a full queue, exhaustion is possible; make it visible instead
+        // of going silently dark when the last slot fires.
+        if chain.count == Self.queueDepth, let last = chain.last {
+            NotificationManager.schedule(
+                ReminderPayload(
+                    kind: .breakPrompt,
+                    title: "Reminders paused",
+                    body: "Open Stand Up to keep reminders coming — the scheduled queue ran out.",
+                    promptId: Self.sentinelPromptId,
+                    guidedSteps: []
+                ),
+                at: last.date.addingTimeInterval(60),
+                calendar: config.scheduleCalendar,
+                identifier: NotificationManager.queuedIdentifier(generation: generation, slot: "sentinel")
             )
         }
         upcoming = chain
         PhoneWatchBridge.shared.pushStatus()
+        publishWidgetSnapshot()
+        updateLiveActivity()
+    }
+
+    static let sentinelPromptId = "queue-sentinel"
+
+    private func publishWidgetSnapshot() {
+        WidgetSnapshotWriter.write(
+            from: config,
+            nextFireAt: nextFireAt,
+            statusMessage: statusText,
+            stats: stats,
+            deskPhase: config.sitStandModeEnabled ? deskPhase : nil,
+            profileName: "iPhone"
+        )
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+
+    // MARK: Live Activity
+
+    private func updateLiveActivity() {
+        guard config.features.liveActivityEnabled,
+              ActivityAuthorizationInfo().areActivitiesEnabled,
+              let next = upcoming.first, next.date > Date() else {
+            endLiveActivity()
+            return
+        }
+        let state = BreakActivityAttributes.ContentState(nextFireAt: next.date, title: "Next break")
+        let content = ActivityContent(state: state, staleDate: next.date.addingTimeInterval(10 * 60))
+        if let activity = Activity<BreakActivityAttributes>.activities.first {
+            Task { await activity.update(content) }
+        } else {
+            do {
+                _ = try Activity.request(attributes: BreakActivityAttributes(profileName: "iPhone"), content: content)
+            } catch {
+                AppLog.write("Live Activity request failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func endLiveActivity() {
+        for activity in Activity<BreakActivityAttributes>.activities {
+            Task { await activity.end(nil, dismissalPolicy: .immediate) }
+        }
     }
 
     private func payload(for next: Scheduler.Next, promptIndex: inout Int, deskPhase: inout DeskPhase) -> ReminderPayload {
@@ -211,14 +358,25 @@ final class PhoneModel: ObservableObject {
     /// Catch up on reminders that were delivered while the app was not
     /// running, then rebuild the queue from the new anchor.
     func reconcileDelivered() async {
-        let delivered = await UNUserNotificationCenter.current().deliveredNotifications()
-        for note in delivered where note.request.identifier.hasPrefix(NotificationManager.requestIdPrefix) {
-            guard !countedDeliveredIds.contains(note.request.identifier) else { continue }
-            countedDeliveredIds.insert(note.request.identifier)
-            let kind = note.request.content.userInfo["kind"] as? String
+        let center = UNUserNotificationCenter.current()
+        let delivered = await center.deliveredNotifications()
+            .filter { $0.request.identifier.hasPrefix(NotificationManager.requestIdPrefix) }
+            .sorted { $0.date < $1.date }
+        for note in delivered {
+            // Dedup key includes the delivery date: queue identifiers embed a
+            // generation stamp now, but old installs delivered fixed slot ids
+            // whose reuse must not be skipped forever.
+            let key = "\(note.request.identifier)@\(note.date.timeIntervalSince1970)"
+            guard !countedDeliveredIds.contains(key) else { continue }
+            countedDeliveredIds.insert(key)
+            let info = note.request.content.userInfo
+            let kind = info["kind"] as? String
+            let promptId = info["promptId"] as? String
             let date = note.date
-            if lastReminderAt.map({ date > $0 }) ?? true {
-                lastReminderAt = date
+            if promptId != Self.sentinelPromptId {
+                if lastReminderAt.map({ date > $0 }) ?? true {
+                    lastReminderAt = date
+                }
                 stats.recordShown(on: StatsSnapshot.dayKey(date, calendar: config.scheduleCalendar))
             }
             if kind == ReminderKind.lunch.rawValue {
@@ -228,6 +386,14 @@ final class PhoneModel: ObservableObject {
                 windDownFiredDayKey = StatsSnapshot.dayKey(date, calendar: config.scheduleCalendar)
             }
         }
+        // Keep Notification Center to the most recent banner and the dedup
+        // set bounded (it only guards against double-counting in-session).
+        let staleIds = delivered.dropLast().map(\.request.identifier)
+        if !staleIds.isEmpty {
+            center.removeDeliveredNotifications(withIdentifiers: Array(staleIds))
+        }
+        if countedDeliveredIds.count > 512 { countedDeliveredIds.removeAll() }
+        syncRuntimeFromCloud()
         persistRuntime()
         rescheduleNotifications()
     }
@@ -266,8 +432,39 @@ final class PhoneModel: ObservableObject {
     }
 
     func weekStatsText() -> String {
-        let week = stats.weekSummary()
-        return "This week: \(week.done) done · \(week.shown) shown · \(week.snoozed) snoozed · \(week.skipped) skipped"
+        var week = stats.weekSummary()
+        for remote in remoteStats {
+            let r = remote.weekSummary()
+            week = (week.shown + r.shown, week.done + r.done, week.skipped + r.skipped, week.snoozed + r.snoozed)
+        }
+        let suffix = remoteStats.isEmpty ? "" : " (all devices)"
+        return "This week: \(week.done) done · \(week.shown) shown · \(week.snoozed) snoozed · \(week.skipped) skipped\(suffix)"
+    }
+
+    // MARK: Background refresh
+
+    /// The pre-scheduled queue covers ~2 days; without a background refill a
+    /// user who only glances at banners drains it and the app goes silent.
+    func scheduleBackgroundRefresh() {
+        let request = BGAppRefreshTaskRequest(identifier: Self.backgroundRefreshTaskId)
+        request.earliestBeginDate = Date().addingTimeInterval(4 * 3600)
+        do {
+            try BGTaskScheduler.shared.submit(request)
+        } catch {
+            AppLog.write("BG refresh submit failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Authorization can be revoked in Settings at any time; re-read it on
+    /// every foreground instead of trusting the launch-time answer.
+    func refreshAuthorizationStatus() {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            let ok = settings.authorizationStatus == .authorized
+                || settings.authorizationStatus == .provisional
+            Task { @MainActor in
+                if self.notificationsAuthorized != ok { self.notificationsAuthorized = ok }
+            }
+        }
     }
 }
 #endif
