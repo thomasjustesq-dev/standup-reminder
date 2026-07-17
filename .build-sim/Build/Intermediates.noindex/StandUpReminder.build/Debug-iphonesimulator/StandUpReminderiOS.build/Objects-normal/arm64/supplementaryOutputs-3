@@ -1,0 +1,23 @@
+{
+  "/Users/thomasjust/Documents/Claude/standup-reminder/Sources/StandUpReminderCore/JSONCoding.swift" : {
+    "const-values" : "/Users/thomasjust/Documents/Claude/standup-reminder/.build-sim/Build/Intermediates.noindex/StandUpReminder.build/Debug-iphonesimulator/StandUpReminderiOS.build/Objects-normal/arm64/JSONCoding.swiftconstvalues",
+    "dependencies" : "/Users/thomasjust/Documents/Claude/standup-reminder/.build-sim/Build/Intermediates.noindex/StandUpReminder.build/Debug-iphonesimulator/StandUpReminderiOS.build/Objects-normal/arm64/JSONCoding.d",
+    "diagnostics" : "/Users/thomasjust/Documents/Claude/standup-reminder/.build-sim/Build/Intermediates.noindex/StandUpReminder.build/Debug-iphonesimulator/StandUpReminderiOS.build/Objects-normal/arm64/JSONCoding.dia",
+    "object" : "/Users/thomasjust/Documents/Claude/standup-reminder/.build-sim/Build/Intermediates.noindex/StandUpReminder.build/Debug-iphonesimulator/StandUpReminderiOS.build/Objects-normal/arm64/JSONCoding.o",
+    "swift-dependencies" : "/Users/thomasjust/Documents/Claude/standup-reminder/.build-sim/Build/Intermediates.noindex/StandUpReminder.build/Debug-iphonesimulator/StandUpReminderiOS.build/Objects-normal/arm64/JSONCoding.swiftdeps"
+  },
+  "/Users/thomasjust/Documents/Claude/standup-reminder/Sources/StandUpReminderCore/LocationProvider.swift" : {
+    "const-values" : "/Users/thomasjust/Documents/Claude/standup-reminder/.build-sim/Build/Intermediates.noindex/StandUpReminder.build/Debug-iphonesimulator/StandUpReminderiOS.build/Objects-normal/arm64/LocationProvider.swiftconstvalues",
+    "dependencies" : "/Users/thomasjust/Documents/Claude/standup-reminder/.build-sim/Build/Intermediates.noindex/StandUpReminder.build/Debug-iphonesimulator/StandUpReminderiOS.build/Objects-normal/arm64/LocationProvider.d",
+    "diagnostics" : "/Users/thomasjust/Documents/Claude/standup-reminder/.build-sim/Build/Intermediates.noindex/StandUpReminder.build/Debug-iphonesimulator/StandUpReminderiOS.build/Objects-normal/arm64/LocationProvider.dia",
+    "object" : "/Users/thomasjust/Documents/Claude/standup-reminder/.build-sim/Build/Intermediates.noindex/StandUpReminder.build/Debug-iphonesimulator/StandUpReminderiOS.build/Objects-normal/arm64/LocationProvider.o",
+    "swift-dependencies" : "/Users/thomasjust/Documents/Claude/standup-reminder/.build-sim/Build/Intermediates.noindex/StandUpReminder.build/Debug-iphonesimulator/StandUpReminderiOS.build/Objects-normal/arm64/LocationProvider.swiftdeps"
+  },
+  "/Users/thomasjust/Documents/Claude/standup-reminder/Sources/StandUpReminderCore/NotificationManager.swift" : {
+    "const-values" : "/Users/thomasjust/Documents/Claude/standup-reminder/.build-sim/Build/Intermediates.noindex/StandUpReminder.build/Debug-iphonesimulator/StandUpReminderiOS.build/Objects-normal/arm64/NotificationManager.swiftconstvalues",
+    "dependencies" : "/Users/thomasjust/Documents/Claude/standup-reminder/.build-sim/Build/Intermediates.noindex/StandUpReminder.build/Debug-iphonesimulator/StandUpReminderiOS.build/Objects-normal/arm64/NotificationManager.d",
+    "diagnostics" : "/Users/thomasjust/Documents/Claude/standup-reminder/.build-sim/Build/Intermediates.noindex/StandUpReminder.build/Debug-iphonesimulator/StandUpReminderiOS.build/Objects-normal/arm64/NotificationManager.dia",
+    "object" : "/Users/thomasjust/Documents/Claude/standup-reminder/.build-sim/Build/Intermediates.noindex/StandUpReminder.build/Debug-iphonesimulator/StandUpReminderiOS.build/Objects-normal/arm64/NotificationManager.o",
+    "swift-dependencies" : "/Users/thomasjust/Documents/Claude/standup-reminder/.build-sim/Build/Intermediates.noindex/StandUpReminder.build/Debug-iphonesimulator/StandUpReminderiOS.build/Objects-normal/arm64/NotificationManager.swiftdeps"
+  }
+}
