@@ -59,8 +59,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
 
             NSApp.setActivationPolicy(.accessory)
-            AppState.shared.start()
 
+            // Observers must exist before start() — it posts the onboarding
+            // and sample-day notifications synchronously on first launch.
             observe(.openGuidedBreakWindow) { [weak self] in
                 self?.present(id: "guided-break", title: "Guided Break") {
                     GuidedBreakView().environmentObject(AppState.shared)
@@ -76,6 +77,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     OnboardingView().environmentObject(AppState.shared)
                 }
             }
+
+            AppState.shared.start()
         }
     }
 
@@ -90,7 +93,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// The menu-style MenuBarExtra only mounts its view while the menu is
     /// open, so SwiftUI's openWindow may have no caller when a notification
     /// action or launch path needs a window. Front the SwiftUI-scene window
-    /// if one exists; otherwise host the same view in an AppKit window.
+    /// if one exists; otherwise host the same view in an AppKit window. This
+    /// is the single presentation choke point — everything (menu items,
+    /// notification actions, launch) opens windows by posting the
+    /// notifications above, so the dedup here always applies.
     @MainActor
     private func present<Content: View>(id: String, title: String, @ViewBuilder content: () -> Content) {
         NSApp.activate(ignoringOtherApps: true)
@@ -102,8 +108,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             existing.makeKeyAndOrderFront(nil)
             return
         }
-        let controller = NSHostingController(rootView: content())
+        // SwiftUI's DismissAction is inert inside a plain hosted NSWindow;
+        // hand the views a working close path through the environment.
+        let box = FallbackWindowBox()
+        let root = content().environment(\.fallbackWindowClose) { [weak box] in
+            box?.window?.close()
+        }
+        let controller = NSHostingController(rootView: root)
         let window = NSWindow(contentViewController: controller)
+        box.window = window
         window.title = title
         window.identifier = NSUserInterfaceItemIdentifier("fallback-\(id)")
         window.styleMask = [.titled, .closable, .miniaturizable]
@@ -115,6 +128,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
+    }
+}
+
+@MainActor
+private final class FallbackWindowBox {
+    weak var window: NSWindow?
+}
+
+/// Close action for views hosted in an AppDelegate fallback window, where
+/// SwiftUI's DismissAction has no window scene to act on. Views call
+/// `fallbackWindowClose?() ?? dismiss()`.
+private struct FallbackWindowCloseKey: EnvironmentKey {
+    static let defaultValue: (@MainActor () -> Void)? = nil
+}
+
+extension EnvironmentValues {
+    var fallbackWindowClose: (@MainActor () -> Void)? {
+        get { self[FallbackWindowCloseKey.self] }
+        set { self[FallbackWindowCloseKey.self] = newValue }
     }
 }
 

@@ -195,13 +195,16 @@ struct StandUpReminderWidget: Widget {
 struct BreakLiveActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: BreakActivityAttributes.self) { context in
+            // One clock read per builder: a second Date() past nextFireAt
+            // would build an invalid range and crash.
+            let now = Date()
             HStack {
                 Image(systemName: "figure.stand")
                 VStack(alignment: .leading) {
                     Text(context.state.title)
                         .font(.headline)
-                    if context.state.nextFireAt > Date() {
-                        Text(timerInterval: Date()...context.state.nextFireAt, countsDown: true)
+                    if context.state.nextFireAt > now {
+                        Text(timerInterval: now...context.state.nextFireAt, countsDown: true)
                             .font(.title2.weight(.semibold))
                             .monospacedDigit()
                     } else {
@@ -223,8 +226,9 @@ struct BreakLiveActivityWidget: Widget {
                         .font(.headline)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    if context.state.nextFireAt > Date() {
-                        Text(timerInterval: Date()...context.state.nextFireAt, countsDown: true)
+                    let now = Date()
+                    if context.state.nextFireAt > now {
+                        Text(timerInterval: now...context.state.nextFireAt, countsDown: true)
                             .monospacedDigit()
                             .frame(maxWidth: 60)
                     }
@@ -232,8 +236,9 @@ struct BreakLiveActivityWidget: Widget {
             } compactLeading: {
                 Image(systemName: "figure.stand")
             } compactTrailing: {
-                if context.state.nextFireAt > Date() {
-                    Text(timerInterval: Date()...context.state.nextFireAt, countsDown: true)
+                let now = Date()
+                if context.state.nextFireAt > now {
+                    Text(timerInterval: now...context.state.nextFireAt, countsDown: true)
                         .monospacedDigit()
                         .frame(maxWidth: 44)
                 }

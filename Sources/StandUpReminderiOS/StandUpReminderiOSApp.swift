@@ -13,14 +13,16 @@ struct StandUpReminderiOSApp: App {
             forTaskWithIdentifier: PhoneModel.backgroundRefreshTaskId,
             using: nil
         ) { task in
+            // Exactly one completion point: the work task always completes
+            // the BGTask; expiration only cancels (a second setTaskCompleted
+            // from the expiration handler could race the success path).
             let work = Task { @MainActor in
                 PhoneModel.shared.scheduleBackgroundRefresh()
                 await PhoneModel.shared.reconcileDelivered()
-                if !Task.isCancelled { task.setTaskCompleted(success: true) }
+                task.setTaskCompleted(success: !Task.isCancelled)
             }
             task.expirationHandler = {
                 work.cancel()
-                task.setTaskCompleted(success: false)
             }
         }
         PhoneModel.shared.start()
@@ -34,10 +36,12 @@ struct StandUpReminderiOSApp: App {
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active:
+                PhoneModel.shared.isForeground = true
                 PhoneModel.shared.refreshAuthorizationStatus()
                 PhoneModel.shared.creditRecentWorkoutIfAny()
                 Task { await PhoneModel.shared.reconcileDelivered() }
             case .background:
+                PhoneModel.shared.isForeground = false
                 PhoneModel.shared.scheduleBackgroundRefresh()
             default:
                 break

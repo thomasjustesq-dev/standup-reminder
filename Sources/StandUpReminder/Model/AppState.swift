@@ -74,6 +74,11 @@ final class AppState: ObservableObject {
     private var lastRuntimeSyncAt: Date?
     private var lastPushedStats: StatsSnapshot?
     private var remoteStats: [StatsSnapshot] = []
+    /// Stamp of this device's most recent runtime mutation (including its own
+    /// pushes). A pulled doc must be strictly newer to apply — otherwise the
+    /// device's own pushed snooze resurrects right after the user cancels it.
+    private var lastRuntimeMutationAt: Date?
+    private var pendingMeetingCatchUpSetAt: Date?
 
     var activeProfileName: String {
         ProfileStore.activeProfile(in: profiles).name
@@ -171,6 +176,7 @@ final class AppState: ObservableObject {
         deskPhase = runtime.deskPhase
         deskPhaseStartedAt = runtime.deskPhaseStartedAt
         pendingMeetingCatchUp = runtime.pendingMeetingCatchUp
+        pendingMeetingCatchUpSetAt = runtime.pendingMeetingCatchUpSetAt
         lastMeetingState = runtime.lastMeetingState
         windDownFiredDayKey = runtime.windDownFiredDayKey
         lunchFiredDayKey = runtime.lunchFiredDayKey
@@ -218,6 +224,7 @@ final class AppState: ObservableObject {
             deskPhase: deskPhase,
             deskPhaseStartedAt: deskPhaseStartedAt,
             pendingMeetingCatchUp: pendingMeetingCatchUp,
+            pendingMeetingCatchUpSetAt: pendingMeetingCatchUpSetAt,
             lastMeetingState: lastMeetingState,
             windDownFiredDayKey: windDownFiredDayKey,
             lunchFiredDayKey: lunchFiredDayKey,
@@ -362,7 +369,11 @@ final class AppState: ObservableObject {
 
     @discardableResult
     func pullFromiCloud() -> CloudSync.PullOutcome {
-        let outcome = CloudSync.pull(localModifiedAt: Self.fileMTime(Paths.configFile))
+        // A fresh install's auto-created defaults file is not user state; a
+        // staleness check against its mtime would forbid ever pulling real
+        // settings down to a new device.
+        let localStamp = config.hasCompletedOnboarding ? Self.fileMTime(Paths.configFile) : nil
+        let outcome = CloudSync.pull(localModifiedAt: localStamp)
         if case let .success(pulledConfig, pulledProfiles, _) = outcome {
             config = pulledConfig
             if let pulledProfiles { profiles = pulledProfiles }
@@ -409,8 +420,11 @@ final class AppState: ObservableObject {
     }
 
     /// Newest-wins per field, and only ever forward in time — a stale doc
-    /// can extend nothing and clear nothing.
+    /// can extend nothing and clear nothing. Docs not newer than this
+    /// device's last mutation are ignored entirely (that includes the
+    /// device's own last push).
     private func applyCloudRuntime(_ doc: CloudSync.RuntimeDoc) {
+        if let local = lastRuntimeMutationAt, doc.updatedAt <= local { return }
         var changed = false
         if let remote = doc.lastAcknowledgedAt, (lastAcknowledgedAt ?? .distantPast) < remote {
             lastAcknowledgedAt = remote; changed = true
@@ -431,9 +445,11 @@ final class AppState: ObservableObject {
     }
 
     private func syncRuntimeToCloud() {
+        let stamp = Date()
+        lastRuntimeMutationAt = stamp
         guard config.features.iCloudSyncEnabled else { return }
         CloudSync.pushRuntime(CloudSync.RuntimeDoc(
-            updatedAt: Date(),
+            updatedAt: stamp,
             deviceName: CloudSync.defaultDeviceName(),
             lastReminderAt: lastReminderAt,
             lastAcknowledgedAt: lastAcknowledgedAt,
@@ -507,6 +523,7 @@ final class AppState: ObservableObject {
         isPaused = true
         statusMessage = "Paused"
         refreshNextFire()
+        syncRuntimeToCloud()
     }
 
     func resume() {
@@ -514,6 +531,9 @@ final class AppState: ObservableObject {
         snoozeUntil = nil
         statusMessage = "Resumed"
         refreshNextFire()
+        // Pushing the cleared snooze (and stamping the mutation) is what
+        // stops the device's own earlier snooze doc from resurrecting it.
+        syncRuntimeToCloud()
     }
 
     func snooze(minutes: Int) {
@@ -602,11 +622,20 @@ final class AppState: ObservableObject {
         publishWidget()
 
         if pendingMeetingCatchUp && config.meetingCatchUpEnabled && !CalendarMonitor.isInMeeting() {
-            // Only clear the flag once the reminder can actually land — a
-            // locked screen, sleeping display, or empty desk defers the
-            // catch-up to the next tick instead of chiming into the void.
-            if environmentAllowsInterruption() {
+            // A catch-up that couldn't land for a couple of intervals is
+            // stale (locked screen into the evening → don't fire yesterday's
+            // catch-up tomorrow morning).
+            let maxAge = max(TimeInterval(effectiveIntervalMinutes * 60) * 2, 30 * 60)
+            if let setAt = pendingMeetingCatchUpSetAt, Date().timeIntervalSince(setAt) > maxAge {
                 pendingMeetingCatchUp = false
+                pendingMeetingCatchUpSetAt = nil
+                persistRuntime()
+            } else if environmentAllowsInterruption() {
+                // Only clear the flag once the reminder can actually land — a
+                // locked screen, sleeping display, or empty desk defers the
+                // catch-up to the next tick instead of chiming into the void.
+                pendingMeetingCatchUp = false
+                pendingMeetingCatchUpSetAt = nil
                 persistRuntime()
                 fire(mode: .meetingCatchUp, gate: .environment)
                 return
@@ -615,9 +644,13 @@ final class AppState: ObservableObject {
 
         if let last = lastReminderAt, Date().timeIntervalSince(last) < 90 { return }
 
+        // Only claim the tick when the fire can actually pass its gates —
+        // returning after a declined fire would starve the scheduled
+        // wind-down below until its grace window expired for the day.
         if config.features.webcamStillnessEnabled,
            WebcamStillnessMonitor.shared.isStillTooLong,
-           lastReminderAt.map({ Date().timeIntervalSince($0) >= 10 * 60 }) ?? true {
+           lastReminderAt.map({ Date().timeIntervalSince($0) >= 10 * 60 }) ?? true,
+           shouldFireNow(force: false) {
             fire(mode: .breakPrompt, gate: .full)
             return
         }
@@ -629,9 +662,11 @@ final class AppState: ObservableObject {
 
         // A cadence break or desk-phase flip landing right after a lunch,
         // wind-down, or catch-up would double-notify; defer the collision
-        // loser instead of firing it 90 seconds later.
+        // loser instead of firing it 90 seconds later. Capped at the
+        // effective interval so a deliberately short cadence isn't clamped.
+        let collisionDefer = min(10 * 60, TimeInterval(max(1, effectiveIntervalMinutes) * 60))
         if next.kind == .breakPrompt || next.kind == .sitStand,
-           let last = lastReminderAt, Date().timeIntervalSince(last) < 10 * 60 {
+           let last = lastReminderAt, Date().timeIntervalSince(last) < collisionDefer {
             return
         }
 
@@ -705,6 +740,7 @@ final class AppState: ObservableObject {
                 lastAcknowledgedAt = Date()
                 statusMessage = "Away \(Int(lastObservedIdleSeconds / 60))m — break credited"
                 refreshNextFire()
+                syncRuntimeToCloud()
             }
             if activeSince == nil { activeSince = Date().addingTimeInterval(-idle) }
             if config.features.learnedScheduleEnabled {
@@ -726,6 +762,7 @@ final class AppState: ObservableObject {
 
     private func updateMeetingCatchUpFlag() {
         let inMeeting = CalendarMonitor.isInMeeting()
+        let wasPending = pendingMeetingCatchUp
         if lastMeetingState && !inMeeting && config.meetingCatchUpEnabled {
             if let last = lastReminderAt {
                 if Date().timeIntervalSince(last) >= TimeInterval(effectiveIntervalMinutes * 60) {
@@ -741,6 +778,9 @@ final class AppState: ObservableObject {
            next.kind == .breakPrompt || next.kind == .sitStand,
            Date() >= next.date {
             pendingMeetingCatchUp = true
+        }
+        if pendingMeetingCatchUp && !wasPending {
+            pendingMeetingCatchUpSetAt = Date()
         }
         lastMeetingState = inMeeting
     }

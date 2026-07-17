@@ -50,6 +50,13 @@ final class PhoneModel: ObservableObject {
     private var countedDeliveredIds = Set<String>()
     private var lastPushedStats: StatsSnapshot?
     private var remoteStats: [StatsSnapshot] = []
+    /// Stamp of this device's most recent runtime mutation (its own pushes
+    /// included) — a pulled doc must be strictly newer to apply, or the
+    /// phone's own pushed snooze resurrects right after the user resumes.
+    private var lastRuntimeMutationAt: Date?
+    /// Live Activities may only be *started* in the foreground; tracked from
+    /// scenePhase so background reschedules only update/end.
+    var isForeground = false
 
     struct GuidedSheetPayload: Identifiable {
         let id = UUID()
@@ -128,6 +135,7 @@ final class PhoneModel: ObservableObject {
                 if (self.lastAcknowledgedAt ?? .distantPast) < end {
                     self.lastAcknowledgedAt = end
                     self.rescheduleNotifications()
+                    self.syncRuntimeToCloud()
                 }
             }
         }
@@ -159,7 +167,10 @@ final class PhoneModel: ObservableObject {
         syncRuntimeToCloud()
     }
 
-    func pause() { isPaused = true }
+    func pause() {
+        isPaused = true
+        syncRuntimeToCloud()
+    }
 
     func resume() {
         suppressReschedule = true
@@ -167,6 +178,9 @@ final class PhoneModel: ObservableObject {
         snoozeUntil = nil
         suppressReschedule = false
         rescheduleNotifications()
+        // Pushing the cleared snooze (and stamping the mutation) stops this
+        // device's own earlier snooze doc from resurrecting it.
+        syncRuntimeToCloud()
     }
 
     // MARK: iCloud
@@ -177,7 +191,10 @@ final class PhoneModel: ObservableObject {
     }
 
     func pullFromiCloud() -> CloudSync.PullOutcome {
-        let mtime = (try? FileManager.default.attributesOfItem(atPath: Paths.configFile.path))?[.modificationDate] as? Date
+        // Fresh install: the auto-created defaults file is not user state.
+        let mtime = config.hasCompletedOnboarding
+            ? (try? FileManager.default.attributesOfItem(atPath: Paths.configFile.path))?[.modificationDate] as? Date
+            : nil
         let outcome = CloudSync.pull(localModifiedAt: mtime)
         if case let .success(pulledConfig, pulledProfiles, _) = outcome {
             config = pulledConfig
@@ -187,9 +204,11 @@ final class PhoneModel: ObservableObject {
     }
 
     private func syncRuntimeToCloud() {
+        let stamp = Date()
+        lastRuntimeMutationAt = stamp
         guard config.features.iCloudSyncEnabled else { return }
         CloudSync.pushRuntime(CloudSync.RuntimeDoc(
-            updatedAt: Date(),
+            updatedAt: stamp,
             deviceName: CloudSync.defaultDeviceName(),
             lastReminderAt: lastReminderAt,
             lastAcknowledgedAt: lastAcknowledgedAt,
@@ -198,10 +217,12 @@ final class PhoneModel: ObservableObject {
         ))
     }
 
-    /// Newest-wins per field, forward-in-time only (mirror of the Mac's merge).
+    /// Newest-wins per field, forward-in-time only (mirror of the Mac's
+    /// merge); docs not newer than this device's last mutation are ignored.
     private func syncRuntimeFromCloud() {
         guard config.features.iCloudSyncEnabled else { return }
-        if let doc = CloudSync.pullRuntime() {
+        if let doc = CloudSync.pullRuntime(),
+           doc.updatedAt > (lastRuntimeMutationAt ?? .distantPast) {
             var changed = false
             if let remote = doc.lastAcknowledgedAt, (lastAcknowledgedAt ?? .distantPast) < remote {
                 lastAcknowledgedAt = remote; changed = true
@@ -245,10 +266,14 @@ final class PhoneModel: ObservableObject {
         guard !suppressReschedule else { return }
         NotificationManager.cancelScheduledQueue()
         let generation = Int(Date().timeIntervalSince1970)
-        var chain = Scheduler.upcoming(schedulerInput(now: Date()), count: Self.queueDepth)
+        let generated = Scheduler.upcoming(schedulerInput(now: Date()), count: Self.queueDepth)
+        // Exhaustion is judged on the pre-filter count: a quiet-window filter
+        // below can shrink a full queue, and a shrunken-but-full queue drains
+        // exactly the same way.
+        let queueWasFull = generated.count == Self.queueDepth
         // Honor team quiet windows here too — the Mac gates them at fire
         // time, but a pre-scheduled iOS banner would sail through them.
-        chain = chain.filter { next in
+        let chain = generated.filter { next in
             !TeamQuietHours.isInTeamQuiet(config: config.features, at: next.date, calendar: config.scheduleCalendar)
         }
         var promptIndex = 0
@@ -264,7 +289,7 @@ final class PhoneModel: ObservableObject {
         }
         // With a full queue, exhaustion is possible; make it visible instead
         // of going silently dark when the last slot fires.
-        if chain.count == Self.queueDepth, let last = chain.last {
+        if queueWasFull, let last = chain.last {
             NotificationManager.schedule(
                 ReminderPayload(
                     kind: .breakPrompt,
@@ -311,7 +336,10 @@ final class PhoneModel: ObservableObject {
         let content = ActivityContent(state: state, staleDate: next.date.addingTimeInterval(10 * 60))
         if let activity = Activity<BreakActivityAttributes>.activities.first {
             Task { await activity.update(content) }
-        } else {
+        } else if isForeground {
+            // ActivityKit only allows *starting* an activity in the
+            // foreground; background reschedules (notification actions, BG
+            // refresh) wait for the next foreground pass.
             do {
                 _ = try Activity.request(attributes: BreakActivityAttributes(profileName: "iPhone"), content: content)
             } catch {

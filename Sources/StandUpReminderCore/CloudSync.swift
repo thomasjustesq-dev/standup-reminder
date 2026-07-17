@@ -33,6 +33,8 @@ enum CloudSync {
         case unavailable
         /// Container reachable but nothing has been pushed yet.
         case empty
+        /// Pushed data exists but iCloud hasn't materialized it locally yet.
+        case downloading
         /// A present file failed to read/decode — nothing applied.
         case corrupt(String)
         /// Remote is older than the local save — nothing applied (push instead).
@@ -43,8 +45,9 @@ enum CloudSync {
             case .success: return "Pulled from iCloud"
             case .unavailable: return "iCloud unavailable — check iCloud Drive"
             case .empty: return "Nothing in iCloud yet — push from a synced device first"
+            case .downloading: return "iCloud copy is still downloading — try again in a moment"
             case .corrupt(let detail): return "iCloud copy unreadable (\(detail)) — nothing changed"
-            case .staleRemote: return "iCloud copy is older than this device — push instead"
+            case .staleRemote: return "Local settings are newer than the iCloud copy — push instead"
             }
         }
     }
@@ -70,9 +73,11 @@ enum CloudSync {
         return true
     }
 
-    /// `localModifiedAt` is the local config file's last save; a remote stamp
-    /// at or before it is refused so a pull can never clobber newer local
-    /// state. Pass nil to accept any remote (fresh install).
+    /// `localModifiedAt` is the timestamp of the last *user* save; a remote
+    /// stamp at or before it is refused so a pull can never clobber newer
+    /// local state. Pass nil to accept any remote — callers must pass nil on
+    /// a fresh install (the auto-created defaults file does not count as
+    /// user state, or a new device could never pull its settings down).
     static func pull(localModifiedAt: Date?) -> PullOutcome {
         guard let folder = containerURL else { return .unavailable }
         let configURL = folder.appendingPathComponent("config.json")
@@ -80,11 +85,18 @@ enum CloudSync {
         startDownloadIfNeeded(configURL)
         startDownloadIfNeeded(profilesURL)
 
-        guard FileManager.default.fileExists(atPath: configURL.path) else { return .empty }
-        guard let configData = try? Data(contentsOf: configURL) else {
-            return .corrupt("config.json not downloaded or unreadable")
+        guard FileManager.default.fileExists(atPath: configURL.path) else {
+            // An evicted iCloud file exists only as its ".name.icloud"
+            // placeholder — that is pushed data mid-download, not "empty".
+            return isUndownloadedPlaceholder(configURL) ? .downloading : .empty
         }
-        guard let (config, remoteStamp) = decodeStamped(AppConfig.self, from: configData, fileURL: configURL) else {
+        guard let configData = try? Data(contentsOf: configURL) else {
+            return .corrupt("config.json unreadable")
+        }
+        guard let (config, remoteStamp) = decodeStamped(
+            AppConfig.self, from: configData, fileURL: configURL,
+            bareMarkerKeys: ["enabled", "intervalMinutes", "features"]
+        ) else {
             return .corrupt("config.json failed to decode")
         }
         if let local = localModifiedAt, remoteStamp <= local {
@@ -95,29 +107,50 @@ enum CloudSync {
         var profiles: ProfileDocument?
         if FileManager.default.fileExists(atPath: profilesURL.path) {
             guard let profilesData = try? Data(contentsOf: profilesURL),
-                  let (doc, _) = decodeStamped(ProfileDocument.self, from: profilesData, fileURL: profilesURL),
+                  let (doc, _) = decodeStamped(
+                    ProfileDocument.self, from: profilesData, fileURL: profilesURL,
+                    bareMarkerKeys: ["profiles", "activeProfileId"]
+                  ),
                   !doc.profiles.isEmpty else {
                 // A present-but-broken profiles file must fail the pull rather
                 // than silently substituting factory defaults for every profile.
                 return .corrupt("profiles.json failed to decode")
             }
             profiles = doc
+        } else if isUndownloadedPlaceholder(profilesURL) {
+            // Don't half-apply a pull while profiles are still materializing.
+            return .downloading
         }
         AppLog.write("iCloud sync pull OK (remote stamp \(remoteStamp))")
         return .success(config: config.validated(), profiles: profiles, remoteUpdatedAt: remoteStamp)
     }
 
-    private static func decodeStamped<T: Codable>(_ type: T.Type, from data: Data, fileURL: URL) -> (T, Date)? {
+    /// Decode an envelope, or a v4.1 bare payload stamped with file mtime.
+    /// The fallback is gated two ways: bytes that *look* like an envelope
+    /// (payload + updatedAt keys) but fail envelope decode are corrupt, and a
+    /// bare decode only counts when a marker key of the real payload type is
+    /// present — AppConfig decodes "successfully" from any JSON object (every
+    /// field is optional), which would silently turn garbage into factory
+    /// defaults and defeat the whole no-wipe contract.
+    private static func decodeStamped<T: Codable>(
+        _ type: T.Type, from data: Data, fileURL: URL, bareMarkerKeys: [String]
+    ) -> (T, Date)? {
         let decoder = JSONCoding.decoder()
-        if let envelope = try? decoder.decode(CloudEnvelope<T>.self, from: data) {
+        guard let topLevel = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return nil }
+        if topLevel["payload"] != nil, topLevel["updatedAt"] != nil {
+            guard let envelope = try? decoder.decode(CloudEnvelope<T>.self, from: data) else { return nil }
             return (envelope.payload, envelope.updatedAt)
         }
-        // v4.1 bare payload — stamp with the file's modification date.
-        if let payload = try? decoder.decode(T.self, from: data) {
-            let mtime = (try? FileManager.default.attributesOfItem(atPath: fileURL.path))?[.modificationDate] as? Date
-            return (payload, mtime ?? .distantPast)
-        }
-        return nil
+        guard bareMarkerKeys.contains(where: { topLevel[$0] != nil }),
+              let payload = try? decoder.decode(T.self, from: data) else { return nil }
+        let mtime = (try? FileManager.default.attributesOfItem(atPath: fileURL.path))?[.modificationDate] as? Date
+        return (payload, mtime ?? .distantPast)
+    }
+
+    private static func isUndownloadedPlaceholder(_ url: URL) -> Bool {
+        let placeholder = url.deletingLastPathComponent()
+            .appendingPathComponent("." + url.lastPathComponent + ".icloud")
+        return FileManager.default.fileExists(atPath: placeholder.path)
     }
 
     /// iCloud files can be evicted placeholders; request the download so a

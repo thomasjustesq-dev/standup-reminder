@@ -116,9 +116,11 @@ struct WatchRootView: View {
             VStack(spacing: 10) {
                 Text(model.lastTitle).font(.headline)
                 // A live timer interval, not a static minute count that froze
-                // at whatever the phone last pushed.
-                if let nextFire = model.nextFireAt, nextFire > Date() {
-                    Text(timerInterval: Date()...nextFire, countsDown: true)
+                // at whatever the phone last pushed. One clock read: a second
+                // Date() past nextFire would build an invalid range and crash.
+                let now = Date()
+                if let nextFire = model.nextFireAt, nextFire > now {
+                    Text(timerInterval: now...nextFire, countsDown: true)
                         .font(.largeTitle.monospacedDigit())
                         .multilineTextAlignment(.center)
                 }

@@ -3,6 +3,12 @@ import SwiftUI
 struct OnboardingView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.fallbackWindowClose) private var fallbackWindowClose
+
+    /// DismissAction is inert inside an AppDelegate fallback window.
+    private func closeWindow() {
+        if let fallbackWindowClose { fallbackWindowClose() } else { dismiss() }
+    }
 
     @State private var enableCalendar = true
     @State private var enableFocus = true
@@ -40,7 +46,7 @@ struct OnboardingView: View {
                 Button("Not now") {
                     appState.config.hasCompletedOnboarding = true
                     appState.showOnboarding = false
-                    dismiss()
+                    closeWindow()
                 }
                 Button("Enable & start") {
                     var c = appState.config
@@ -52,7 +58,7 @@ struct OnboardingView: View {
                         enableFocus: enableFocus,
                         enableHealth: enableHealth
                     )
-                    dismiss()
+                    closeWindow()
                     if appState.config.features.showSampleDayTour {
                         appState.showSampleDayTour = true
                         NotificationCenter.default.post(name: .openSampleDayTour, object: nil)
