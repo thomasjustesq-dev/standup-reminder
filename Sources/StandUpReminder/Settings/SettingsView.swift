@@ -151,7 +151,7 @@ private struct ScheduleSettingsTab: View {
                 Text("Effective now: \(appState.effectiveIntervalMinutes)m")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Toggle("Weekdays preference", isOn: boolBinding(\.weekdaysOnly))
+                Toggle("Skip weekends (overrides Sat/Sun hours)", isOn: boolBinding(\.weekdaysOnly))
             }
             Section("Time zone") {
                 TextField("Olson ID (empty = automatic)", text: Binding(
@@ -183,8 +183,15 @@ private struct ScheduleSettingsTab: View {
                             get: { appState.config.scheduleByWeekday[key] != nil },
                             set: { enabled in
                                 var c = appState.config
-                                if enabled { c.scheduleByWeekday[key] = c.scheduleByWeekday[key] ?? .standard }
-                                else { c.scheduleByWeekday[key] = nil }
+                                if enabled {
+                                    c.scheduleByWeekday[key] = c.scheduleByWeekday[key] ?? .standard
+                                    // Turning on a weekend day must actually take
+                                    // effect — the skip-weekends preference would
+                                    // silently discard it otherwise.
+                                    if key == "6" || key == "7" { c.weekdaysOnly = false }
+                                } else {
+                                    c.scheduleByWeekday[key] = nil
+                                }
                                 appState.config = c
                                 appState.refreshNextFire()
                             }

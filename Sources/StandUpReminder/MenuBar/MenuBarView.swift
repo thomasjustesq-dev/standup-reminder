@@ -18,6 +18,11 @@ struct MenuBarView: View {
         VStack(alignment: .leading, spacing: 0) {
             Text(appState.statusMessage)
                 .font(.headline)
+            if appState.notificationsAuthorized == false {
+                Text("⚠ Notifications are off — reminders can't appear")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
             Text("Profile: \(appState.activeProfileName)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -89,6 +94,13 @@ struct MenuBarView: View {
         Button("Test end-of-day") { appState.testWindDown() }
 
         Divider()
+
+        if appState.notificationsAuthorized == false {
+            Button("Enable notifications…") {
+                let target = "x-apple.systempreferences:com.apple.preference.notifications"
+                if let url = URL(string: target) { NSWorkspace.shared.open(url) }
+            }
+        }
 
         Button("Settings…") { openSettings() }
             .keyboardShortcut(",", modifiers: .command)

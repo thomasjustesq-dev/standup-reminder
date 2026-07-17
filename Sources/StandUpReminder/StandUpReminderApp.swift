@@ -47,8 +47,8 @@ struct StandUpReminderApp: App {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private var guidedObserver: Any?
-    private var tourObserver: Any?
+    private var observers: [Any] = []
+    private var fallbackWindows: [String: NSWindow] = [:]
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Task { @MainActor in
@@ -61,30 +61,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.setActivationPolicy(.accessory)
             AppState.shared.start()
 
-            guidedObserver = NotificationCenter.default.addObserver(
-                forName: .openGuidedBreakWindow,
-                object: nil,
-                queue: .main
-            ) { _ in
-                NSApp.activate(ignoringOtherApps: true)
-                for window in NSApp.windows where window.identifier?.rawValue == "guided-break" {
-                    window.makeKeyAndOrderFront(nil)
-                    return
+            observe(.openGuidedBreakWindow) { [weak self] in
+                self?.present(id: "guided-break", title: "Guided Break") {
+                    GuidedBreakView().environmentObject(AppState.shared)
                 }
             }
-
-            tourObserver = NotificationCenter.default.addObserver(
-                forName: .openSampleDayTour,
-                object: nil,
-                queue: .main
-            ) { _ in
-                NSApp.activate(ignoringOtherApps: true)
-                for window in NSApp.windows where window.identifier?.rawValue == "sample-day" {
-                    window.makeKeyAndOrderFront(nil)
-                    return
+            observe(.openSampleDayTour) { [weak self] in
+                self?.present(id: "sample-day", title: "Sample Day") {
+                    SampleDayTourView().environmentObject(AppState.shared)
+                }
+            }
+            observe(.openOnboardingWindow) { [weak self] in
+                self?.present(id: "onboarding", title: "Welcome") {
+                    OnboardingView().environmentObject(AppState.shared)
                 }
             }
         }
+    }
+
+    private func observe(_ name: Notification.Name, handler: @escaping @MainActor () -> Void) {
+        observers.append(NotificationCenter.default.addObserver(
+            forName: name, object: nil, queue: .main
+        ) { _ in
+            Task { @MainActor in handler() }
+        })
+    }
+
+    /// The menu-style MenuBarExtra only mounts its view while the menu is
+    /// open, so SwiftUI's openWindow may have no caller when a notification
+    /// action or launch path needs a window. Front the SwiftUI-scene window
+    /// if one exists; otherwise host the same view in an AppKit window.
+    @MainActor
+    private func present<Content: View>(id: String, title: String, @ViewBuilder content: () -> Content) {
+        NSApp.activate(ignoringOtherApps: true)
+        for window in NSApp.windows where window.identifier?.rawValue == id {
+            window.makeKeyAndOrderFront(nil)
+            return
+        }
+        if let existing = fallbackWindows[id] {
+            existing.makeKeyAndOrderFront(nil)
+            return
+        }
+        let controller = NSHostingController(rootView: content())
+        let window = NSWindow(contentViewController: controller)
+        window.title = title
+        window.identifier = NSUserInterfaceItemIdentifier("fallback-\(id)")
+        window.styleMask = [.titled, .closable, .miniaturizable]
+        window.isReleasedWhenClosed = false
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+        fallbackWindows[id] = window
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -95,7 +121,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 extension Notification.Name {
     static let openGuidedBreakWindow = Notification.Name("openGuidedBreakWindow")
     static let openSampleDayTour = Notification.Name("openSampleDayTour")
+    static let openOnboardingWindow = Notification.Name("openOnboardingWindow")
     /// Posted via DistributedNotificationCenter by the CLI process after it
     /// mutates state on disk, so the running app picks it up immediately.
     static let standUpExternalStateChanged = Notification.Name("com.user.StandUpReminder.externalStateChanged")
+    /// Posted via DistributedNotificationCenter by the CLI process to run a
+    /// command (e.g. a test reminder) inside the running app, where windows
+    /// and notification actions actually live.
+    static let standUpRemoteCommand = Notification.Name("com.user.StandUpReminder.remoteCommand")
 }

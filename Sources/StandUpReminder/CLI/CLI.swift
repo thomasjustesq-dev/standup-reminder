@@ -102,30 +102,30 @@ enum CLI {
                 exit(1)
             }
             return true
-        case "test":
-            state.testStandUp()
+        case "test", "test-lunch", "test-wind-down", "test-guided":
+            // Run inside the running menu bar app — a banner posted from this
+            // short-lived CLI process would have dead action buttons, and a
+            // guided-break window would vanish with the process.
+            DistributedNotificationCenter.default().postNotificationName(
+                .standUpRemoteCommand,
+                object: command,
+                userInfo: nil,
+                deliverImmediately: true
+            )
             try? await Task.sleep(nanoseconds: 500_000_000)
-            print("Test stand-up sent.")
-            return true
-        case "test-lunch":
-            state.testLunch()
-            try? await Task.sleep(nanoseconds: 500_000_000)
-            print("Test lunch sent.")
-            return true
-        case "test-wind-down":
-            state.testWindDown()
-            try? await Task.sleep(nanoseconds: 500_000_000)
-            print("Test wind-down sent.")
-            return true
-        case "test-guided":
-            state.testGuided()
-            try? await Task.sleep(nanoseconds: 500_000_000)
-            print("Guided break opened.")
+            print("Sent \(command) to the running app (start the menu bar app if nothing appeared).")
             return true
         case "icloud-push":
-            state.pushToiCloud(); print("Pushed."); return true
+            let ok = state.pushToiCloud()
+            print(state.statusMessage)
+            if !ok { exit(1) }
+            return true
         case "icloud-pull":
-            state.pullFromiCloud(); notifyRunningApp(); print(state.statusMessage); return true
+            let outcome = state.pullFromiCloud()
+            notifyRunningApp()
+            print(state.statusMessage)
+            if case .success = outcome {} else { exit(1) }
+            return true
         case "weather":
             await state.refreshWeather()
             if let w = state.weather {

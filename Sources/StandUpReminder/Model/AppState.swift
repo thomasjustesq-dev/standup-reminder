@@ -44,6 +44,8 @@ final class AppState: ObservableObject {
     @Published var weather: WeatherSnapshot?
     @Published var learnedSuggestion: DaySchedule?
     @Published var showSampleDayTour = false
+    /// nil = not yet determined/unknown; false = user denied notifications.
+    @Published var notificationsAuthorized: Bool?
 
     private var learnedStore = LearnedScheduleStore.load()
     private var timer: Timer?
@@ -65,6 +67,10 @@ final class AppState: ObservableObject {
     private var knownRuntimeMTime: Date?
     private var knownConfigMTime: Date?
     private var knownProfilesMTime: Date?
+    private var lastObservedIdleSeconds: Double = 0
+    private var lastSamplesPersistAt: Date?
+    private var lastAdaptiveComputedAt: Date?
+    private var lastAdaptiveAnchor: Date?
 
     var activeProfileName: String {
         ProfileStore.activeProfile(in: profiles).name
@@ -107,12 +113,18 @@ final class AppState: ObservableObject {
         let loadedProfiles = ProfileStore.load()
         let active = ProfileStore.activeProfile(in: loadedProfiles)
         profiles = loadedProfiles
-        // Prefer profile config; fall back to legacy config.json once.
-        if FileManager.default.fileExists(atPath: Paths.configFile.path),
-           loadedProfiles.profiles.count <= 2 {
+        // Two stores can describe the current config: the active profile and
+        // config.json (which the CLI and hand edits write). Whichever was
+        // written most recently wins — a profile-count heuristic here once
+        // meant config.json was silently ignored as soon as a third profile
+        // existed.
+        let configMTime = Self.fileMTime(Paths.configFile)
+        let profilesMTime = Self.fileMTime(ProfileStore.fileURL)
+        if let configMTime, FileManager.default.fileExists(atPath: Paths.configFile.path),
+           configMTime >= (profilesMTime ?? .distantPast) {
             config = ConfigStore.load()
         } else {
-            config = active.config
+            config = active.config.validated()
         }
         stats = StatsStore.load()
         showOnboarding = !config.hasCompletedOnboarding
@@ -211,15 +223,36 @@ final class AppState: ObservableObject {
             frontmostSince: frontmostSince,
             lastUpdateCheckAt: lastUpdateCheckAt
         )
-        guard runtime != lastSavedRuntime else { return }
+        // activitySamples change every tick; comparing them made this a
+        // guaranteed 15-second disk write. Persist when meaningful state
+        // changed, and batch the samples on a 5-minute cadence.
+        var comparable = runtime
+        comparable.activitySamples = []
+        var lastComparable = lastSavedRuntime
+        lastComparable?.activitySamples = []
+        let samplesDue = lastSamplesPersistAt.map { Date().timeIntervalSince($0) >= 5 * 60 } ?? true
+        guard comparable != lastComparable || samplesDue else { return }
         RuntimeState.save(runtime)
         lastSavedRuntime = runtime
+        lastSamplesPersistAt = Date()
         knownRuntimeMTime = Self.fileMTime(RuntimeState.fileURL)
     }
 
     func start() {
         NotificationManager.configure()
         UNUserNotificationCenter.current().delegate = notificationDelegate
+        // Ask once if never asked (the onboarding "Not now" path used to leave
+        // authorization permanently undetermined), then track the real status
+        // so denied notifications are surfaced instead of silently swallowed.
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            if settings.authorizationStatus == .notDetermined {
+                NotificationManager.requestAuthorization { _ in
+                    Task { @MainActor in AppState.shared.refreshNotificationAuthorization() }
+                }
+            } else {
+                Task { @MainActor in AppState.shared.refreshNotificationAuthorization() }
+            }
+        }
         notificationDelegate.onDone = { [weak self] in self?.acknowledgeDone() }
         notificationDelegate.onSnooze = { [weak self] in self?.snooze(minutes: 10) }
         notificationDelegate.onSkipToday = { [weak self] in self?.skipToday() }
@@ -242,6 +275,19 @@ final class AppState: ObservableObject {
             Task { @MainActor in
                 AppState.shared.reloadExternalChangesIfNeeded()
                 AppState.shared.refreshNextFire()
+            }
+        }
+        // Test commands from the CLI run in-app: a second CLI process could
+        // deliver a banner, but its notification actions and windows would
+        // die with the process.
+        DistributedNotificationCenter.default().addObserver(
+            forName: .standUpRemoteCommand,
+            object: nil,
+            queue: .main
+        ) { note in
+            let command = note.object as? String
+            Task { @MainActor in
+                AppState.shared.handleRemoteCommand(command)
             }
         }
         if let timer { RunLoop.main.add(timer, forMode: .common) }
@@ -283,6 +329,11 @@ final class AppState: ObservableObject {
             showSampleDayTour = true
             NotificationCenter.default.post(name: .openSampleDayTour, object: nil)
         }
+        // The menu-style MenuBarExtra can't open windows while its menu is
+        // closed, so window presentation on launch goes through the AppDelegate.
+        if showOnboarding {
+            NotificationCenter.default.post(name: .openOnboardingWindow, object: nil)
+        }
 
         Task { await self.maybeCheckForUpdates(force: false) }
         refreshLearnedSuggestion()
@@ -306,20 +357,23 @@ final class AppState: ObservableObject {
         statusMessage = "Reminders armed"
     }
 
-    func pullFromiCloud() {
-        guard let pulled = CloudSync.pull() else {
-            statusMessage = "iCloud pull failed / empty"
-            return
+    @discardableResult
+    func pullFromiCloud() -> CloudSync.PullOutcome {
+        let outcome = CloudSync.pull(localModifiedAt: Self.fileMTime(Paths.configFile))
+        if case let .success(pulledConfig, pulledProfiles, _) = outcome {
+            config = pulledConfig
+            if let pulledProfiles { profiles = pulledProfiles }
+            refreshNextFire()
         }
-        config = pulled.0
-        profiles = pulled.1
-        statusMessage = "Pulled from iCloud"
-        refreshNextFire()
+        statusMessage = outcome.userMessage
+        return outcome
     }
 
-    func pushToiCloud() {
-        CloudSync.push(config: config, profiles: profiles)
-        statusMessage = "Pushed to iCloud"
+    @discardableResult
+    func pushToiCloud() -> Bool {
+        let ok = CloudSync.push(config: config, profiles: profiles)
+        statusMessage = ok ? "Pushed to iCloud" : "iCloud push failed — check iCloud Drive"
+        return ok
     }
 
     /// Weather hourly, team quiet feed every 6h, on the tick cadence.
@@ -455,9 +509,19 @@ final class AppState: ObservableObject {
         NotificationCenter.default.post(name: .openGuidedBreakWindow, object: nil)
     }
 
-    func testStandUp() { fire(force: true, mode: .breakPrompt) }
-    func testLunch() { fire(force: true, mode: .lunch) }
-    func testWindDown() { fire(force: true, mode: .windDown) }
+    func testStandUp() { fire(mode: .breakPrompt, gate: .none) }
+    func testLunch() { fire(mode: .lunch, gate: .none) }
+    func testWindDown() { fire(mode: .windDown, gate: .none) }
+
+    func handleRemoteCommand(_ command: String?) {
+        switch command {
+        case "test": testStandUp()
+        case "test-lunch": testLunch()
+        case "test-wind-down": testWindDown()
+        case "test-guided": testGuided()
+        default: break
+        }
+    }
     func testGuided() {
         let payload = ReminderPayload(
             kind: .breakPrompt,
@@ -472,6 +536,7 @@ final class AppState: ObservableObject {
     func tick() {
         reloadExternalChangesIfNeeded()
         refreshPeriodicSourcesIfDue()
+        refreshNotificationAuthorization()
         updateActivityWindow()
         updateFrontmostTracking()
         refreshNextFire()
@@ -480,19 +545,23 @@ final class AppState: ObservableObject {
         publishWidget()
 
         if pendingMeetingCatchUp && config.meetingCatchUpEnabled && !CalendarMonitor.isInMeeting() {
-            pendingMeetingCatchUp = false
-            persistRuntime()
-            fire(force: true, mode: .meetingCatchUp)
-            return
+            // Only clear the flag once the reminder can actually land — a
+            // locked screen, sleeping display, or empty desk defers the
+            // catch-up to the next tick instead of chiming into the void.
+            if environmentAllowsInterruption() {
+                pendingMeetingCatchUp = false
+                persistRuntime()
+                fire(mode: .meetingCatchUp, gate: .environment)
+                return
+            }
         }
 
         if let last = lastReminderAt, Date().timeIntervalSince(last) < 90 { return }
 
         if config.features.webcamStillnessEnabled,
            WebcamStillnessMonitor.shared.isStillTooLong,
-           lastReminderAt.map({ Date().timeIntervalSince($0) >= 10 * 60 }) ?? true,
-           shouldFireNow(force: false) {
-            fire(force: true, mode: .breakPrompt)
+           lastReminderAt.map({ Date().timeIntervalSince($0) >= 10 * 60 }) ?? true {
+            fire(mode: .breakPrompt, gate: .full)
             return
         }
 
@@ -501,16 +570,60 @@ final class AppState: ObservableObject {
             return
         }
 
+        // A cadence break or desk-phase flip landing right after a lunch,
+        // wind-down, or catch-up would double-notify; defer the collision
+        // loser instead of firing it 90 seconds later.
+        if next.kind == .breakPrompt || next.kind == .sitStand,
+           let last = lastReminderAt, Date().timeIntervalSince(last) < 10 * 60 {
+            return
+        }
+
         switch next.kind {
-        case .windDown: fire(force: false, mode: .windDown)
-        case .lunch: fire(force: false, mode: .lunch)
-        case .sitStand: fire(force: false, mode: .sitStand)
-        case .breakPrompt: fire(force: false, mode: .breakPrompt)
+        case .windDown: fire(mode: .windDown, gate: .environment)
+        case .lunch: fire(mode: .lunch, gate: .full)
+        case .sitStand: fire(mode: .sitStand, gate: .full)
+        case .breakPrompt: fire(mode: .breakPrompt, gate: .full)
+        }
+    }
+
+    func refreshNotificationAuthorization() {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            let authorized: Bool?
+            switch settings.authorizationStatus {
+            case .authorized, .provisional: authorized = true
+            case .denied: authorized = false
+            default: authorized = nil
+            }
+            Task { @MainActor in
+                if AppState.shared.notificationsAuthorized != authorized {
+                    AppState.shared.notificationsAuthorized = authorized
+                }
+            }
         }
     }
 
     private enum FireMode {
         case lunch, windDown, sitStand, breakPrompt, meetingCatchUp
+    }
+
+    private enum FireGate {
+        /// Every quiet rule applies (shouldFireNow).
+        case full
+        /// Wind-down and meeting catch-up bypass focus/meeting/deep-work
+        /// suppression but must never interrupt a locked screen, sleeping
+        /// display, off-hours, or an empty desk.
+        case environment
+        /// Explicit user test commands.
+        case none
+    }
+
+    private func environmentAllowsInterruption() -> Bool {
+        guard config.enabled, !isPaused, !isSkipTodayActive else { return false }
+        guard config.isWithinWorkHours() || config.isWindDownTime() else { return false }
+        if config.skipWhenDisplayAsleep && DisplaySleepMonitor.shared.isDisplayAsleep { return false }
+        if config.skipWhenLocked && DisplaySleepMonitor.isScreenLocked() { return false }
+        if IdleMonitor.isIdle(thresholdMinutes: config.idleSkipMinutes) { return false }
+        return true
     }
 
     private func toggleDeskPhase() {
@@ -521,10 +634,21 @@ final class AppState: ObservableObject {
 
     private func updateActivityWindow() {
         let idle = IdleMonitor.secondsIdle()
+        defer { lastObservedIdleSeconds = idle }
         activitySamples.append(idle)
         if activitySamples.count > 24 { activitySamples.removeFirst(activitySamples.count - 24) }
 
         if idle < 60 {
+            // Returning from an absence at least as long as the idle-skip
+            // threshold means a real break just happened — credit it, so the
+            // stale overdue reminder doesn't fire at someone who just walked
+            // back from the thing it would have asked for.
+            let awayThreshold = TimeInterval(max(1, config.idleSkipMinutes) * 60)
+            if lastObservedIdleSeconds >= awayThreshold {
+                lastAcknowledgedAt = Date()
+                statusMessage = "Away \(Int(lastObservedIdleSeconds / 60))m — break credited"
+                refreshNextFire()
+            }
             if activeSince == nil { activeSince = Date().addingTimeInterval(-idle) }
             if config.features.learnedScheduleEnabled {
                 learnedStore.recordActivity(at: Date(), calendar: config.scheduleCalendar)
@@ -598,7 +722,16 @@ final class AppState: ObservableObject {
         if DeepWorkMonitor.isDenylisted(bundleId: frontmostBundleId, denylist: config.denylistBundleIds) {
             statusMessage = "Quiet app (denylist)"; return false
         }
-        if config.deepWorkEnabled && DeepWorkMonitor.isInDeepWork(
+        // Deep-work suppression is bounded: once you're two full intervals
+        // past the last break, the longest sitting stretch of the day is
+        // exactly when a reminder matters most — stop suppressing.
+        let overdueLimit = TimeInterval(max(1, effectiveIntervalMinutes) * 60) * 2
+        let sinceAnchor = Scheduler.cadenceAnchor(
+            lastReminderAt: lastReminderAt,
+            lastAcknowledgedAt: lastAcknowledgedAt
+        ).map { Date().timeIntervalSince($0) } ?? 0
+        if sinceAnchor < overdueLimit,
+           config.deepWorkEnabled && DeepWorkMonitor.isInDeepWork(
             frontmostBundleId: frontmostBundleId,
             frontmostSince: frontmostSince,
             quietMinutes: config.deepWorkQuietMinutes,
@@ -620,12 +753,14 @@ final class AppState: ObservableObject {
         return true
     }
 
-    private func fire(force: Bool, mode: FireMode) {
-        // Wind-down / catch-up can bypass some quiet rules when forced
-        if mode != .windDown && mode != .meetingCatchUp {
-            guard shouldFireNow(force: force) else { return }
-        } else if !force {
-            guard config.enabled, !isPaused, !isSkipTodayActive else { return }
+    private func fire(mode: FireMode, gate: FireGate) {
+        switch gate {
+        case .full:
+            guard shouldFireNow(force: false) else { return }
+        case .environment:
+            guard environmentAllowsInterruption() else { return }
+        case .none:
+            break
         }
 
         let payload: ReminderPayload
@@ -682,16 +817,21 @@ final class AppState: ObservableObject {
         }
 
         NotificationManager.deliver(delivered)
-        if let sound = NSSound(named: NSSound.Name(config.soundName)) {
-            sound.play()
-        } else {
-            NSSound.beep()
-        }
-        if config.features.voiceAnnouncementsEnabled {
-            VoiceAnnouncer.speak(
-                "\(delivered.title). \(delivered.body)",
-                headphonesOnly: config.features.speakOnlyWithHeadphones
-            )
+        // Focus/DND suppresses the banner system-side; don't be the app that
+        // stays silent on screen but chimes and talks over a hearing.
+        let bannerSuppressed = FocusMonitor.isFocused()
+        if !bannerSuppressed {
+            if let sound = NSSound(named: NSSound.Name(config.soundName)) {
+                sound.play()
+            } else {
+                NSSound.beep()
+            }
+            if config.features.voiceAnnouncementsEnabled {
+                VoiceAnnouncer.speak(
+                    "\(delivered.title). \(delivered.body)",
+                    headphonesOnly: config.features.speakOnlyWithHeadphones
+                )
+            }
         }
         if config.features.watchCompanionEnabled {
             WatchBridge.shared.notifyReminder(title: delivered.title, body: delivered.body)
@@ -702,7 +842,11 @@ final class AppState: ObservableObject {
             )
         }
         lastReminderAt = Date()
-        stats.recordShown(on: StatsSnapshot.dayKey(calendar: config.scheduleCalendar))
+        if notificationsAuthorized == false {
+            AppLog.write("Reminder fired but notifications are denied — no banner was shown")
+        } else {
+            stats.recordShown(on: StatsSnapshot.dayKey(calendar: config.scheduleCalendar))
+        }
 
         if mode == .sitStand {
             deskPhaseStartedAt = Date()
@@ -718,13 +862,25 @@ final class AppState: ObservableObject {
             }
         }
 
-        statusMessage = "Reminded"
+        statusMessage = notificationsAuthorized == false
+            ? "Notifications blocked — allow in System Settings"
+            : "Reminded"
         refreshNextFire()
         publishWidget()
     }
 
     func refreshNextFire() {
-        effectiveIntervalMinutes = AdaptiveInterval.resolvedMinutes(config: config, samples: activitySamples)
+        // Recompute the adaptive interval when the cadence anchor moves (a
+        // break happened) or every few minutes — recomputing on every 15 s
+        // tick let the six-minute activity window drag the next-break time
+        // around by tens of minutes.
+        let anchor = Scheduler.cadenceAnchor(lastReminderAt: lastReminderAt, lastAcknowledgedAt: lastAcknowledgedAt)
+        let recomputeDue = lastAdaptiveComputedAt.map { Date().timeIntervalSince($0) >= 5 * 60 } ?? true
+        if recomputeDue || anchor != lastAdaptiveAnchor {
+            effectiveIntervalMinutes = AdaptiveInterval.resolvedMinutes(config: config, samples: activitySamples)
+            lastAdaptiveComputedAt = Date()
+            lastAdaptiveAnchor = anchor
+        }
         scheduledNext = Scheduler.next(Scheduler.Input(
             config: config,
             intervalMinutes: effectiveIntervalMinutes,
