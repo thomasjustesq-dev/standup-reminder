@@ -4,8 +4,6 @@
 <dict>
 	<key>com.apple.developer.usernotifications.time-sensitive</key>
 	<true/>
-	<key>com.apple.developer.focus-status</key>
-	<true/>
 	<key>com.apple.developer.healthkit</key>
 	<true/>
 	<key>com.apple.developer.icloud-container-identifiers</key>
