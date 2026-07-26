@@ -80,6 +80,9 @@ struct ContentView: View {
                 SettingsSheet()
                     .environmentObject(model)
             }
+            .sheet(item: $model.pendingGuidedPayload) { item in
+                GuidedBreakSheet(payload: item.payload)
+            }
         }
     }
 
@@ -110,7 +113,24 @@ struct SettingsSheet: View {
                 Section("Work hours (all workdays)") {
                     Stepper("Start: \(workStart):00", value: workStartBinding, in: 4...12)
                     Stepper("End: \(workEnd):00", value: workEndBinding, in: 13...23)
-                    Toggle("Weekdays only", isOn: binding(\.weekdaysOnly))
+                    // The flag alone did nothing when the schedule map had no
+                    // weekend entries; add/remove them so the toggle is real.
+                    Toggle("Weekdays only", isOn: Binding(
+                        get: { model.config.weekdaysOnly },
+                        set: { on in
+                            var c = model.config
+                            c.weekdaysOnly = on
+                            if on {
+                                c.scheduleByWeekday["6"] = nil
+                                c.scheduleByWeekday["7"] = nil
+                            } else {
+                                let template = c.scheduleByWeekday["1"] ?? .standard
+                                c.scheduleByWeekday["6"] = c.scheduleByWeekday["6"] ?? template
+                                c.scheduleByWeekday["7"] = c.scheduleByWeekday["7"] ?? template
+                            }
+                            model.config = c
+                        }
+                    ))
                 }
 
                 Section("Lunch") {
@@ -139,11 +159,12 @@ struct SettingsSheet: View {
 
                 Section("iCloud sync") {
                     Button("Push settings to iCloud") {
-                        model.pushToiCloud()
-                        cloudMessage = "Pushed."
+                        cloudMessage = model.pushToiCloud()
+                            ? "Pushed."
+                            : "Push failed — check iCloud Drive / entitlements."
                     }
                     Button("Pull settings from iCloud") {
-                        cloudMessage = model.pullFromiCloud() ? "Pulled." : "Nothing to pull (is iCloud Drive on?)"
+                        cloudMessage = model.pullFromiCloud().userMessage
                     }
                     if let cloudMessage {
                         Text(cloudMessage).font(.footnote).foregroundStyle(.secondary)
@@ -190,6 +211,54 @@ struct SettingsSheet: View {
             get: { model.config[keyPath: keyPath] },
             set: { model.config[keyPath: keyPath] = $0 }
         )
+    }
+}
+
+/// iOS counterpart of the Mac's guided-break window; backs the "Guided
+/// break" notification action, which used to foreground the app and show
+/// nothing.
+struct GuidedBreakSheet: View {
+    @EnvironmentObject private var model: PhoneModel
+    @Environment(\.dismiss) private var dismiss
+    let payload: ReminderPayload
+    @State private var completedSteps = Set<Int>()
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Text(payload.body)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                Section("Steps") {
+                    ForEach(Array(payload.guidedSteps.enumerated()), id: \.offset) { index, step in
+                        Button {
+                            if completedSteps.contains(index) {
+                                completedSteps.remove(index)
+                            } else {
+                                completedSteps.insert(index)
+                            }
+                        } label: {
+                            Label(step, systemImage: completedSteps.contains(index) ? "checkmark.circle.fill" : "circle")
+                        }
+                        .foregroundStyle(.primary)
+                    }
+                }
+                Section {
+                    Button("Done — break taken") {
+                        model.acknowledgeDone()
+                        dismiss()
+                    }
+                    .font(.headline)
+                }
+            }
+            .navigationTitle(payload.title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                Button("Close") { dismiss() }
+            }
+        }
     }
 }
 #endif

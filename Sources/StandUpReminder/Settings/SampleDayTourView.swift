@@ -3,6 +3,12 @@ import SwiftUI
 struct SampleDayTourView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.fallbackWindowClose) private var fallbackWindowClose
+
+    /// DismissAction is inert inside an AppDelegate fallback window.
+    private func closeWindow() {
+        if let fallbackWindowClose { fallbackWindowClose() } else { dismiss() }
+    }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let beats: [(time: String, title: String, detail: String, symbol: String)] = [
@@ -62,7 +68,7 @@ struct SampleDayTourView: View {
                         var c = appState.config
                         c.features.showSampleDayTour = false
                         appState.config = c
-                        dismiss()
+                        closeWindow()
                     }
                     .keyboardShortcut(.defaultAction)
                 }

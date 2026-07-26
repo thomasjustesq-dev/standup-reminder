@@ -5,6 +5,19 @@ struct DaySchedule: Codable, Equatable, Hashable {
     var endHour: Int
 
     static let standard = DaySchedule(startHour: 9, endHour: 17)
+
+    init(startHour: Int, endHour: Int) {
+        self.startHour = startHour
+        self.endHour = endHour
+    }
+
+    enum CodingKeys: String, CodingKey { case startHour, endHour }
+
+    init(from decoder: Decoder) throws {
+        let d = try decoder.container(keyedBy: CodingKeys.self)
+        startHour = try d.decodeIfPresent(Int.self, forKey: .startHour) ?? DaySchedule.standard.startHour
+        endHour = try d.decodeIfPresent(Int.self, forKey: .endHour) ?? DaySchedule.standard.endHour
+    }
 }
 
 struct LunchConfig: Codable, Equatable {
@@ -23,6 +36,28 @@ struct LunchConfig: Codable, Equatable {
         title: "Lunch Reminder",
         body: "It's noon — time to take a break and eat lunch."
     )
+
+    init(enabled: Bool, hour: Int, minute: Int, windowMinutes: Int, title: String, body: String) {
+        self.enabled = enabled
+        self.hour = hour
+        self.minute = minute
+        self.windowMinutes = windowMinutes
+        self.title = title
+        self.body = body
+    }
+
+    enum CodingKeys: String, CodingKey { case enabled, hour, minute, windowMinutes, title, body }
+
+    init(from decoder: Decoder) throws {
+        let d = try decoder.container(keyedBy: CodingKeys.self)
+        let base = LunchConfig.default
+        enabled = try d.decodeIfPresent(Bool.self, forKey: .enabled) ?? base.enabled
+        hour = try d.decodeIfPresent(Int.self, forKey: .hour) ?? base.hour
+        minute = try d.decodeIfPresent(Int.self, forKey: .minute) ?? base.minute
+        windowMinutes = try d.decodeIfPresent(Int.self, forKey: .windowMinutes) ?? base.windowMinutes
+        title = try d.decodeIfPresent(String.self, forKey: .title) ?? base.title
+        body = try d.decodeIfPresent(String.self, forKey: .body) ?? base.body
+    }
 }
 
 struct WindDownConfig: Codable, Equatable {
@@ -41,6 +76,28 @@ struct WindDownConfig: Codable, Equatable {
         title: "End of Day",
         body: "Workday wrap-up — stretch, tidy your desk, and log off when you can."
     )
+
+    init(enabled: Bool, hour: Int, minute: Int, windowMinutes: Int, title: String, body: String) {
+        self.enabled = enabled
+        self.hour = hour
+        self.minute = minute
+        self.windowMinutes = windowMinutes
+        self.title = title
+        self.body = body
+    }
+
+    enum CodingKeys: String, CodingKey { case enabled, hour, minute, windowMinutes, title, body }
+
+    init(from decoder: Decoder) throws {
+        let d = try decoder.container(keyedBy: CodingKeys.self)
+        let base = WindDownConfig.default
+        enabled = try d.decodeIfPresent(Bool.self, forKey: .enabled) ?? base.enabled
+        hour = try d.decodeIfPresent(Int.self, forKey: .hour) ?? base.hour
+        minute = try d.decodeIfPresent(Int.self, forKey: .minute) ?? base.minute
+        windowMinutes = try d.decodeIfPresent(Int.self, forKey: .windowMinutes) ?? base.windowMinutes
+        title = try d.decodeIfPresent(String.self, forKey: .title) ?? base.title
+        body = try d.decodeIfPresent(String.self, forKey: .body) ?? base.body
+    }
 }
 
 struct BreakPrompt: Codable, Equatable, Identifiable {
@@ -306,6 +363,35 @@ struct AppConfig: Codable, Equatable {
         return copy
     }
 
+    /// Clamp every numeric field to a sane range. Hand-edited config files and
+    /// imports go through here so a typo ("intervalMinutes": 0) degrades to a
+    /// usable value instead of a scheduler that fires constantly or never.
+    func validated() -> AppConfig {
+        var c = self
+        c.intervalMinutes = c.intervalMinutes.clampedTo(5...240)
+        c.idleSkipMinutes = c.idleSkipMinutes.clampedTo(1...120)
+        c.minActiveMinutes = c.minActiveMinutes.clampedTo(0...240)
+        c.sitStandPhaseMinutes = c.sitStandPhaseMinutes.clampedTo(5...240)
+        c.adaptiveMinMinutes = c.adaptiveMinMinutes.clampedTo(5...480)
+        c.adaptiveMaxMinutes = c.adaptiveMaxMinutes.clampedTo(c.adaptiveMinMinutes...480)
+        c.guidedBreakSeconds = c.guidedBreakSeconds.clampedTo(10...600)
+        c.deepWorkQuietMinutes = c.deepWorkQuietMinutes.clampedTo(5...240)
+        c.healthMindfulMinutes = min(max(c.healthMindfulMinutes, 0), 60)
+        c.lunch.hour = c.lunch.hour.clampedTo(0...23)
+        c.lunch.minute = c.lunch.minute.clampedTo(0...59)
+        c.lunch.windowMinutes = c.lunch.windowMinutes.clampedTo(0...120)
+        c.windDown.hour = c.windDown.hour.clampedTo(0...23)
+        c.windDown.minute = c.windDown.minute.clampedTo(0...59)
+        c.windDown.windowMinutes = c.windDown.windowMinutes.clampedTo(0...120)
+        c.features.webcamStillnessMinutes = c.features.webcamStillnessMinutes.clampedTo(5...240)
+        for (key, var day) in c.scheduleByWeekday {
+            day.startHour = day.startHour.clampedTo(0...23)
+            day.endHour = day.endHour.clampedTo((day.startHour + 1)...24)
+            c.scheduleByWeekday[key] = day
+        }
+        return c
+    }
+
     enum CodingKeys: String, CodingKey {
         case enabled, intervalMinutes, weekdaysOnly, skipWhenLocked, skipWhenDisplayAsleep
         case skipWhenFocused, skipWhenInMeeting, idleSkipMinutes, minActiveMinutes, soundName
@@ -427,16 +513,34 @@ struct AppConfig: Codable, Equatable {
 }
 
 enum ConfigStore {
+    /// Never overwrites the user's file on failure. A file that exists but
+    /// cannot be read or decoded is preserved (copied to config.json.corrupt)
+    /// and the app runs on in-memory defaults — the original stays on disk
+    /// for recovery. Only a genuinely missing file writes defaults.
     static func load() -> AppConfig {
         let url = Paths.configFile
-        guard FileManager.default.fileExists(atPath: url.path),
-              let data = try? Data(contentsOf: url),
-              let config = try? JSONCoding.decoder().decode(AppConfig.self, from: data) else {
+        guard FileManager.default.fileExists(atPath: url.path) else {
             let config = AppConfig.default
             save(config)
             return config
         }
-        return config
+        guard let data = try? Data(contentsOf: url) else {
+            AppLog.write("config.json unreadable — running on defaults, file left untouched")
+            return AppConfig.default
+        }
+        do {
+            return try JSONCoding.decoder().decode(AppConfig.self, from: data).validated()
+        } catch {
+            preserveCorrupt(url)
+            AppLog.write("config.json failed to decode (\(error)) — preserved as config.json.corrupt, running on defaults")
+            return AppConfig.default
+        }
+    }
+
+    static func preserveCorrupt(_ url: URL) {
+        let backup = url.appendingPathExtension("corrupt")
+        try? FileManager.default.removeItem(at: backup)
+        try? FileManager.default.copyItem(at: url, to: backup)
     }
 
     static func save(_ config: AppConfig) {
@@ -454,8 +558,14 @@ enum ConfigStore {
     }
 
     static func importJSON(_ data: Data) throws -> AppConfig {
-        let config = try JSONCoding.decoder().decode(AppConfig.self, from: data)
+        let config = try JSONCoding.decoder().decode(AppConfig.self, from: data).validated()
         save(config)
         return config
+    }
+}
+
+extension Int {
+    func clampedTo(_ range: ClosedRange<Int>) -> Int {
+        Swift.min(Swift.max(self, range.lowerBound), range.upperBound)
     }
 }

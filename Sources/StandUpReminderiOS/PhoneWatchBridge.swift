@@ -26,6 +26,7 @@ final class PhoneWatchBridge: NSObject, ObservableObject {
         guard WCSession.isSupported(), WCSession.default.activationState == .activated else { return }
         let model = PhoneModel.shared
         var payload: [String: Any] = ["status": model.statusText]
+        payload["weekDone"] = model.stats.weekSummary().done
         if let next = model.nextFireAt {
             payload["nextFire"] = next.timeIntervalSince1970
             payload["countdown"] = max(0, Int(next.timeIntervalSinceNow / 60))

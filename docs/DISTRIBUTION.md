@@ -27,4 +27,4 @@ Package the notarized app per Setapp’s publisher guidelines; reuse the Develop
 
 ## Watch companion
 
-Add `Sources/StandUpReminderWatch` to an Xcode workspace (watchOS target), enable Watch Connectivity on both targets, and install on a paired Apple Watch. Mac menu bar app already speaks WCSession.
+The Watch app is a companion to the **iPhone** app (an Apple Watch pairs only with an iPhone; there is no Mac↔Watch channel). `xcodegen generate` produces the watchOS app + complication targets, and building the `StandUpReminderiOS` scheme embeds them. The Mac participates through iCloud sync.

@@ -15,6 +15,7 @@ struct RuntimeState: Codable, Equatable {
     var deskPhase: DeskPhase = .sit
     var deskPhaseStartedAt: Date?
     var pendingMeetingCatchUp: Bool = false
+    var pendingMeetingCatchUpSetAt: Date?
     var lastMeetingState: Bool = false
     var windDownFiredDayKey: String?
     var lunchFiredDayKey: String?

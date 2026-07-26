@@ -3,7 +3,6 @@ import SwiftUI
 
 struct MenuBarView: View {
     @EnvironmentObject private var appState: AppState
-    @Environment(\.openWindow) private var openWindow
     @Environment(\.openSettings) private var openSettings
 
     private var nextFireText: String {
@@ -18,6 +17,11 @@ struct MenuBarView: View {
         VStack(alignment: .leading, spacing: 0) {
             Text(appState.statusMessage)
                 .font(.headline)
+            if appState.notificationsAuthorized == false {
+                Text("⚠ Notifications are off — reminders can't appear")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
             Text("Profile: \(appState.activeProfileName)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -41,19 +45,22 @@ struct MenuBarView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+        // All window opens go through the AppDelegate presenter so its
+        // dedup applies — mixing openWindow here with the fallback windows
+        // could show two live copies of the same UI.
         .onAppear {
             if appState.showOnboarding {
-                openWindow(id: "onboarding")
+                NotificationCenter.default.post(name: .openOnboardingWindow, object: nil)
             }
             if appState.showGuidedBreak {
-                openWindow(id: "guided-break")
+                NotificationCenter.default.post(name: .openGuidedBreakWindow, object: nil)
             }
         }
         .onChange(of: appState.showGuidedBreak) { _, shouldOpen in
-            if shouldOpen { openWindow(id: "guided-break") }
+            if shouldOpen { NotificationCenter.default.post(name: .openGuidedBreakWindow, object: nil) }
         }
         .onChange(of: appState.showSampleDayTour) { _, shouldOpen in
-            if shouldOpen { openWindow(id: "sample-day") }
+            if shouldOpen { NotificationCenter.default.post(name: .openSampleDayTour, object: nil) }
         }
 
         Divider()
@@ -90,10 +97,17 @@ struct MenuBarView: View {
 
         Divider()
 
+        if appState.notificationsAuthorized == false {
+            Button("Enable notifications…") {
+                let target = "x-apple.systempreferences:com.apple.preference.notifications"
+                if let url = URL(string: target) { NSWorkspace.shared.open(url) }
+            }
+        }
+
         Button("Settings…") { openSettings() }
             .keyboardShortcut(",", modifiers: .command)
-        Button("Welcome / permissions…") { openWindow(id: "onboarding") }
-        Button("Sample day tour…") { openWindow(id: "sample-day") }
+        Button("Welcome / permissions…") { NotificationCenter.default.post(name: .openOnboardingWindow, object: nil) }
+        Button("Sample day tour…") { NotificationCenter.default.post(name: .openSampleDayTour, object: nil) }
 
         if let update = appState.updateInfo, update.isNewer, let url = URL(string: update.htmlURL) {
             Button("Download update…") { NSWorkspace.shared.open(url) }

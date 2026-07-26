@@ -33,7 +33,22 @@ enum NotificationManager {
         }
     }
 
+    /// Stale banners from earlier breaks are noise once a new one lands;
+    /// clear this app's previously delivered immediate reminders (never the
+    /// iOS pre-scheduled queue — its delivered entries feed stats reconcile).
+    static func clearStaleDelivered() {
+        let center = UNUserNotificationCenter.current()
+        center.getDeliveredNotifications { delivered in
+            let stale = delivered.map(\.request.identifier)
+                .filter { $0.hasPrefix(requestIdPrefix) && !$0.hasPrefix(queuedIdPrefix) }
+            if !stale.isEmpty {
+                center.removeDeliveredNotifications(withIdentifiers: stale)
+            }
+        }
+    }
+
     static func deliver(_ payload: ReminderPayload) {
+        clearStaleDelivered()
         let content = UNMutableNotificationContent()
         content.title = payload.title
         content.body = payload.body
@@ -74,8 +89,17 @@ enum NotificationManager {
         ]
         content.interruptionLevel = .timeSensitive
 
-        let comps = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
-        let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+        // A calendar trigger for a past date never fires — and the scheduler
+        // deliberately keeps overdue entries (an expired snooze or a resumed
+        // pause is due *now*). Deliver those after a short interval instead
+        // of silently dropping them.
+        let trigger: UNNotificationTrigger
+        if date.timeIntervalSinceNow <= 1 {
+            trigger = UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false)
+        } else {
+            let comps = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
+            trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+        }
         let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
         UNUserNotificationCenter.current().add(request) { error in
             if let error {
@@ -84,14 +108,20 @@ enum NotificationManager {
         }
     }
 
-    /// Identifier prefix for the pre-scheduled queue; slots are numbered so
-    /// they can be cancelled synchronously (no async getPending race).
+    /// Identifier prefix for the pre-scheduled queue. Each rebuild uses a
+    /// fresh generation stamp in the identifier so a delivered slot is never
+    /// confused with a later rebuild reusing the same slot number.
     static let queuedIdPrefix = requestIdPrefix + "queued-"
 
-    /// Remove every pre-scheduled (not yet delivered) reminder in the queue.
-    static func cancelScheduledQueue(upTo count: Int = 64) {
-        let ids = (0..<count).map { "\(queuedIdPrefix)\($0)" }
-        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ids)
+    static func queuedIdentifier(generation: Int, slot: String) -> String {
+        "\(queuedIdPrefix)\(generation)-\(slot)"
+    }
+
+    /// Remove every pending local notification. The queue is the only thing
+    /// this app schedules, so a full clear is the race-free way to cancel a
+    /// generation whose identifiers embed a stamp.
+    static func cancelScheduledQueue() {
+        UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
     }
 }
 
@@ -124,17 +154,17 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
             case NotificationAction.skipToday.rawValue:
                 self.onSkipToday?()
             case NotificationAction.guided.rawValue, UNNotificationDefaultActionIdentifier:
-                if response.actionIdentifier == NotificationAction.guided.rawValue {
-                    let steps = info["guidedSteps"] as? [String] ?? ["Stand up", "Move", "Reset"]
-                    let payload = ReminderPayload(
-                        kind: ReminderKind(rawValue: info["kind"] as? String ?? "") ?? .breakPrompt,
-                        title: response.notification.request.content.title,
-                        body: response.notification.request.content.body,
-                        promptId: info["promptId"] as? String ?? "",
-                        guidedSteps: steps
-                    )
-                    self.onGuided?(payload)
-                }
+                // Clicking the banner body was a no-op; route it to the same
+                // guided-break flow as the explicit button.
+                let steps = info["guidedSteps"] as? [String] ?? ["Stand up", "Move", "Reset"]
+                let payload = ReminderPayload(
+                    kind: ReminderKind(rawValue: info["kind"] as? String ?? "") ?? .breakPrompt,
+                    title: response.notification.request.content.title,
+                    body: response.notification.request.content.body,
+                    promptId: info["promptId"] as? String ?? "",
+                    guidedSteps: steps
+                )
+                self.onGuided?(payload)
             default:
                 break
             }

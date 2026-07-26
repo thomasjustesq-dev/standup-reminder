@@ -47,8 +47,8 @@ struct StandUpReminderApp: App {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private var guidedObserver: Any?
-    private var tourObserver: Any?
+    private var observers: [Any] = []
+    private var fallbackWindows: [String: NSWindow] = [:]
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Task { @MainActor in
@@ -59,32 +59,71 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
 
             NSApp.setActivationPolicy(.accessory)
+
+            // Observers must exist before start() — it posts the onboarding
+            // and sample-day notifications synchronously on first launch.
+            observe(.openGuidedBreakWindow) { [weak self] in
+                self?.present(id: "guided-break", title: "Guided Break") {
+                    GuidedBreakView().environmentObject(AppState.shared)
+                }
+            }
+            observe(.openSampleDayTour) { [weak self] in
+                self?.present(id: "sample-day", title: "Sample Day") {
+                    SampleDayTourView().environmentObject(AppState.shared)
+                }
+            }
+            observe(.openOnboardingWindow) { [weak self] in
+                self?.present(id: "onboarding", title: "Welcome") {
+                    OnboardingView().environmentObject(AppState.shared)
+                }
+            }
+
             AppState.shared.start()
-
-            guidedObserver = NotificationCenter.default.addObserver(
-                forName: .openGuidedBreakWindow,
-                object: nil,
-                queue: .main
-            ) { _ in
-                NSApp.activate(ignoringOtherApps: true)
-                for window in NSApp.windows where window.identifier?.rawValue == "guided-break" {
-                    window.makeKeyAndOrderFront(nil)
-                    return
-                }
-            }
-
-            tourObserver = NotificationCenter.default.addObserver(
-                forName: .openSampleDayTour,
-                object: nil,
-                queue: .main
-            ) { _ in
-                NSApp.activate(ignoringOtherApps: true)
-                for window in NSApp.windows where window.identifier?.rawValue == "sample-day" {
-                    window.makeKeyAndOrderFront(nil)
-                    return
-                }
-            }
         }
+    }
+
+    private func observe(_ name: Notification.Name, handler: @escaping @MainActor () -> Void) {
+        observers.append(NotificationCenter.default.addObserver(
+            forName: name, object: nil, queue: .main
+        ) { _ in
+            Task { @MainActor in handler() }
+        })
+    }
+
+    /// The menu-style MenuBarExtra only mounts its view while the menu is
+    /// open, so SwiftUI's openWindow may have no caller when a notification
+    /// action or launch path needs a window. Front the SwiftUI-scene window
+    /// if one exists; otherwise host the same view in an AppKit window. This
+    /// is the single presentation choke point — everything (menu items,
+    /// notification actions, launch) opens windows by posting the
+    /// notifications above, so the dedup here always applies.
+    @MainActor
+    private func present<Content: View>(id: String, title: String, @ViewBuilder content: () -> Content) {
+        NSApp.activate(ignoringOtherApps: true)
+        for window in NSApp.windows where window.identifier?.rawValue == id {
+            window.makeKeyAndOrderFront(nil)
+            return
+        }
+        if let existing = fallbackWindows[id] {
+            existing.makeKeyAndOrderFront(nil)
+            return
+        }
+        // SwiftUI's DismissAction is inert inside a plain hosted NSWindow;
+        // hand the views a working close path through the environment.
+        let box = FallbackWindowBox()
+        let root = content().environment(\.fallbackWindowClose) { [weak box] in
+            box?.window?.close()
+        }
+        let controller = NSHostingController(rootView: root)
+        let window = NSWindow(contentViewController: controller)
+        box.window = window
+        window.title = title
+        window.identifier = NSUserInterfaceItemIdentifier("fallback-\(id)")
+        window.styleMask = [.titled, .closable, .miniaturizable]
+        window.isReleasedWhenClosed = false
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+        fallbackWindows[id] = window
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -92,10 +131,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+@MainActor
+private final class FallbackWindowBox {
+    weak var window: NSWindow?
+}
+
+/// Close action for views hosted in an AppDelegate fallback window, where
+/// SwiftUI's DismissAction has no window scene to act on. Views call
+/// `fallbackWindowClose?() ?? dismiss()`.
+private struct FallbackWindowCloseKey: EnvironmentKey {
+    static let defaultValue: (@MainActor () -> Void)? = nil
+}
+
+extension EnvironmentValues {
+    var fallbackWindowClose: (@MainActor () -> Void)? {
+        get { self[FallbackWindowCloseKey.self] }
+        set { self[FallbackWindowCloseKey.self] = newValue }
+    }
+}
+
 extension Notification.Name {
     static let openGuidedBreakWindow = Notification.Name("openGuidedBreakWindow")
     static let openSampleDayTour = Notification.Name("openSampleDayTour")
+    static let openOnboardingWindow = Notification.Name("openOnboardingWindow")
     /// Posted via DistributedNotificationCenter by the CLI process after it
     /// mutates state on disk, so the running app picks it up immediately.
     static let standUpExternalStateChanged = Notification.Name("com.user.StandUpReminder.externalStateChanged")
+    /// Posted via DistributedNotificationCenter by the CLI process to run a
+    /// command (e.g. a test reminder) inside the running app, where windows
+    /// and notification actions actually live.
+    static let standUpRemoteCommand = Notification.Name("com.user.StandUpReminder.remoteCommand")
 }

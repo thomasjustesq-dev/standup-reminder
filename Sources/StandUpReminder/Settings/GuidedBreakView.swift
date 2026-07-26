@@ -3,6 +3,12 @@ import SwiftUI
 struct GuidedBreakView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.fallbackWindowClose) private var fallbackWindowClose
+
+    /// DismissAction is inert inside an AppDelegate fallback window.
+    private func closeWindow() {
+        if let fallbackWindowClose { fallbackWindowClose() } else { dismiss() }
+    }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var secondsRemaining: Int = 45
@@ -36,13 +42,8 @@ struct GuidedBreakView: View {
                     Image(systemName: demo.systemImage)
                         .font(.system(size: 40))
                         .accessibilityHidden(true)
-                    VStack(alignment: .leading) {
-                        Text(demo.caption)
-                            .font(.headline)
-                        Text("Demo style: on-device symbols\(demo.assetName == nil ? "" : " · asset \(demo.assetName!)")")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                    Text(demo.caption)
+                        .font(.headline)
                 }
                 .padding()
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -85,7 +86,7 @@ struct GuidedBreakView: View {
                 Spacer()
                 Button("Done") {
                     appState.acknowledgeDone()
-                    dismiss()
+                    closeWindow()
                 }
                 .keyboardShortcut(.defaultAction)
                 .accessibilityHint("Marks the break complete")

@@ -24,16 +24,31 @@ struct ProfileDocument: Codable, Equatable {
 enum ProfileStore {
     static var fileURL: URL { Paths.appSupport.appendingPathComponent("profiles.json") }
 
+    /// Same contract as ConfigStore.load(): a present-but-broken file is
+    /// preserved (profiles.json.corrupt) and defaults are used in memory only;
+    /// the user's file is never overwritten by a failed decode.
     static func load() -> ProfileDocument {
-        guard FileManager.default.fileExists(atPath: fileURL.path),
-              let data = try? Data(contentsOf: fileURL),
-              let doc = try? JSONCoding.decoder().decode(ProfileDocument.self, from: data),
-              !doc.profiles.isEmpty else {
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
             let doc = ProfileDocument.default
             save(doc)
             return doc
         }
-        return doc
+        guard let data = try? Data(contentsOf: fileURL) else {
+            AppLog.write("profiles.json unreadable — running on defaults, file left untouched")
+            return ProfileDocument.default
+        }
+        do {
+            let doc = try JSONCoding.decoder().decode(ProfileDocument.self, from: data)
+            guard !doc.profiles.isEmpty else {
+                AppLog.write("profiles.json has no profiles — running on defaults, file left untouched")
+                return ProfileDocument.default
+            }
+            return doc
+        } catch {
+            ConfigStore.preserveCorrupt(fileURL)
+            AppLog.write("profiles.json failed to decode (\(error)) — preserved as profiles.json.corrupt, running on defaults")
+            return ProfileDocument.default
+        }
     }
 
     static func save(_ document: ProfileDocument) {
