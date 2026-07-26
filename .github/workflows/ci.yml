@@ -10,6 +10,8 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+      - name: Check version consistency
+        run: ./scripts/check-versions.sh
       - name: Build
         run: swift build -v
       - name: Test

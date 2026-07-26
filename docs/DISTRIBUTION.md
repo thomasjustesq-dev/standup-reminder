@@ -4,10 +4,18 @@
 
 `.github/workflows/release.yml` turns a tag push into a full release:
 
-    # 1. bump CFBundleShortVersionString in Resources/Info.plist (and the
-    #    iOS/Watch versions in project.yml) — the workflow fails if the tag
-    #    and Info.plist disagree
+    # 1. bump the version in all three places, then verify:
+    #      - project.yml (all four iOS/watchOS targets)
+    #      - Resources/Info.plist                     (macOS app)
+    #      - Sources/StandUpReminderWidget/Info.plist (macOS widget)
+    ./scripts/check-versions.sh
+    # 2. tag — the workflow fails if the tag and Info.plist disagree, and
+    #    re-runs check-versions.sh before it builds anything
     git tag v4.2.1 && git push origin v4.2.1
+
+The other four `Resources/*-Info.plist` files are written by `xcodegen
+generate` from the `info:` blocks in `project.yml`. They are gitignored;
+editing them by hand does nothing.
 
 The pipeline builds the Release app (Developer ID signing with provisioning
 profiles via an App Store Connect API key), notarizes and staples it, packs a

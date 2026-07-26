@@ -9,6 +9,8 @@ xcuserdata/
 StandUpReminder.xcodeproj/
 Resources/iOS-Info.plist
 Resources/Watch-Info.plist
+Resources/iOSWidget-Info.plist
+Resources/WatchWidget-Info.plist
 .build-sim/
 .derivedData/
 
