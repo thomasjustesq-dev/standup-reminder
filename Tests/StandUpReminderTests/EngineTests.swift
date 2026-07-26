@@ -87,6 +87,26 @@ final class StatsSnapshotTests: XCTestCase {
         let week = stats.weekSummary(reference: today, calendar: calendar)
         XCTAssertEqual(week.done, 2)
     }
+
+    func testSelfLoggedDoneCountsAsDoneSubCount() {
+        var stats = StatsSnapshot()
+        let today = calendar.date(from: DateComponents(year: 2026, month: 7, day: 15, hour: 12))!
+        let key = StatsSnapshot.dayKey(today, calendar: calendar)
+        stats.recordDone(on: key)
+        stats.recordDone(on: key, selfLogged: true)
+        let week = stats.weekSummary(reference: today, calendar: calendar)
+        XCTAssertEqual(week.done, 2)
+        XCTAssertEqual(week.selfLogged, 1)
+    }
+
+    func testDayStatsDecodesWithoutNewerKeys() throws {
+        // Files written before selfLogged existed must keep their counts.
+        let json = #"{"shown":3,"done":2,"snoozed":1,"skipped":0}"#.data(using: .utf8)!
+        let day = try JSONCoding.decoder().decode(DayStats.self, from: json)
+        XCTAssertEqual(day.shown, 3)
+        XCTAssertEqual(day.done, 2)
+        XCTAssertEqual(day.selfLogged, 0)
+    }
 }
 
 final class JSONCodingTests: XCTestCase {

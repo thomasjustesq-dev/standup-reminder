@@ -5,6 +5,23 @@ struct DayStats: Codable, Equatable {
     var done: Int = 0
     var snoozed: Int = 0
     var skipped: Int = 0
+    /// Dones logged without a banner shown first (guided window, menu, test
+    /// commands). A sub-count of `done` — explains "done > shown" weeks.
+    var selfLogged: Int = 0
+}
+
+// Tolerant decoding: files written by older builds lack newer keys (and vice
+// versa — an older build reading a newer file must not choke either). Missing
+// or mismatched fields fall back to defaults instead of zeroing the store.
+extension DayStats {
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        shown = (try? c.decodeIfPresent(Int.self, forKey: .shown)) ?? 0
+        done = (try? c.decodeIfPresent(Int.self, forKey: .done)) ?? 0
+        snoozed = (try? c.decodeIfPresent(Int.self, forKey: .snoozed)) ?? 0
+        skipped = (try? c.decodeIfPresent(Int.self, forKey: .skipped)) ?? 0
+        selfLogged = (try? c.decodeIfPresent(Int.self, forKey: .selfLogged)) ?? 0
+    }
 }
 
 struct StatsSnapshot: Codable, Equatable {
@@ -19,9 +36,12 @@ struct StatsSnapshot: Codable, Equatable {
         byDay[day, default: DayStats()].shown += 1
     }
 
-    mutating func recordDone(on day: String) {
+    mutating func recordDone(on day: String, selfLogged: Bool = false) {
         acknowledgedTotal += 1
         byDay[day, default: DayStats()].done += 1
+        if selfLogged {
+            byDay[day, default: DayStats()].selfLogged += 1
+        }
     }
 
     mutating func recordSnooze(on day: String) {
@@ -34,8 +54,8 @@ struct StatsSnapshot: Codable, Equatable {
         byDay[day, default: DayStats()].skipped += 1
     }
 
-    func weekSummary(reference: Date = Date(), calendar: Calendar = .current) -> (shown: Int, done: Int, skipped: Int, snoozed: Int) {
-        var shown = 0, done = 0, skipped = 0, snoozed = 0
+    func weekSummary(reference: Date = Date(), calendar: Calendar = .current) -> (shown: Int, done: Int, skipped: Int, snoozed: Int, selfLogged: Int) {
+        var shown = 0, done = 0, skipped = 0, snoozed = 0, selfLogged = 0
         for offset in 0..<7 {
             guard let day = calendar.date(byAdding: .day, value: -offset, to: reference) else { continue }
             let key = Self.dayKey(day, calendar: calendar)
@@ -44,9 +64,10 @@ struct StatsSnapshot: Codable, Equatable {
                 done += stats.done
                 skipped += stats.skipped
                 snoozed += stats.snoozed
+                selfLogged += stats.selfLogged
             }
         }
-        return (shown, done, skipped, snoozed)
+        return (shown, done, skipped, snoozed, selfLogged)
     }
 
     static func dayKey(_ date: Date = Date(), calendar: Calendar = .current) -> String {

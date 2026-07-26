@@ -4,6 +4,15 @@ import Foundation
 import ServiceManagement
 import UserNotifications
 
+/// Core state, persistence, and startup wiring.
+///
+/// AppState is split across files by responsibility (same module, so members
+/// used across those files are internal rather than private):
+///   AppState.swift            — state, init, persistence, start()
+///   AppState+Tick.swift       — 15-second tick engine, fire gates, delivery
+///   AppState+Commands.swift   — user/CLI actions (pause, snooze, done, tests)
+///   AppState+Sync.swift       — iCloud, weather, team quiet, learned, updates
+///   AppState+Reporting.swift  — widget snapshot, status text, import/export
 @MainActor
 final class AppState: ObservableObject {
     static let shared = AppState()
@@ -47,38 +56,46 @@ final class AppState: ObservableObject {
     /// nil = not yet determined/unknown; false = user denied notifications.
     @Published var notificationsAuthorized: Bool?
 
-    private var learnedStore = LearnedScheduleStore.load()
+    // MARK: Stored state shared with the extension files (internal by design)
+
+    var learnedStore = LearnedScheduleStore.load()
+    var promptCursor: Int = 0
+    var deskPhaseStartedAt: Date?
+    var pendingMeetingCatchUp = false
+    var lastMeetingState = false
+    var windDownFiredDayKey: String?
+    var lunchFiredDayKey: String?
+    var scheduledNext: Scheduler.Next?
+    var activitySamples: [Double] = []
+    var frontmostBundleId: String?
+    var frontmostSince: Date?
+    var lastUpdateCheckAt: Date?
+    var lastWeatherRefreshAt: Date?
+    var lastObservedIdleSeconds: Double = 0
+    var lastAdaptiveComputedAt: Date?
+    var lastAdaptiveAnchor: Date?
+    var lastRuntimeSyncAt: Date?
+    var lastPushedStats: StatsSnapshot?
+    var remoteStats: [StatsSnapshot] = []
+    /// Stamp of this device's most recent runtime mutation (including its own
+    /// pushes). A pulled doc must be strictly newer to apply — otherwise the
+    /// device's own pushed snooze resurrects right after the user cancels it.
+    var lastRuntimeMutationAt: Date?
+    var pendingMeetingCatchUpSetAt: Date?
+    /// Set when a banner is actually shown and cleared when the user logs the
+    /// break. A Done with no outstanding shown banner is a self-logged break.
+    var shownAwaitingAck = false
+
+    // MARK: Truly private state (used only in this file)
+
     private var timer: Timer?
     private let notificationDelegate = NotificationDelegate()
-    private var promptCursor: Int = 0
     private var suppressRuntimePersist = false
-    private var deskPhaseStartedAt: Date?
-    private var pendingMeetingCatchUp = false
-    private var lastMeetingState = false
-    private var windDownFiredDayKey: String?
-    private var lunchFiredDayKey: String?
-    private var scheduledNext: Scheduler.Next?
-    private var activitySamples: [Double] = []
-    private var frontmostBundleId: String?
-    private var frontmostSince: Date?
-    private var lastUpdateCheckAt: Date?
-    private var lastWeatherRefreshAt: Date?
     private var lastSavedRuntime: RuntimeState?
     private var knownRuntimeMTime: Date?
     private var knownConfigMTime: Date?
     private var knownProfilesMTime: Date?
-    private var lastObservedIdleSeconds: Double = 0
     private var lastSamplesPersistAt: Date?
-    private var lastAdaptiveComputedAt: Date?
-    private var lastAdaptiveAnchor: Date?
-    private var lastRuntimeSyncAt: Date?
-    private var lastPushedStats: StatsSnapshot?
-    private var remoteStats: [StatsSnapshot] = []
-    /// Stamp of this device's most recent runtime mutation (including its own
-    /// pushes). A pulled doc must be strictly newer to apply — otherwise the
-    /// device's own pushed snooze resurrects right after the user cancels it.
-    private var lastRuntimeMutationAt: Date?
-    private var pendingMeetingCatchUpSetAt: Date?
 
     var activeProfileName: String {
         ProfileStore.activeProfile(in: profiles).name
@@ -151,20 +168,6 @@ final class AppState: ObservableObject {
         profiles = docs
     }
 
-    func switchProfile(id: String) {
-        guard let profile = profiles.profiles.first(where: { $0.id == id }) else { return }
-        var docs = profiles
-        docs.activeProfileId = id
-        profiles = docs
-        config = profile.config
-        statusMessage = "Profile: \(profile.name)"
-        refreshNextFire()
-    }
-
-    func applyReminderPack(_ pack: ReminderPack) {
-        config = config.applying(pack: pack)
-    }
-
     private func applyRuntime(_ runtime: RuntimeState) {
         suppressRuntimePersist = true
         isPaused = runtime.isPaused
@@ -188,7 +191,7 @@ final class AppState: ObservableObject {
         lastSavedRuntime = runtime
     }
 
-    private static func fileMTime(_ url: URL) -> Date? {
+    static func fileMTime(_ url: URL) -> Date? {
         (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
     }
 
@@ -212,7 +215,7 @@ final class AppState: ObservableObject {
         }
     }
 
-    private func persistRuntime() {
+    func persistRuntime() {
         guard !suppressRuntimePersist else { return }
         let runtime = RuntimeState(
             isPaused: isPaused,
@@ -272,11 +275,16 @@ final class AppState: ObservableObject {
         FocusMonitor.requestAuthorizationIfNeeded()
 
         timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
+        let tickTimer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.tick()
             }
         }
+        // A menu bar app that runs all day has no business pinning a repeating
+        // timer to exact deadlines — a tolerance lets macOS coalesce wakeups
+        // with other work, which is real battery life on a laptop.
+        tickTimer.tolerance = 5
+        timer = tickTimer
         DistributedNotificationCenter.default().addObserver(
             forName: .standUpExternalStateChanged,
             object: nil,
@@ -367,317 +375,6 @@ final class AppState: ObservableObject {
         statusMessage = "Reminders armed"
     }
 
-    @discardableResult
-    func pullFromiCloud() -> CloudSync.PullOutcome {
-        // A fresh install's auto-created defaults file is not user state; a
-        // staleness check against its mtime would forbid ever pulling real
-        // settings down to a new device.
-        let localStamp = config.hasCompletedOnboarding ? Self.fileMTime(Paths.configFile) : nil
-        let outcome = CloudSync.pull(localModifiedAt: localStamp)
-        if case let .success(pulledConfig, pulledProfiles, _) = outcome {
-            config = pulledConfig
-            if let pulledProfiles { profiles = pulledProfiles }
-            refreshNextFire()
-        }
-        statusMessage = outcome.userMessage
-        return outcome
-    }
-
-    @discardableResult
-    func pushToiCloud() -> Bool {
-        let ok = CloudSync.push(config: config, profiles: profiles)
-        statusMessage = ok ? "Pushed to iCloud" : "iCloud push failed — check iCloud Drive"
-        return ok
-    }
-
-    /// Weather hourly, team quiet feed every 6h, cross-device runtime/stats
-    /// every minute — all on the tick cadence.
-    private func refreshPeriodicSourcesIfDue() {
-        if config.features.weatherBreaksEnabled,
-           lastWeatherRefreshAt.map({ Date().timeIntervalSince($0) >= 3600 }) ?? true {
-            lastWeatherRefreshAt = Date()
-            Task { await self.refreshWeather() }
-        }
-        if config.features.teamQuiet.enabled,
-           !config.features.teamQuiet.feedURL.isEmpty,
-           config.features.teamQuiet.lastFetchedAt.map({ Date().timeIntervalSince($0) >= 6 * 3600 }) ?? true {
-            Task { await self.refreshTeamQuietHours() }
-        }
-        FightingShapeMonitor.shared.refreshIfDue(
-            enabled: config.features.fightingShapeEnabled,
-            baseURL: config.features.fightingShapeBaseURL
-        )
-        if config.features.iCloudSyncEnabled,
-           lastRuntimeSyncAt.map({ Date().timeIntervalSince($0) >= 60 }) ?? true {
-            lastRuntimeSyncAt = Date()
-            if let doc = CloudSync.pullRuntime() { applyCloudRuntime(doc) }
-            if stats != lastPushedStats {
-                CloudSync.pushStats(stats, deviceId: CloudSync.deviceId())
-                lastPushedStats = stats
-            }
-            remoteStats = CloudSync.pullRemoteStats(excludingDeviceId: CloudSync.deviceId())
-        }
-    }
-
-    /// Newest-wins per field, and only ever forward in time — a stale doc
-    /// can extend nothing and clear nothing. Docs not newer than this
-    /// device's last mutation are ignored entirely (that includes the
-    /// device's own last push).
-    private func applyCloudRuntime(_ doc: CloudSync.RuntimeDoc) {
-        if let local = lastRuntimeMutationAt, doc.updatedAt <= local { return }
-        var changed = false
-        if let remote = doc.lastAcknowledgedAt, (lastAcknowledgedAt ?? .distantPast) < remote {
-            lastAcknowledgedAt = remote; changed = true
-        }
-        if let remote = doc.lastReminderAt, (lastReminderAt ?? .distantPast) < remote {
-            lastReminderAt = remote; changed = true
-        }
-        if let remote = doc.snoozeUntil, remote > Date(), (snoozeUntil ?? .distantPast) < remote {
-            snoozeUntil = remote; changed = true
-        }
-        if let remote = doc.skipRestOfDayDate, Calendar.current.isDateInToday(remote), !isSkipTodayActive {
-            skipRestOfDayDate = remote; changed = true
-        }
-        if changed {
-            statusMessage = "Synced from \(doc.deviceName)"
-            refreshNextFire()
-        }
-    }
-
-    private func syncRuntimeToCloud() {
-        let stamp = Date()
-        lastRuntimeMutationAt = stamp
-        guard config.features.iCloudSyncEnabled else { return }
-        CloudSync.pushRuntime(CloudSync.RuntimeDoc(
-            updatedAt: stamp,
-            deviceName: CloudSync.defaultDeviceName(),
-            lastReminderAt: lastReminderAt,
-            lastAcknowledgedAt: lastAcknowledgedAt,
-            snoozeUntil: snoozeUntil,
-            skipRestOfDayDate: skipRestOfDayDate
-        ))
-    }
-
-    func refreshTeamQuietHours() async {
-        guard config.features.teamQuiet.enabled,
-              !config.features.teamQuiet.feedURL.isEmpty else { return }
-        let windows = await TeamQuietHours.fetch(from: config.features.teamQuiet.feedURL)
-        var c = config
-        c.features.teamQuiet.lastFetchedAt = Date()
-        if !windows.isEmpty {
-            c.features.teamQuiet.windows = windows
-        }
-        config = c
-    }
-
-    func refreshWeather() async {
-        guard config.features.weatherBreaksEnabled else {
-            weather = nil
-            return
-        }
-        LocationProvider.shared.refresh()
-        let coords: (Double, Double)
-        if let lat = config.features.weatherLatitude, let lon = config.features.weatherLongitude {
-            coords = (lat, lon)
-        } else if let fix = LocationProvider.shared.lastCoordinate {
-            coords = (fix.latitude, fix.longitude)
-        } else {
-            coords = WeatherService.approxCoordinates(for: config.scheduleTimeZone)
-        }
-        weather = await WeatherService.fetch(latitude: coords.0, longitude: coords.1)
-    }
-
-    func refreshLearnedSuggestion() {
-        learnedStore = LearnedScheduleStore.load()
-        learnedSuggestion = learnedStore.suggestion(calendar: config.scheduleCalendar)
-    }
-
-    func applyLearnedSchedule() {
-        guard let suggestion = learnedSuggestion else { return }
-        var c = config
-        for key in c.scheduleByWeekday.keys {
-            c.scheduleByWeekday[key] = suggestion
-        }
-        config = c
-        statusMessage = "Applied learned \(suggestion.startHour)–\(suggestion.endHour)"
-        refreshNextFire()
-        if config.features.diagnosticsEnabled {
-            Task {
-                await Diagnostics.report(
-                    event: "applied_learned_schedule",
-                    details: ["start": "\(suggestion.startHour)", "end": "\(suggestion.endHour)"],
-                    endpoint: config.features.diagnosticsEndpoint
-                )
-            }
-        }
-    }
-
-    func setEnabled(_ enabled: Bool) {
-        config.enabled = enabled
-        if enabled { isPaused = false }
-        refreshNextFire()
-        statusMessage = enabled ? "Reminders on" : "Reminders off"
-    }
-
-    func pause() {
-        isPaused = true
-        statusMessage = "Paused"
-        refreshNextFire()
-        syncRuntimeToCloud()
-    }
-
-    func resume() {
-        isPaused = false
-        snoozeUntil = nil
-        statusMessage = "Resumed"
-        refreshNextFire()
-        // Pushing the cleared snooze (and stamping the mutation) is what
-        // stops the device's own earlier snooze doc from resurrecting it.
-        syncRuntimeToCloud()
-    }
-
-    func snooze(minutes: Int) {
-        snoozeUntil = Date().addingTimeInterval(TimeInterval(minutes * 60))
-        stats.recordSnooze(on: StatsSnapshot.dayKey(calendar: config.scheduleCalendar))
-        statusMessage = "Snoozed \(minutes)m"
-        refreshNextFire()
-        syncRuntimeToCloud()
-    }
-
-    func skipToday() {
-        skipRestOfDayDate = Date()
-        stats.recordSkip(on: StatsSnapshot.dayKey(calendar: config.scheduleCalendar))
-        statusMessage = "Skipping rest of today"
-        refreshNextFire()
-        syncRuntimeToCloud()
-    }
-
-    func acknowledgeDone() {
-        lastAcknowledgedAt = Date()
-        stats.recordDone(on: StatsSnapshot.dayKey(calendar: config.scheduleCalendar))
-        if config.sitStandModeEnabled {
-            toggleDeskPhase()
-        }
-        if config.healthLoggingEnabled {
-            HealthLogger.logMindfulMinutes(config.healthMindfulMinutes)
-        }
-        WatchBridge.shared.sendStatus(
-            status: "done",
-            nextFire: nextFireAt,
-            countdownMinutes: countdownMinutes
-        )
-        statusMessage = "Nice — break logged"
-        showGuidedBreak = false
-        syncRuntimeToCloud()
-        if config.features.diagnosticsEnabled {
-            Task {
-                await Diagnostics.report(
-                    event: "break_done",
-                    endpoint: config.features.diagnosticsEndpoint
-                )
-            }
-        }
-    }
-
-    func openGuidedBreak(_ payload: ReminderPayload) {
-        pendingGuidedPayload = payload
-        showGuidedBreak = true
-        NSApp.activate(ignoringOtherApps: true)
-        NotificationCenter.default.post(name: .openGuidedBreakWindow, object: nil)
-    }
-
-    func testStandUp() { fire(mode: .breakPrompt, gate: .none) }
-    func testLunch() { fire(mode: .lunch, gate: .none) }
-    func testWindDown() { fire(mode: .windDown, gate: .none) }
-
-    func handleRemoteCommand(_ command: String?) {
-        switch command {
-        case "test": testStandUp()
-        case "test-lunch": testLunch()
-        case "test-wind-down": testWindDown()
-        case "test-guided": testGuided()
-        default: break
-        }
-    }
-    func testGuided() {
-        let payload = ReminderPayload(
-            kind: .breakPrompt,
-            title: "Guided Break",
-            body: "Follow the short sequence.",
-            promptId: "guided-test",
-            guidedSteps: ["Stand up", "Shoulder rolls ×10", "Look far away 20s", "Drink water"]
-        )
-        openGuidedBreak(payload)
-    }
-
-    func tick() {
-        reloadExternalChangesIfNeeded()
-        refreshPeriodicSourcesIfDue()
-        refreshNotificationAuthorization()
-        updateActivityWindow()
-        updateFrontmostTracking()
-        refreshNextFire()
-        updateMeetingCatchUpFlag()
-        persistRuntime()
-        publishWidget()
-
-        if pendingMeetingCatchUp && config.meetingCatchUpEnabled && !CalendarMonitor.isInMeeting() {
-            // A catch-up that couldn't land for a couple of intervals is
-            // stale (locked screen into the evening → don't fire yesterday's
-            // catch-up tomorrow morning).
-            let maxAge = max(TimeInterval(effectiveIntervalMinutes * 60) * 2, 30 * 60)
-            if let setAt = pendingMeetingCatchUpSetAt, Date().timeIntervalSince(setAt) > maxAge {
-                pendingMeetingCatchUp = false
-                pendingMeetingCatchUpSetAt = nil
-                persistRuntime()
-            } else if environmentAllowsInterruption() {
-                // Only clear the flag once the reminder can actually land — a
-                // locked screen, sleeping display, or empty desk defers the
-                // catch-up to the next tick instead of chiming into the void.
-                pendingMeetingCatchUp = false
-                pendingMeetingCatchUpSetAt = nil
-                persistRuntime()
-                fire(mode: .meetingCatchUp, gate: .environment)
-                return
-            }
-        }
-
-        if let last = lastReminderAt, Date().timeIntervalSince(last) < 90 { return }
-
-        // Only claim the tick when the fire can actually pass its gates —
-        // returning after a declined fire would starve the scheduled
-        // wind-down below until its grace window expired for the day.
-        if config.features.webcamStillnessEnabled,
-           WebcamStillnessMonitor.shared.isStillTooLong,
-           lastReminderAt.map({ Date().timeIntervalSince($0) >= 10 * 60 }) ?? true,
-           shouldFireNow(force: false) {
-            fire(mode: .breakPrompt, gate: .full)
-            return
-        }
-
-        guard let next = scheduledNext, Date() >= next.date else {
-            _ = shouldFireNow(force: false) // keeps the menu status message current
-            return
-        }
-
-        // A cadence break or desk-phase flip landing right after a lunch,
-        // wind-down, or catch-up would double-notify; defer the collision
-        // loser instead of firing it 90 seconds later. Capped at the
-        // effective interval so a deliberately short cadence isn't clamped.
-        let collisionDefer = min(10 * 60, TimeInterval(max(1, effectiveIntervalMinutes) * 60))
-        if next.kind == .breakPrompt || next.kind == .sitStand,
-           let last = lastReminderAt, Date().timeIntervalSince(last) < collisionDefer {
-            return
-        }
-
-        switch next.kind {
-        case .windDown: fire(mode: .windDown, gate: .environment)
-        case .lunch: fire(mode: .lunch, gate: .full)
-        case .sitStand: fire(mode: .sitStand, gate: .full)
-        case .breakPrompt: fire(mode: .breakPrompt, gate: .full)
-        }
-    }
-
     func refreshNotificationAuthorization() {
         UNUserNotificationCenter.current().getNotificationSettings { settings in
             let authorized: Bool?
@@ -694,322 +391,6 @@ final class AppState: ObservableObject {
         }
     }
 
-    private enum FireMode {
-        case lunch, windDown, sitStand, breakPrompt, meetingCatchUp
-    }
-
-    private enum FireGate {
-        /// Every quiet rule applies (shouldFireNow).
-        case full
-        /// Wind-down and meeting catch-up bypass focus/meeting/deep-work
-        /// suppression but must never interrupt a locked screen, sleeping
-        /// display, off-hours, or an empty desk.
-        case environment
-        /// Explicit user test commands.
-        case none
-    }
-
-    private func environmentAllowsInterruption() -> Bool {
-        guard config.enabled, !isPaused, !isSkipTodayActive else { return false }
-        guard config.isWithinWorkHours() || config.isWindDownTime() else { return false }
-        if config.skipWhenDisplayAsleep && DisplaySleepMonitor.shared.isDisplayAsleep { return false }
-        if config.skipWhenLocked && DisplaySleepMonitor.isScreenLocked() { return false }
-        if IdleMonitor.isIdle(thresholdMinutes: config.idleSkipMinutes) { return false }
-        return true
-    }
-
-    private func toggleDeskPhase() {
-        deskPhase = (deskPhase == .stand) ? .sit : .stand
-        deskPhaseStartedAt = Date()
-        persistRuntime()
-    }
-
-    private func updateActivityWindow() {
-        let idle = IdleMonitor.secondsIdle()
-        defer { lastObservedIdleSeconds = idle }
-        activitySamples.append(idle)
-        if activitySamples.count > 24 { activitySamples.removeFirst(activitySamples.count - 24) }
-
-        if idle < 60 {
-            // Returning from an absence at least as long as the idle-skip
-            // threshold means a real break just happened — credit it, so the
-            // stale overdue reminder doesn't fire at someone who just walked
-            // back from the thing it would have asked for.
-            let awayThreshold = TimeInterval(max(1, config.idleSkipMinutes) * 60)
-            if lastObservedIdleSeconds >= awayThreshold {
-                lastAcknowledgedAt = Date()
-                statusMessage = "Away \(Int(lastObservedIdleSeconds / 60))m — break credited"
-                refreshNextFire()
-                syncRuntimeToCloud()
-            }
-            if activeSince == nil { activeSince = Date().addingTimeInterval(-idle) }
-            if config.features.learnedScheduleEnabled {
-                learnedStore.recordActivity(at: Date(), calendar: config.scheduleCalendar)
-                LearnedScheduleStore.save(learnedStore)
-            }
-        } else if idle >= TimeInterval(max(1, config.idleSkipMinutes) * 60) {
-            activeSince = nil
-        }
-    }
-
-    private func updateFrontmostTracking() {
-        let current = DeepWorkMonitor.frontmostBundleId()
-        if current != frontmostBundleId {
-            frontmostBundleId = current
-            frontmostSince = Date()
-        }
-    }
-
-    private func updateMeetingCatchUpFlag() {
-        let inMeeting = CalendarMonitor.isInMeeting()
-        let wasPending = pendingMeetingCatchUp
-        if lastMeetingState && !inMeeting && config.meetingCatchUpEnabled {
-            if let last = lastReminderAt {
-                if Date().timeIntervalSince(last) >= TimeInterval(effectiveIntervalMinutes * 60) {
-                    pendingMeetingCatchUp = true
-                }
-            } else {
-                pendingMeetingCatchUp = true
-            }
-        }
-        // A break that comes due while in a meeting converts into a catch-up.
-        if inMeeting, config.meetingCatchUpEnabled,
-           let next = scheduledNext,
-           next.kind == .breakPrompt || next.kind == .sitStand,
-           Date() >= next.date {
-            pendingMeetingCatchUp = true
-        }
-        if pendingMeetingCatchUp && !wasPending {
-            pendingMeetingCatchUpSetAt = Date()
-        }
-        lastMeetingState = inMeeting
-    }
-
-    func shouldFireNow(force: Bool) -> Bool {
-        if force { return true }
-        guard config.enabled else { statusMessage = "Disabled"; return false }
-        guard !isPaused else { statusMessage = "Paused"; return false }
-        if isSkipTodayActive { statusMessage = "Skipped today"; return false }
-        if isSnoozing { statusMessage = "Snoozing"; return false }
-
-        if config.skipOnPTO && CalendarMonitor.isOutOfOffice(keywords: config.ptoKeywords, calendar: config.scheduleCalendar) {
-            statusMessage = "PTO / OOO"
-            return false
-        }
-        if TeamQuietHours.isInTeamQuiet(config: config.features, calendar: config.scheduleCalendar) {
-            statusMessage = "Team quiet hours"
-            return false
-        }
-        guard config.isWithinWorkHours() || config.isWindDownTime() else {
-            statusMessage = "Outside work hours"
-            return false
-        }
-        if config.skipWhenDisplayAsleep && DisplaySleepMonitor.shared.isDisplayAsleep {
-            statusMessage = "Display asleep"; return false
-        }
-        if config.skipWhenLocked && DisplaySleepMonitor.isScreenLocked() {
-            statusMessage = "Screen locked"; return false
-        }
-        if config.skipWhenFocused && FocusMonitor.isFocused() {
-            statusMessage = "Focus mode on"; return false
-        }
-        if config.skipWhenInMeeting && CalendarMonitor.isInMeeting() {
-            statusMessage = "In a meeting"; return false
-        }
-        if DeepWorkMonitor.isDenylisted(bundleId: frontmostBundleId, denylist: config.denylistBundleIds) {
-            statusMessage = "Quiet app (denylist)"; return false
-        }
-        // Deep-work suppression is bounded: once you're two full intervals
-        // past the last break, the longest sitting stretch of the day is
-        // exactly when a reminder matters most — stop suppressing.
-        let overdueLimit = TimeInterval(max(1, effectiveIntervalMinutes) * 60) * 2
-        let sinceAnchor = Scheduler.cadenceAnchor(
-            lastReminderAt: lastReminderAt,
-            lastAcknowledgedAt: lastAcknowledgedAt
-        ).map { Date().timeIntervalSince($0) } ?? 0
-        if sinceAnchor < overdueLimit,
-           config.deepWorkEnabled && DeepWorkMonitor.isInDeepWork(
-            frontmostBundleId: frontmostBundleId,
-            frontmostSince: frontmostSince,
-            quietMinutes: config.deepWorkQuietMinutes,
-            requireFullscreen: config.deepWorkRequireFullscreen
-        ) {
-            statusMessage = "Deep work"; return false
-        }
-        if IdleMonitor.isIdle(thresholdMinutes: config.idleSkipMinutes) {
-            statusMessage = "Idle — skipped"; return false
-        }
-        if config.minActiveMinutes > 0, !config.isLunchTime(), !config.isWindDownTime() {
-            let activeFor = activeSince.map { Date().timeIntervalSince($0) } ?? 0
-            if activeFor < TimeInterval(config.minActiveMinutes * 60) {
-                statusMessage = "Warming up (active \(Int(activeFor / 60))m)"
-                return false
-            }
-        }
-        statusMessage = "Armed"
-        return true
-    }
-
-    private func fire(mode: FireMode, gate: FireGate) {
-        switch gate {
-        case .full:
-            guard shouldFireNow(force: false) else { return }
-        case .environment:
-            guard environmentAllowsInterruption() else { return }
-        case .none:
-            break
-        }
-
-        let payload: ReminderPayload
-        switch mode {
-        case .lunch:
-            payload = ReminderPayload(
-                kind: .lunch,
-                title: config.lunch.title,
-                body: config.lunch.body,
-                promptId: "lunch",
-                guidedSteps: ["Stand up", "Step away from the desk", "Eat without screens if you can"]
-            )
-            lunchFiredDayKey = StatsSnapshot.dayKey(calendar: config.scheduleCalendar)
-            persistRuntime()
-        case .windDown:
-            payload = ReminderContent.windDown(config: config)
-            windDownFiredDayKey = StatsSnapshot.dayKey(calendar: config.scheduleCalendar)
-            persistRuntime()
-        case .sitStand:
-            // Announce the phase we want the user to switch INTO
-            let next: DeskPhase = deskPhase == .stand ? .sit : .stand
-            payload = ReminderContent.sitStandPayload(phase: next)
-        case .meetingCatchUp:
-            payload = ReminderContent.meetingCatchUp()
-        case .breakPrompt:
-            let prompts = config.prompts.isEmpty ? BreakPrompt.defaults : config.prompts
-            let index = promptCursor % prompts.count
-            promptCursor += 1
-            persistRuntime()
-            let prompt = prompts[index]
-            var body = prompt.body
-            if config.features.weatherBreaksEnabled, let weather, weather.isNiceForWalk,
-               prompt.id == "stand" || prompt.id == "walk" || prompt.id == "water" {
-                body += " \(weather.summary)"
-            }
-            payload = ReminderPayload(
-                kind: .breakPrompt,
-                title: prompt.title,
-                body: body,
-                promptId: prompt.id,
-                guidedSteps: prompt.guidedSteps
-            )
-        }
-
-        var delivered = payload
-        if config.features.weatherBreaksEnabled, let weather, weather.isNiceForWalk, mode == .meetingCatchUp {
-            delivered = ReminderPayload(
-                kind: payload.kind,
-                title: payload.title,
-                body: payload.body + " " + weather.summary,
-                promptId: payload.promptId,
-                guidedSteps: payload.guidedSteps
-            )
-        }
-
-        NotificationManager.deliver(delivered)
-        // Focus/DND suppresses the banner system-side; don't be the app that
-        // stays silent on screen but chimes and talks over a hearing.
-        let bannerSuppressed = FocusMonitor.isFocused()
-        if !bannerSuppressed {
-            if let sound = NSSound(named: NSSound.Name(config.soundName)) {
-                sound.play()
-            } else {
-                NSSound.beep()
-            }
-            if config.features.voiceAnnouncementsEnabled {
-                VoiceAnnouncer.speak(
-                    "\(delivered.title). \(delivered.body)",
-                    headphonesOnly: config.features.speakOnlyWithHeadphones
-                )
-            }
-        }
-        if config.features.watchCompanionEnabled {
-            WatchBridge.shared.notifyReminder(title: delivered.title, body: delivered.body)
-            WatchBridge.shared.sendStatus(
-                status: statusMessage,
-                nextFire: nextFireAt,
-                countdownMinutes: countdownMinutes
-            )
-        }
-        lastReminderAt = Date()
-        if notificationsAuthorized == false {
-            AppLog.write("Reminder fired but notifications are denied — no banner was shown")
-        } else {
-            stats.recordShown(on: StatsSnapshot.dayKey(calendar: config.scheduleCalendar))
-        }
-
-        if mode == .sitStand {
-            deskPhaseStartedAt = Date()
-            // Phase flips when user taps Done; still advance timer baseline now
-            persistRuntime()
-        }
-
-        if config.guidedBreakEnabled && (mode == .breakPrompt || mode == .sitStand || mode == .meetingCatchUp) {
-            // Auto-open guided UI optionally — only if user prefers; keep subtle: don't auto-steal focus every time
-            // Open only when guidedBreakSeconds > 0 and mode is catch-up or sitStand
-            if mode == .meetingCatchUp || mode == .sitStand {
-                openGuidedBreak(payload)
-            }
-        }
-
-        statusMessage = notificationsAuthorized == false
-            ? "Notifications blocked — allow in System Settings"
-            : "Reminded"
-        refreshNextFire()
-        publishWidget()
-        syncRuntimeToCloud()
-    }
-
-    func refreshNextFire() {
-        // Recompute the adaptive interval when the cadence anchor moves (a
-        // break happened) or every few minutes — recomputing on every 15 s
-        // tick let the six-minute activity window drag the next-break time
-        // around by tens of minutes.
-        let anchor = Scheduler.cadenceAnchor(lastReminderAt: lastReminderAt, lastAcknowledgedAt: lastAcknowledgedAt)
-        let recomputeDue = lastAdaptiveComputedAt.map { Date().timeIntervalSince($0) >= 5 * 60 } ?? true
-        if recomputeDue || anchor != lastAdaptiveAnchor {
-            var minutes = AdaptiveInterval.resolvedMinutes(config: config, samples: activitySamples)
-            if FightingShapeMonitor.shared.lowRecovery {
-                minutes = max(config.adaptiveMinMinutes, Int(Double(minutes) * 0.8))
-            }
-            effectiveIntervalMinutes = minutes
-            lastAdaptiveComputedAt = Date()
-            lastAdaptiveAnchor = anchor
-        }
-        scheduledNext = Scheduler.next(Scheduler.Input(
-            config: config,
-            intervalMinutes: effectiveIntervalMinutes,
-            now: Date(),
-            paused: isPaused || !config.enabled || isSkipTodayActive,
-            snoozeUntil: snoozeUntil,
-            lastReminderAt: lastReminderAt,
-            lastAcknowledgedAt: lastAcknowledgedAt,
-            deskPhaseStartedAt: deskPhaseStartedAt,
-            lunchFiredDayKey: lunchFiredDayKey,
-            windDownFiredDayKey: windDownFiredDayKey
-        ))
-        nextFireAt = scheduledNext?.date
-        publishWidget()
-    }
-
-    private func publishWidget() {
-        WidgetSnapshotWriter.write(
-            from: config,
-            nextFireAt: nextFireAt,
-            statusMessage: statusMessage,
-            stats: stats,
-            deskPhase: config.sitStandModeEnabled ? deskPhase : nil,
-            profileName: activeProfileName
-        )
-    }
-
     private func registerLoginItemIfPossible() {
         if #available(macOS 13.0, *) {
             do {
@@ -1018,61 +399,5 @@ final class AppState: ObservableObject {
                 AppLog.write("Login item not registered: \(error.localizedDescription)")
             }
         }
-    }
-
-    func maybeCheckForUpdates(force: Bool = false) async {
-        guard config.updateCheckEnabled else { return }
-        if !force, let last = lastUpdateCheckAt, Date().timeIntervalSince(last) < 12 * 3600 { return }
-        lastUpdateCheckAt = Date()
-        persistRuntime()
-        if let info = await UpdateChecker.check(releasesURL: config.githubReleasesURL), info.isNewer {
-            updateInfo = info
-            AppLog.write("Update available: \(info.tagName)")
-        }
-    }
-
-    func weekStatsText() -> String {
-        var w = stats.weekSummary()
-        for remote in remoteStats {
-            let r = remote.weekSummary()
-            w = (w.shown + r.shown, w.done + r.done, w.skipped + r.skipped, w.snoozed + r.snoozed)
-        }
-        let suffix = remoteStats.isEmpty ? "" : " (all devices)"
-        return "This week: \(w.done) done · \(w.shown) shown · \(w.snoozed) snoozed · \(w.skipped) skipped\(suffix)"
-    }
-
-    func statusReport() -> String {
-        let next: String = {
-            guard let nextFireAt else { return "none" }
-            let formatter = DateFormatter()
-            formatter.timeZone = config.scheduleTimeZone
-            formatter.dateStyle = .none
-            formatter.timeStyle = .short
-            return formatter.string(from: nextFireAt)
-        }()
-        return """
-        profile: \(activeProfileName)
-        enabled: \(config.enabled)
-        paused: \(isPaused)
-        interval: \(effectiveIntervalMinutes)m (base \(config.intervalMinutes))
-        deskPhase: \(config.sitStandModeEnabled ? deskPhase.rawValue : "off")
-        timezone: \(config.scheduleTimeZone.identifier)
-        status: \(statusMessage)
-        next: \(next)
-        update: \(updateInfo.map { "\($0.tagName) \($0.isNewer ? "(newer)" : "")" } ?? "n/a")
-        \(weekStatsText())
-        config: \(Paths.configFile.path)
-        """
-    }
-
-    // MARK: Import / Export
-
-    func exportSettings() throws -> Data {
-        try ConfigStore.exportJSON()
-    }
-
-    func importSettings(_ data: Data) throws {
-        config = try ConfigStore.importJSON(data)
-        refreshNextFire()
     }
 }
