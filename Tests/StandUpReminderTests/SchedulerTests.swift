@@ -226,4 +226,49 @@ final class SchedulerTests: XCTestCase {
         ))
         XCTAssertEqual(next?.date, date(2026, 7, 15, 10, 30))
     }
+
+    // MARK: DST transitions (America/Chicago: spring forward 2026-03-08, fall back 2026-11-01)
+
+    func testChainAcrossSpringForwardKeepsLocalTimes() {
+        // Sunday 2026-03-08 10:00 local; the 02:00→03:00 jump is overnight.
+        // With no cadence anchor the chain starts one interval out, clamps to
+        // Monday 9:00 local wall-clock (not 8:00 or 10:00 from naive
+        // absolute-time math), and fires lunch at local noon.
+        let chain = Scheduler.upcoming(input(
+            config: makeConfig(lunch: true),
+            now: date(2026, 3, 8, 10, 0)
+        ), count: 14)
+
+        XCTAssertEqual(chain.first, Scheduler.Next(date: date(2026, 3, 9, 9, 0), kind: .breakPrompt))
+        let monday = chain.filter { $0.date < date(2026, 3, 10, 0, 0) }
+        XCTAssertEqual(monday.filter { $0.kind == .lunch }.count, 1)
+        XCTAssertEqual(monday.first { $0.kind == .lunch }?.date, date(2026, 3, 9, 12, 0))
+
+        // Break spacing never collapses across the boundary.
+        let breaks = monday.filter { $0.kind == .breakPrompt }.map(\.date)
+        for (a, b) in zip(breaks, breaks.dropFirst()) {
+            XCTAssertGreaterThanOrEqual(b.timeIntervalSince(a), 30 * 60)
+        }
+    }
+
+    func testWorkStartAfterFallBackIsNineAMLocal() {
+        // Friday 2026-10-30 16:55 CDT → next is Monday 2026-11-02 9:00 CST.
+        let next = Scheduler.next(input(
+            config: makeConfig(),
+            now: date(2026, 10, 30, 16, 55),
+            lastAcknowledgedAt: date(2026, 10, 30, 16, 50)
+        ))
+        XCTAssertEqual(next, Scheduler.Next(date: date(2026, 11, 2, 9, 0), kind: .breakPrompt))
+    }
+
+    func testLunchAfterFallBackFiresAtLocalNoon() {
+        let chain = Scheduler.upcoming(input(
+            config: makeConfig(lunch: true),
+            now: date(2026, 11, 1, 10, 0),
+            lastAcknowledgedAt: date(2026, 10, 30, 16, 0)
+        ), count: 14)
+        let monday = chain.filter { $0.date < date(2026, 11, 3, 0, 0) }
+        XCTAssertEqual(monday.filter { $0.kind == .lunch }.count, 1)
+        XCTAssertEqual(monday.first { $0.kind == .lunch }?.date, date(2026, 11, 2, 12, 0))
+    }
 }

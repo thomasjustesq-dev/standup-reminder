@@ -1,11 +1,42 @@
 # Distribution guide
 
-## Direct / Developer ID
+## Tag-triggered releases (GitHub Actions)
+
+`.github/workflows/release.yml` turns a tag push into a full release:
+
+    # 1. bump CFBundleShortVersionString in Resources/Info.plist (and the
+    #    iOS/Watch versions in project.yml) — the workflow fails if the tag
+    #    and Info.plist disagree
+    git tag v4.2.1 && git push origin v4.2.1
+
+The pipeline builds the Release app (Developer ID signing with provisioning
+profiles via an App Store Connect API key), notarizes and staples it, packs a
+Sparkle `.zip` and a `.dmg`, regenerates `docs/appcast.xml` (signed with the
+Sparkle Ed key, committed back to `main`), and creates the GitHub release with
+both artifacts.
+
+Required repository secrets:
+
+| Secret | What |
+| --- | --- |
+| `APPLE_CERTIFICATES_P12` | base64 `.p12` of the Developer ID Application cert + private key |
+| `APPLE_CERTIFICATES_PASSWORD` | password for that `.p12` |
+| `APP_STORE_CONNECT_KEY_ID` | App Store Connect API key ID |
+| `APP_STORE_CONNECT_ISSUER_ID` | App Store Connect API issuer ID |
+| `APP_STORE_CONNECT_PRIVATE_KEY` | base64 `.p8` of the API key |
+| `SPARKLE_ED_PRIVATE_KEY` | *(optional)* Sparkle EdDSA private key — without it the appcast step is skipped |
+
+Notes: the appcast commit pushes straight to `main` as `github-actions[bot]`;
+if `main` is protected, allow that actor (or GitHub Actions) to push. Re-tagging
+the same version replaces its appcast item instead of duplicating it.
+
+## Direct / Developer ID (manual)
 
 1. `./scripts/build-app.sh`
 2. `./scripts/notarize.sh` with `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD`
 3. Zip or DMG the stapled `.app`
 4. Host `docs/appcast.xml` + zip for Sparkle; set **Sparkle appcast URL** in Settings
+5. `python3 scripts/update-appcast.py --help` inserts/signs an appcast item by hand
 
 ## Homebrew Cask
 

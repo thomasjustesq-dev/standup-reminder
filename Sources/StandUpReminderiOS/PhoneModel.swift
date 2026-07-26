@@ -463,10 +463,11 @@ final class PhoneModel: ObservableObject {
         var week = stats.weekSummary()
         for remote in remoteStats {
             let r = remote.weekSummary()
-            week = (week.shown + r.shown, week.done + r.done, week.skipped + r.skipped, week.snoozed + r.snoozed)
+            week = (week.shown + r.shown, week.done + r.done, week.skipped + r.skipped, week.snoozed + r.snoozed, week.selfLogged + r.selfLogged)
         }
         let suffix = remoteStats.isEmpty ? "" : " (all devices)"
-        return "This week: \(week.done) done · \(week.shown) shown · \(week.snoozed) snoozed · \(week.skipped) skipped\(suffix)"
+        let breakdown = week.selfLogged > 0 ? " (\(week.selfLogged) self-logged)" : ""
+        return "This week: \(week.done) done\(breakdown) · \(week.shown) shown · \(week.snoozed) snoozed · \(week.skipped) skipped\(suffix)"
     }
 
     // MARK: Background refresh
