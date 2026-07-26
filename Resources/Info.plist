@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleExecutable</key>
+	<string>StandUpReminder</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.user.StandUpReminder</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>Stand Up Reminder</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>4.1.0</string>
+	<key>CFBundleVersion</key>
+	<string>5</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Stand Up Reminder skips alerts during meetings and on PTO/OOO calendar days.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Stand Up Reminder skips alerts during meetings and on PTO/OOO calendar days.</string>
+	<key>NSFocusStatusUsageDescription</key>
+	<string>Stand Up Reminder avoids interrupting you when Focus or Do Not Disturb is on.</string>
+	<key>NSUserNotificationsUsageDescription</key>
+	<string>Stand Up Reminder sends break, lunch, and end-of-day reminders during your workday.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Stand Up Reminder can save a short mindful session to Apple Health when you tap Done on a break.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Stand Up Reminder can save a short mindful session to Apple Health when you tap Done on a break.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Optional: your approximate location fetches local weather for outdoor-walk suggestions. Denying falls back to a time-zone estimate.</string>
+	<key>NSLocationUsageDescription</key>
+	<string>Optional: your approximate location fetches local weather for outdoor-walk suggestions. Denying falls back to a time-zone estimate.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Optional on-device stillness detection uses face bounding boxes only. Video never leaves your Mac.</string>
+	<key>SUFeedURL</key>
+	<string></string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+</dict>
+</plist>

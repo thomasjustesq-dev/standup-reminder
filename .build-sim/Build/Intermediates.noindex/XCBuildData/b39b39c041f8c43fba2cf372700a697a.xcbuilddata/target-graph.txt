@@ -1,0 +1,4 @@
+Target dependency graph (2 targets)
+Target 'StandUpReminderiOS' in project 'StandUpReminder'
+➜ Explicit dependency on target 'StandUpReminderWatch' in project 'StandUpReminder'
+Target 'StandUpReminderWatch' in project 'StandUpReminder' (no dependencies)

@@ -1,0 +1,86 @@
+# XcodeGen project for the full app family:
+#   brew install xcodegen
+#   xcodegen generate
+#   xcodebuild -scheme StandUpReminder build                       # Mac app + widget
+#   xcodebuild -scheme StandUpReminderiOS \
+#     -destination 'platform=iOS Simulator,name=iPhone 17' build   # iPhone + Watch
+name: StandUpReminder
+options:
+  bundleIdPrefix: com.user
+  deploymentTarget:
+    macOS: "14.0"
+    iOS: "17.0"
+    watchOS: "10.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    DEVELOPMENT_TEAM: BBTNHBK7VX
+    CODE_SIGN_STYLE: Automatic
+targets:
+  StandUpReminder:
+    type: application
+    platform: macOS
+    sources:
+      - Sources/StandUpReminder
+      - Sources/StandUpReminderCore
+      - Resources/Assets.xcassets
+    settings:
+      ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+      PRODUCT_BUNDLE_IDENTIFIER: com.user.StandUpReminder
+      INFOPLIST_FILE: Resources/Info.plist
+      CODE_SIGN_ENTITLEMENTS: Resources/StandUpReminder.entitlements
+      LD_RUNPATH_SEARCH_PATHS: ["@executable_path/../Frameworks"]
+    dependencies:
+      - target: StandUpReminderWidget
+        embed: true
+
+  StandUpReminderWidget:
+    type: app-extension
+    platform: macOS
+    sources:
+      - Sources/StandUpReminderWidget
+      - Sources/StandUpReminderCore
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.user.StandUpReminder.widget
+      INFOPLIST_FILE: Sources/StandUpReminderWidget/Info.plist
+      SKIP_INSTALL: true
+
+  StandUpReminderiOS:
+    type: application
+    platform: iOS
+    sources:
+      - Sources/StandUpReminderiOS
+      - Sources/StandUpReminderCore
+    info:
+      path: Resources/iOS-Info.plist
+      properties:
+        CFBundleDisplayName: Stand Up
+        CFBundleShortVersionString: "4.1.0"
+        CFBundleVersion: "5"
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        ITSAppUsesNonExemptEncryption: false
+        NSLocationWhenInUseUsageDescription: "Optional: your approximate location fetches local weather for outdoor-walk suggestions."
+    settings:
+      ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+      PRODUCT_BUNDLE_IDENTIFIER: com.thomasjust.standupreminder
+      TARGETED_DEVICE_FAMILY: "1"
+    dependencies:
+      - target: StandUpReminderWatch
+
+  StandUpReminderWatch:
+    type: application
+    platform: watchOS
+    sources:
+      - Sources/StandUpReminderWatch
+    info:
+      path: Resources/Watch-Info.plist
+      properties:
+        CFBundleDisplayName: Stand Up
+        CFBundleShortVersionString: "4.1.0"
+        CFBundleVersion: "5"
+        WKApplication: true
+        WKCompanionAppBundleIdentifier: com.thomasjust.standupreminder
+    settings:
+      ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+      PRODUCT_BUNDLE_IDENTIFIER: com.thomasjust.standupreminder.watchkitapp
