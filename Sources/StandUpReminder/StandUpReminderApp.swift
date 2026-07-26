@@ -110,9 +110,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         // SwiftUI's DismissAction is inert inside a plain hosted NSWindow;
         // hand the views a working close path through the environment.
+        // The closure must hold the box STRONGLY — it is the box's only
+        // owner, and a weak capture leaves the close action a silent no-op
+        // the moment this method returns. There is no retain cycle: the
+        // box's back-reference to the window is itself weak.
         let box = FallbackWindowBox()
-        let root = content().environment(\.fallbackWindowClose) { [weak box] in
-            box?.window?.close()
+        let root = content().environment(\.fallbackWindowClose) { [box] in
+            box.window?.close()
         }
         let controller = NSHostingController(rootView: root)
         let window = NSWindow(contentViewController: controller)
