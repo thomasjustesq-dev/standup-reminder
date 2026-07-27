@@ -40,9 +40,16 @@ targets:
     sources:
       - Sources/StandUpReminderWidget
       - Sources/StandUpReminderCore
+    info:
+      path: Resources/Widget-Info.plist
+      properties:
+        CFBundleDisplayName: Stand Up Reminder
+        CFBundleShortVersionString: "4.2.1"
+        CFBundleVersion: "7"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.user.StandUpReminder.widget
-      INFOPLIST_FILE: Sources/StandUpReminderWidget/Info.plist
       SKIP_INSTALL: true
 
   StandUpReminderiOS:

@@ -25,6 +25,13 @@ jobs:
         run: brew install xcodegen
       - name: Generate project
         run: xcodegen generate
+      - name: Verify xcodegen output is fully gitignored
+        run: |
+          if [[ -n "$(git status --porcelain)" ]]; then
+            echo "::error::xcodegen generate dirtied the tree. Every generated file must be gitignored."
+            git status --porcelain
+            exit 1
+          fi
       - name: Build macOS app (embeds widget)
         run: >
           xcodebuild -project StandUpReminder.xcodeproj

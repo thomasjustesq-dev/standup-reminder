@@ -1,31 +1,37 @@
 #!/usr/bin/env bash
 # Fail if the app family's version numbers have drifted apart.
 #
-# Two kinds of Info.plist live in this repo and they must not be confused:
+# project.yml is the source of truth. Every target declares its version there
+# and `xcodegen generate` writes the matching Resources/*-Info.plist, so those
+# plists are build output: they are gitignored, and editing them by hand
+# accomplishes nothing.
 #
-#   generated  — targets that declare an `info:` block in project.yml. XcodeGen
-#                writes these on every `xcodegen generate`, so they are
-#                gitignored. Editing them by hand accomplishes nothing.
-#   checked in — targets that point at an existing file with `INFOPLIST_FILE`.
-#                XcodeGen never touches these, so they are the source of truth
-#                for the macOS app and its widget and must be bumped by hand.
-#
-# A version bump therefore has to touch project.yml, the checked-in plists, and
-# the Homebrew formula. This script is what stops someone touching only some of
-# them.
+# Resources/Info.plist is the one exception. It cannot move into project.yml
+# because three things read it off disk before xcodegen ever runs:
+# scripts/build-app.sh (the SwiftPM fallback path), the Homebrew formula's
+# install block, and the release workflow's tag check. So it stays hand-
+# maintained, and this script is what keeps it honest — along with the two
+# Homebrew files, which pin the marketing version but have no build number.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
 
-# Checked-in plists: hand-maintained, must match project.yml.
+# Hand-maintained; must match project.yml on both keys.
 SOURCE_PLISTS=(
   Resources/Info.plist
-  Sources/StandUpReminderWidget/Info.plist
 )
 
-# Generated plists: must stay untracked or `xcodegen generate` dirties the tree.
+# Hand-maintained; pin the marketing version only.
+RUBY_FILES=(
+  Formula/standup-reminder.rb
+  Casks/standup-reminder.rb
+)
+
+# Written by xcodegen; must stay untracked or `xcodegen generate` dirties the
+# tree for everyone who regenerates the project.
 GENERATED_PLISTS=(
+  Resources/Widget-Info.plist
   Resources/iOS-Info.plist
   Resources/Watch-Info.plist
   Resources/iOSWidget-Info.plist
@@ -35,7 +41,7 @@ GENERATED_PLISTS=(
 status=0
 fail() { echo "error: $*" >&2; status=1; }
 
-# Collect the version each project.yml target declares. All four must agree;
+# Collect the version each project.yml target declares. All of them must agree;
 # `sort -u` reduces them to one value, so anything left over is a disagreement.
 collect_yaml() {
   sed -n "s/^ *$1: *\"\{0,1\}\([^\"]*\)\"\{0,1\} *$/\1/p" project.yml | sort -u
@@ -65,12 +71,11 @@ for plist in "${SOURCE_PLISTS[@]}"; do
     fail "${plist} CFBundleVersion is ${build}, project.yml says ${expected_build}"
 done
 
-# The formula pins the marketing version only — it has no build number.
-# Casks/standup-reminder.rb is a template pointing at example.com placeholder
-# URLs rather than a real release, so its version is deliberately not checked.
-formula_version="$(sed -n 's/^ *version "\([^"]*\)" *$/\1/p' Formula/standup-reminder.rb)"
-[[ "${formula_version}" == "${expected_short}" ]] ||
-  fail "Formula/standup-reminder.rb version is ${formula_version}, project.yml says ${expected_short}"
+for ruby in "${RUBY_FILES[@]}"; do
+  found="$(sed -n 's/^ *version "\([^"]*\)" *$/\1/p' "${ruby}")"
+  [[ "${found}" == "${expected_short}" ]] ||
+    fail "${ruby} version is ${found:-unset}, project.yml says ${expected_short}"
+done
 
 for plist in "${GENERATED_PLISTS[@]}"; do
   if git ls-files --error-unmatch "${plist}" >/dev/null 2>&1; then
@@ -80,7 +85,7 @@ done
 
 if [[ ${status} -ne 0 ]]; then
   echo "" >&2
-  echo "Version bump checklist: project.yml (all four targets), $(printf '%s, ' "${SOURCE_PLISTS[@]}")Formula/standup-reminder.rb." >&2
+  echo "Run ./scripts/bump-version.sh <version> <build> instead of editing by hand." >&2
   exit 1
 fi
 
