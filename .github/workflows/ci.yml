@@ -17,7 +17,11 @@ jobs:
       - name: Test
         run: swift test -v
 
-  mac-app-and-widget:
+  # Both schemes build in one job: macOS runners bill at 10x, and splitting
+  # them meant paying for a second checkout, brew install, and xcodegen run to
+  # produce the identical project. The builds serialize as a result, so this
+  # trades a little PR wall-clock for roughly a third fewer billed minutes.
+  xcode-builds:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -38,15 +42,6 @@ jobs:
           -scheme StandUpReminder
           -destination 'platform=macOS'
           CODE_SIGNING_ALLOWED=NO build
-
-  ios-and-watch:
-    runs-on: macos-15
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install xcodegen
-        run: brew install xcodegen
-      - name: Generate project
-        run: xcodegen generate
       - name: Build iOS app (embeds Watch app + both widget extensions)
         run: >
           xcodebuild -project StandUpReminder.xcodeproj
