@@ -111,9 +111,10 @@ iOS decides when it runs — the sentinel notification covers the gap.
 
 ### Roadmap / not wired up yet
 
-- **Sparkle appcast** — template only (`docs/appcast.xml`); the app uses the
+- **Reviewed:** 2026-07-30
+- [ ] **Sparkle appcast** — template only (`docs/appcast.xml`); the app uses the
   GitHub releases checker unless Sparkle is linked in a distribution build.
-- **MAS / Homebrew** — entitlements and cask/formula files are templates.
+- [ ] **MAS / Homebrew** — entitlements and cask/formula files are templates.
 
 ## Install
 
