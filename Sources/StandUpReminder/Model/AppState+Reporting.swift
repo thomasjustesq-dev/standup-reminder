@@ -50,6 +50,26 @@ extension AppState {
         """
     }
 
+    // MARK: Scheduler Input
+
+    /// Construct a `Scheduler.Input` from the current live state so that
+    /// debug commands and the debug panel can call scheduling functions
+    /// without duplicating the input-assembly logic.
+    func makeSchedulerInput(now: Date = Date()) -> Scheduler.Input {
+        Scheduler.Input(
+            config: config,
+            intervalMinutes: effectiveIntervalMinutes,
+            now: now,
+            paused: isPaused || !config.enabled || isSkipTodayActive,
+            snoozeUntil: snoozeUntil,
+            lastReminderAt: lastReminderAt,
+            lastAcknowledgedAt: lastAcknowledgedAt,
+            deskPhaseStartedAt: deskPhaseStartedAt,
+            lunchFiredDayKey: lunchFiredDayKey,
+            windDownFiredDayKey: windDownFiredDayKey
+        )
+    }
+
     // MARK: Import / Export
 
     func exportSettings() throws -> Data {

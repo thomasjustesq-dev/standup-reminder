@@ -43,6 +43,14 @@ struct StandUpReminderApp: App {
                 .environmentObject(appState)
         }
         .windowResizability(.contentSize)
+
+        #if DEBUG
+        Window("Debug Panel", id: "debug-panel") {
+            DebugPanel()
+                .environmentObject(appState)
+        }
+        .windowResizability(.contentSize)
+        #endif
     }
 }
 
@@ -78,7 +86,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
 
+            #if DEBUG
+            if DebugEnvironment.isDebugMode {
+                observe(.openDebugPanel) { [weak self] in
+                    self?.present(id: "debug-panel", title: "Debug Panel") {
+                        DebugPanel().environmentObject(AppState.shared)
+                    }
+                }
+            }
+            #endif
+
             AppState.shared.start()
+
+            #if DEBUG
+            if DebugEnvironment.isDebugMode {
+                NotificationCenter.default.post(name: .openDebugPanel, object: nil)
+            }
+            #endif
         }
     }
 
@@ -158,6 +182,9 @@ extension Notification.Name {
     static let openGuidedBreakWindow = Notification.Name("openGuidedBreakWindow")
     static let openSampleDayTour = Notification.Name("openSampleDayTour")
     static let openOnboardingWindow = Notification.Name("openOnboardingWindow")
+    #if DEBUG
+    static let openDebugPanel = Notification.Name("openDebugPanel")
+    #endif
     /// Posted via DistributedNotificationCenter by the CLI process after it
     /// mutates state on disk, so the running app picks it up immediately.
     static let standUpExternalStateChanged = Notification.Name("com.user.StandUpReminder.externalStateChanged")
