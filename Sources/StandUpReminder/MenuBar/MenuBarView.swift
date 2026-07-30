@@ -119,5 +119,14 @@ struct MenuBarView: View {
             NSApplication.shared.terminate(nil)
         }
         .keyboardShortcut("q", modifiers: .command)
+
+        #if DEBUG
+        if DebugEnvironment.isDebugMode {
+            Divider()
+            Button("Debug Panel…") {
+                NotificationCenter.default.post(name: .openDebugPanel, object: nil)
+            }
+        }
+        #endif
     }
 }

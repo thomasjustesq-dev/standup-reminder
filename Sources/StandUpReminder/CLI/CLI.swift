@@ -140,6 +140,21 @@ enum CLI {
             notifyRunningApp()
             print(state.statusMessage)
             return true
+        case "debug-trace":
+            state.refreshNextFire()
+            print(DebugCommands.ruleTrace(input: state.makeSchedulerInput()))
+            return true
+        case "debug-snapshot":
+            state.refreshNextFire()
+            print(DebugCommands.scheduleSnapshot(input: state.makeSchedulerInput()))
+            return true
+        case "debug-check":
+            state.refreshNextFire()
+            print(DebugCommands.determinismCheck(input: state.makeSchedulerInput()))
+            return true
+        case "debug-config":
+            print(DebugCommands.configReport(config: state.config))
+            return true
         case "help", "-h", "--help":
             print(helpText); return true
         default:
@@ -167,5 +182,11 @@ enum CLI {
       standup-reminder weather
       standup-reminder learn-apply
       standup-reminder help
+
+    Debug (debug builds only — reads current config; does not modify state):
+      standup-reminder debug-trace      Rule evaluation trace
+      standup-reminder debug-snapshot   Upcoming schedule as JSON
+      standup-reminder debug-check      Determinism check (two evaluations compared)
+      standup-reminder debug-config     Active config as JSON
     """
 }

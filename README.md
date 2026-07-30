@@ -154,6 +154,36 @@ standup-reminder learn-apply
 ./scripts/uninstall.sh
 ```
 
+## Debug tooling
+
+A set of read-only debug commands and an in-app debug panel are available in debug builds to help introspect the scheduler, config, and runtime state.
+
+### CLI debug commands
+
+These sub-commands print diagnostic output and exit — they do **not** modify any state.
+
+```bash
+standup-reminder debug-trace      # Rule evaluation trace: which rules are active and what fires next
+standup-reminder debug-snapshot   # Upcoming schedule as a JSON array (next 10 reminders)
+standup-reminder debug-check      # Determinism check: evaluates the schedule twice and compares
+standup-reminder debug-config     # Active AppConfig serialised as JSON
+```
+
+### In-app debug panel
+
+Launch the app with the `--debug` argument to surface the debug panel at startup and add a **Debug Panel…** menu item to the menu bar:
+
+```bash
+.build/debug/StandUpReminder --debug
+```
+
+The panel shows:
+- **Active Rules** — which scheduling rules are currently enabled, the cadence anchor, and the next scheduled reminder
+- **Runtime State** — paused/snoozing/skip-today flags, effective interval, active profile, and notification authorization status
+- **Upcoming Schedule** — next 20 reminders as formatted JSON
+
+> **Gate**: the panel and its menu item are compiled only in `#if DEBUG` builds and are additionally guarded by the `--debug` launch argument. They are unreachable in release builds.
+
 ## Development
 
 ```bash

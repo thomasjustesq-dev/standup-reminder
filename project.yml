@@ -23,6 +23,7 @@ targets:
     sources:
       - Sources/StandUpReminder
       - Sources/StandUpReminderCore
+      - Sources/DebugHarness
       - Resources/Assets.xcassets
     settings:
       ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

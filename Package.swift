@@ -14,7 +14,7 @@ let package = Package(
             name: "StandUpReminder",
             path: "Sources",
             exclude: ["StandUpReminderWidget", "StandUpReminderWatch", "StandUpReminderiOS"],
-            sources: ["StandUpReminder", "StandUpReminderCore"]
+            sources: ["StandUpReminder", "StandUpReminderCore", "DebugHarness"]
         ),
         .testTarget(
             name: "StandUpReminderTests",
