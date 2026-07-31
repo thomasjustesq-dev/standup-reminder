@@ -132,7 +132,9 @@ enum CloudSync {
     /// present — AppConfig decodes "successfully" from any JSON object (every
     /// field is optional), which would silently turn garbage into factory
     /// defaults and defeat the whole no-wipe contract.
-    private static func decodeStamped<T: Codable>(
+    /// Internal rather than private so CloudSyncTests can pin the contract
+    /// described above; it is not called from outside CloudSync.
+    static func decodeStamped<T: Codable>(
         _ type: T.Type, from data: Data, fileURL: URL, bareMarkerKeys: [String]
     ) -> (T, Date)? {
         let decoder = JSONCoding.decoder()

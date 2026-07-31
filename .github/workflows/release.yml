@@ -34,6 +34,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check version consistency
+        run: ./scripts/check-versions.sh
+
       - name: Resolve version from tag
         id: meta
         run: |
