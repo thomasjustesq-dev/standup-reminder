@@ -1,0 +1,54 @@
+name: claim-reconcile
+
+on:
+  pull_request:
+    types: [closed]
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: claim-reconcile
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  reconcile:
+    if: github.event_name != 'pull_request' || github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.REPO_PAT || secrets.GITHUB_TOKEN }}
+      - name: Reconcile and PR
+        env:
+          GH_TOKEN: ${{ secrets.REPO_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          chmod +x scripts/reconcile-claims.sh scripts/generate-live-claims-index.sh
+          out="$(scripts/reconcile-claims.sh 2>&1)" || { echo "$out"; exit 1; }
+          echo "$out"
+          echo "$out" | grep -q '^CHANGED=1$' || exit 0
+          BRANCH="automation/claim-reconcile"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin
+          DEFAULT="$(git remote show origin | sed -n '/HEAD branch/s/.*: //p')"
+          DEFAULT="${DEFAULT:-main}"
+          git checkout -B "$BRANCH" "origin/$DEFAULT" 2>/dev/null || git checkout -B "$BRANCH"
+          scripts/reconcile-claims.sh || true
+          scripts/generate-live-claims-index.sh || true
+          git add docs/claims docs/LIVE_CLAIMS.md docs/ASSIGNMENT.md 2>/dev/null || true
+          git diff --cached --quiet && exit 0
+          git commit -q -m "chore(claims): auto-reconcile status after merged PRs"
+          git push -q -u origin "$BRANCH" --force
+          existing="$(gh pr list --head "$BRANCH" --state open --json number -q '.[0].number // empty' || true)"
+          if [ -z "$existing" ]; then
+            pr_url="$(gh pr create --base "$DEFAULT" --head "$BRANCH"                           --title "chore(claims): auto-reconcile status after merged PRs"                           --body "Automated claim registry reconcile." --label claims-only || true)"
+            existing="$(printf '%s' "$pr_url" | grep -oE '[0-9]+$' || true)"
+          fi
+          [ -n "${existing:-}" ] && gh pr merge "$existing" --squash --delete-branch --auto || true

@@ -1,0 +1,31 @@
+name: process-guard
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Write surface (agent branches)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          chmod +x scripts/check-write-surface.sh
+          scripts/check-write-surface.sh "$BASE_SHA" "$HEAD_REF"
+      - name: Coordination guard
+        run: |
+          chmod +x scripts/coordination-guard.sh
+          scripts/coordination-guard.sh
+      - name: Stale claims (advisory)
+        continue-on-error: true
+        run: |
+          chmod +x scripts/stale-claims.sh
+          scripts/stale-claims.sh || true

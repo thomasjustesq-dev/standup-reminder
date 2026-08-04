@@ -1,0 +1,4 @@
+# Append-only coordination logs (PENUMBRA lesson: concurrent append thrash).
+docs/DECISIONS.md       merge=union
+docs/SESSION_LOG.md     merge=union
+docs/OPEN_QUESTIONS.md  merge=union

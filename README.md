@@ -196,3 +196,7 @@ CI runs both on every push and pull request.
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+## Agent coordination
+
+Multi-agent work uses claim-first process docs: [`CLAUDE.md`](CLAUDE.md), [`docs/WORKBOARD.md`](docs/WORKBOARD.md), [`docs/ASSIGNMENT.md`](docs/ASSIGNMENT.md).
