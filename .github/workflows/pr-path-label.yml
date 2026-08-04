@@ -1,0 +1,39 @@
+name: pr-path-label
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Classify and label
+        env:
+          GH_TOKEN: ${{ secrets.REPO_PAT || secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          files="$(gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[].filename' | sort -u || true)"
+          [ -z "$files" ] && exit 0
+          chmod +x scripts/classify-paths.sh
+          eval "$(printf '%s\n' "$files" | scripts/classify-paths.sh)"
+          gh api "repos/$REPO/labels" -f name=claims-only -f color=0E8A16 -f description="Registry only" 2>/dev/null || true
+          gh api "repos/$REPO/labels" -f name=docs-process -f color=5319E7 -f description="Docs/process only" 2>/dev/null || true
+          gh pr edit "$PR" --repo "$REPO" --remove-label claims-only 2>/dev/null || true
+          gh pr edit "$PR" --repo "$REPO" --remove-label docs-process 2>/dev/null || true
+          if [ "${claims_only:-false}" = "true" ]; then
+            gh pr edit "$PR" --repo "$REPO" --add-label claims-only || true
+            gh pr merge "$PR" --repo "$REPO" --squash --delete-branch --auto || echo "::warning::auto-merge not enabled"
+          elif [ "${docs_process:-false}" = "true" ]; then
+            gh pr edit "$PR" --repo "$REPO" --add-label docs-process || true
+            gh pr merge "$PR" --repo "$REPO" --squash --delete-branch --auto || echo "::warning::auto-merge not enabled"
+          else
+            echo "Product or mixed paths; no process label."
+          fi
