@@ -89,12 +89,51 @@ extension AppState {
     }
 
     private func environmentAllowsInterruption() -> Bool {
-        guard config.enabled, !isPaused, !isSkipTodayActive else { return false }
-        guard config.isWithinWorkHours() || config.isWindDownTime() else { return false }
-        if config.skipWhenDisplayAsleep && DisplaySleepMonitor.shared.isDisplayAsleep { return false }
-        if config.skipWhenLocked && DisplaySleepMonitor.isScreenLocked() { return false }
-        if IdleMonitor.isIdle(thresholdMinutes: config.idleSkipMinutes) { return false }
-        return true
+        FireGateEvaluator.environmentAllows(fireGateContext())
+    }
+
+    private func fireGateContext() -> FireGateContext {
+        let overdueLimit = TimeInterval(max(1, effectiveIntervalMinutes) * 60) * 2
+        let sinceAnchor = Scheduler.cadenceAnchor(
+            lastReminderAt: lastReminderAt,
+            lastAcknowledgedAt: lastAcknowledgedAt
+        ).map { Date().timeIntervalSince($0) } ?? 0
+        let activeFor = activeSince.map { Date().timeIntervalSince($0) } ?? 0
+        return FireGateContext(
+            enabled: config.enabled,
+            paused: isPaused,
+            skipToday: isSkipTodayActive,
+            snoozing: isSnoozing,
+            onPTO: config.skipOnPTO && CalendarMonitor.isOutOfOffice(
+                keywords: config.ptoKeywords, calendar: config.scheduleCalendar
+            ),
+            teamQuiet: TeamQuietHours.isInTeamQuiet(config: config.features, calendar: config.scheduleCalendar),
+            withinWorkHoursOrWindDown: config.isWithinWorkHours() || config.isWindDownTime(),
+            displayAsleep: DisplaySleepMonitor.shared.isDisplayAsleep,
+            skipWhenDisplayAsleep: config.skipWhenDisplayAsleep,
+            screenLocked: DisplaySleepMonitor.isScreenLocked(),
+            skipWhenLocked: config.skipWhenLocked,
+            focused: FocusMonitor.isFocused(),
+            skipWhenFocused: config.skipWhenFocused,
+            inMeeting: CalendarMonitor.isInMeeting(),
+            skipWhenInMeeting: config.skipWhenInMeeting,
+            denylisted: DeepWorkMonitor.isDenylisted(
+                bundleId: frontmostBundleId, denylist: config.denylistBundleIds
+            ),
+            deepWork: DeepWorkMonitor.isInDeepWork(
+                frontmostBundleId: frontmostBundleId,
+                frontmostSince: frontmostSince,
+                quietMinutes: config.deepWorkQuietMinutes,
+                requireFullscreen: config.deepWorkRequireFullscreen
+            ),
+            deepWorkEnabled: config.deepWorkEnabled,
+            sinceAnchor: sinceAnchor,
+            overdueLimit: overdueLimit,
+            idle: IdleMonitor.isIdle(thresholdMinutes: config.idleSkipMinutes),
+            activeFor: activeFor,
+            minActiveSeconds: TimeInterval(config.minActiveMinutes * 60),
+            isLunchOrWindDown: config.isLunchTime() || config.isWindDownTime()
+        )
     }
 
     func toggleDeskPhase() {
@@ -166,67 +205,9 @@ extension AppState {
 
     func shouldFireNow(force: Bool) -> Bool {
         if force { return true }
-        guard config.enabled else { statusMessage = "Disabled"; return false }
-        guard !isPaused else { statusMessage = "Paused"; return false }
-        if isSkipTodayActive { statusMessage = "Skipped today"; return false }
-        if isSnoozing { statusMessage = "Snoozing"; return false }
-
-        if config.skipOnPTO && CalendarMonitor.isOutOfOffice(keywords: config.ptoKeywords, calendar: config.scheduleCalendar) {
-            statusMessage = "PTO / OOO"
-            return false
-        }
-        if TeamQuietHours.isInTeamQuiet(config: config.features, calendar: config.scheduleCalendar) {
-            statusMessage = "Team quiet hours"
-            return false
-        }
-        guard config.isWithinWorkHours() || config.isWindDownTime() else {
-            statusMessage = "Outside work hours"
-            return false
-        }
-        if config.skipWhenDisplayAsleep && DisplaySleepMonitor.shared.isDisplayAsleep {
-            statusMessage = "Display asleep"; return false
-        }
-        if config.skipWhenLocked && DisplaySleepMonitor.isScreenLocked() {
-            statusMessage = "Screen locked"; return false
-        }
-        if config.skipWhenFocused && FocusMonitor.isFocused() {
-            statusMessage = "Focus mode on"; return false
-        }
-        if config.skipWhenInMeeting && CalendarMonitor.isInMeeting() {
-            statusMessage = "In a meeting"; return false
-        }
-        if DeepWorkMonitor.isDenylisted(bundleId: frontmostBundleId, denylist: config.denylistBundleIds) {
-            statusMessage = "Quiet app (denylist)"; return false
-        }
-        // Deep-work suppression is bounded: once you're two full intervals
-        // past the last break, the longest sitting stretch of the day is
-        // exactly when a reminder matters most — stop suppressing.
-        let overdueLimit = TimeInterval(max(1, effectiveIntervalMinutes) * 60) * 2
-        let sinceAnchor = Scheduler.cadenceAnchor(
-            lastReminderAt: lastReminderAt,
-            lastAcknowledgedAt: lastAcknowledgedAt
-        ).map { Date().timeIntervalSince($0) } ?? 0
-        if sinceAnchor < overdueLimit,
-           config.deepWorkEnabled && DeepWorkMonitor.isInDeepWork(
-            frontmostBundleId: frontmostBundleId,
-            frontmostSince: frontmostSince,
-            quietMinutes: config.deepWorkQuietMinutes,
-            requireFullscreen: config.deepWorkRequireFullscreen
-        ) {
-            statusMessage = "Deep work"; return false
-        }
-        if IdleMonitor.isIdle(thresholdMinutes: config.idleSkipMinutes) {
-            statusMessage = "Idle — skipped"; return false
-        }
-        if config.minActiveMinutes > 0, !config.isLunchTime(), !config.isWindDownTime() {
-            let activeFor = activeSince.map { Date().timeIntervalSince($0) } ?? 0
-            if activeFor < TimeInterval(config.minActiveMinutes * 60) {
-                statusMessage = "Warming up (active \(Int(activeFor / 60))m)"
-                return false
-            }
-        }
-        statusMessage = "Armed"
-        return true
+        let result = FireGateEvaluator.evaluate(fireGateContext())
+        statusMessage = result.status
+        return result.allowed
     }
 
     func fire(mode: FireMode, gate: FireGate) {

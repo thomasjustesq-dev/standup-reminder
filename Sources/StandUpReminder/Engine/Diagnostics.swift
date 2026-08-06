@@ -12,7 +12,12 @@ enum Diagnostics {
     }
 
     static func report(event: String, details: [String: String] = [:], endpoint: String) async {
-        guard !endpoint.isEmpty, let url = URL(string: endpoint) else { return }
+        guard case let .success(url) = DiagnosticsURL.validate(endpoint) else {
+            if !endpoint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                AppLog.write("Diagnostics endpoint rejected (https + public host required)")
+            }
+            return
+        }
         guard let request = postRequest(url: url, event: event, details: details) else { return }
         do {
             let (_, response) = try await URLSession.shared.data(for: request)
@@ -26,8 +31,16 @@ enum Diagnostics {
 
     static func installExceptionHook(enabled: Bool, endpoint: String) {
         guard enabled else { return }
+        let accepted: String
+        switch DiagnosticsURL.validate(endpoint) {
+        case .success(let url):
+            accepted = url.absoluteString
+        case .failure:
+            AppLog.write("Diagnostics crash hook not installed — endpoint rejected")
+            return
+        }
         stateLock.lock()
-        crashEndpoint = endpoint
+        crashEndpoint = accepted
         stateLock.unlock()
         NSSetUncaughtExceptionHandler { exception in
             Diagnostics.recordCrash(name: exception.name.rawValue, reason: exception.reason ?? "")
@@ -39,7 +52,7 @@ enum Diagnostics {
         stateLock.lock()
         let endpoint = crashEndpoint
         stateLock.unlock()
-        guard !endpoint.isEmpty, let url = URL(string: endpoint) else { return }
+        guard case let .success(url) = DiagnosticsURL.validate(endpoint) else { return }
         guard let request = postRequest(url: url, event: "crash", details: ["name": name, "reason": reason]) else { return }
         // The process is about to die; give the POST a moment to leave the machine.
         let semaphore = DispatchSemaphore(value: 0)
@@ -51,7 +64,7 @@ enum Diagnostics {
         var body: [String: Any] = [
             "event": event,
             "app": "StandUpReminder",
-            "version": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "4.0.0",
+            "version": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? AppVersion.marketing,
             "ts": ISO8601DateFormatter().string(from: Date())
         ]
         for (k, v) in details { body[k] = v }

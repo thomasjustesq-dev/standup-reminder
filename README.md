@@ -1,7 +1,22 @@
-# Stand Up Reminder · v4.2
+# Stand Up Reminder · v4.2.1
 
 Movement-break companion: macOS menu bar app (macOS 14+), iPhone app, and
 Apple Watch companion on one shared scheduler core.
+
+## Identity (single root)
+
+| Surface | Value |
+| --- | --- |
+| Bundle ID (Mac / iOS) | `com.thomasjust.standupreminder` |
+| App Group | `group.com.thomasjust.standupreminder` |
+| iCloud container | `iCloud.com.thomasjust.standupreminder` |
+| Marketing version | `4.2.1` (see `AppVersion` in `Sources/StandUpReminderCore/AppIdentity.swift`) |
+
+Application Support remains `~/Library/Application Support/StandUpReminder/` so local
+config survives a bundle-id change. After upgrading from the old `com.user.*` /
+`iCloud.com.user.*` identifiers, **push once from any device** to re-seed the new
+iCloud container. Enable the matching App ID capabilities in the Apple Developer
+portal (App Groups + iCloud Documents) for automatic signing.
 
 ## What’s new in v4.2
 

@@ -6,5 +6,7 @@
 	<array>
 		<string>group.com.thomasjust.standupreminder</string>
 	</array>
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
 </dict>
 </plist>

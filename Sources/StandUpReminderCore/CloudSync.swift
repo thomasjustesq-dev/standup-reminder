@@ -175,6 +175,42 @@ enum CloudSync {
         var lastAcknowledgedAt: Date?
         var snoozeUntil: Date?
         var skipRestOfDayDate: Date?
+        /// Mac adaptive (and Fighting Shape) interval so iOS can pre-schedule the same cadence.
+        var effectiveIntervalMinutes: Int?
+
+        enum CodingKeys: String, CodingKey {
+            case updatedAt, deviceName, lastReminderAt, lastAcknowledgedAt
+            case snoozeUntil, skipRestOfDayDate, effectiveIntervalMinutes
+        }
+
+        init(
+            updatedAt: Date,
+            deviceName: String,
+            lastReminderAt: Date? = nil,
+            lastAcknowledgedAt: Date? = nil,
+            snoozeUntil: Date? = nil,
+            skipRestOfDayDate: Date? = nil,
+            effectiveIntervalMinutes: Int? = nil
+        ) {
+            self.updatedAt = updatedAt
+            self.deviceName = deviceName
+            self.lastReminderAt = lastReminderAt
+            self.lastAcknowledgedAt = lastAcknowledgedAt
+            self.snoozeUntil = snoozeUntil
+            self.skipRestOfDayDate = skipRestOfDayDate
+            self.effectiveIntervalMinutes = effectiveIntervalMinutes
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            updatedAt = try c.decode(Date.self, forKey: .updatedAt)
+            deviceName = try c.decodeIfPresent(String.self, forKey: .deviceName) ?? "unknown"
+            lastReminderAt = try c.decodeIfPresent(Date.self, forKey: .lastReminderAt)
+            lastAcknowledgedAt = try c.decodeIfPresent(Date.self, forKey: .lastAcknowledgedAt)
+            snoozeUntil = try c.decodeIfPresent(Date.self, forKey: .snoozeUntil)
+            skipRestOfDayDate = try c.decodeIfPresent(Date.self, forKey: .skipRestOfDayDate)
+            effectiveIntervalMinutes = try c.decodeIfPresent(Int.self, forKey: .effectiveIntervalMinutes)
+        }
     }
 
     /// Stable per-install identifier for the per-device stats file.

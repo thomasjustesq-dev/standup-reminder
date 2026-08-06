@@ -12,7 +12,7 @@ struct WidgetSnapshot: Codable, Equatable {
     var updatedAt: Date
 
     static var fileURL: URL { Paths.appSupport.appendingPathComponent("widget.json") }
-    static var appGroupID = "group.com.user.StandUpReminder"
+    static var appGroupID = AppIdentity.appGroupID
 }
 
 enum WidgetSnapshotWriter {

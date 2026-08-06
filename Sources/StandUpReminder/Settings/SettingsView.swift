@@ -47,7 +47,9 @@ private struct GeneralSettingsTab: View {
                 TextField("Alert sound name", text: stringBinding(\.soundName))
             }
             Section("Health") {
-                Toggle("Log Done taps to Apple Health (mindful minutes)", isOn: boolBinding(\.healthLoggingEnabled))
+                Toggle("Write mindful minutes to Apple Health on Done", isOn: boolBinding(\.healthLoggingEnabled))
+                Text("Mac writes only (mindful minutes). iOS reads recent workouts so a gym session counts as a break — never writes.")
+                    .font(.caption).foregroundStyle(.secondary)
                 Stepper("Minutes per Done: \(String(format: "%.0f", appState.config.healthMindfulMinutes))",
                         value: Binding(
                             get: { Int(appState.config.healthMindfulMinutes) },
@@ -396,78 +398,90 @@ private struct ProfilesSettingsTab: View {
 
 private struct SyncPrivacySettingsTab: View {
     @EnvironmentObject private var appState: AppState
+    @AppStorage("settings.showAdvanced") private var showAdvanced = false
 
     var body: some View {
         Form {
-            Section("iCloud multi-Mac sync") {
-                Toggle("Sync settings via iCloud Drive", isOn: featureBool(\.iCloudSyncEnabled))
+            Section("iCloud") {
+                Toggle("Sync settings & cadence via iCloud Drive", isOn: featureBool(\.iCloudSyncEnabled))
                 Button("Push to iCloud now") { appState.pushToiCloud() }
                 Button("Pull from iCloud now") { appState.pullFromiCloud() }
-            }
-            Section("Team / office quiet hours") {
-                Toggle("Respect team quiet windows", isOn: Binding(
-                    get: { appState.config.features.teamQuiet.enabled },
-                    set: { v in var c = appState.config; c.features.teamQuiet.enabled = v; appState.config = c }
-                ))
-                TextField("Quiet-hours JSON feed URL", text: Binding(
-                    get: { appState.config.features.teamQuiet.feedURL },
-                    set: { v in var c = appState.config; c.features.teamQuiet.feedURL = v; appState.config = c }
-                ))
-                Button("Refresh feed") { Task { await appState.refreshTeamQuietHours() } }
-                Text("\(appState.config.features.teamQuiet.windows.count) window(s) loaded")
+                Text("After upgrading identity containers, push once from any device to re-seed iCloud.")
                     .font(.caption).foregroundStyle(.secondary)
             }
-            Section("Voice & Watch") {
+            Section("Everyday options") {
                 Toggle("Speak reminders", isOn: featureBool(\.voiceAnnouncementsEnabled))
-                Toggle("Speak only with headphones/external audio", isOn: featureBool(\.speakOnlyWithHeadphones))
-                Toggle("Apple Watch companion bridge", isOn: featureBool(\.watchCompanionEnabled))
-                Text("Watch reachable: \(WatchBridge.shared.isWatchReachable ? "yes" : "no")")
-                    .font(.caption).foregroundStyle(.secondary)
+                Toggle("Weather-aware outdoor walk tips", isOn: featureBool(\.weatherBreaksEnabled))
+                Toggle("Prefer reduced motion in UI", isOn: featureBool(\.reduceMotionOverrides))
+                Toggle("Show advanced settings", isOn: $showAdvanced)
             }
-            Section("Learning & sensors (on-device)") {
-                Toggle("Learn my schedule from activity", isOn: featureBool(\.learnedScheduleEnabled))
-                if let suggestion = appState.learnedSuggestion {
-                    Text("Suggested hours: \(suggestion.startHour):00–\(suggestion.endHour):00")
-                    Button("Apply learned schedule to weekdays") { appState.applyLearnedSchedule() }
-                } else {
-                    Text("Need ~5 active days before a suggestion appears.")
+            if showAdvanced {
+                Section("Team / office quiet hours") {
+                    Toggle("Respect team quiet windows", isOn: Binding(
+                        get: { appState.config.features.teamQuiet.enabled },
+                        set: { v in var c = appState.config; c.features.teamQuiet.enabled = v; appState.config = c }
+                    ))
+                    TextField("Quiet-hours JSON feed URL", text: Binding(
+                        get: { appState.config.features.teamQuiet.feedURL },
+                        set: { v in var c = appState.config; c.features.teamQuiet.feedURL = v; appState.config = c }
+                    ))
+                    Button("Refresh feed") { Task { await appState.refreshTeamQuietHours() } }
+                    Text("\(appState.config.features.teamQuiet.windows.count) window(s) loaded")
                         .font(.caption).foregroundStyle(.secondary)
                 }
-                Toggle("Webcam stillness (local face boxes only)", isOn: featureBool(\.webcamStillnessEnabled))
-                Stepper(
-                    "Stillness threshold \(appState.config.features.webcamStillnessMinutes)m",
-                    value: Binding(
-                        get: { appState.config.features.webcamStillnessMinutes },
-                        set: { v in
-                            var c = appState.config
-                            c.features.webcamStillnessMinutes = v
-                            appState.config = c
-                            WebcamStillnessMonitor.shared.configure(enabled: c.features.webcamStillnessEnabled, thresholdMinutes: v)
-                        }
-                    ),
-                    in: 15...120,
-                    step: 5
-                )
-                Text("Camera: \(WebcamStillnessMonitor.shared.status)")
-                    .font(.caption).foregroundStyle(.secondary)
-                Toggle("Weather-aware outdoor walk tips", isOn: featureBool(\.weatherBreaksEnabled))
-                Button("Refresh weather") { Task { await appState.refreshWeather() } }
-                if let weather = appState.weather {
-                    Text(String(format: "%.0f°C · %@", weather.temperatureC, weather.summary))
-                        .font(.caption)
+                Section("Voice & Watch") {
+                    Toggle("Speak only with headphones/external audio", isOn: featureBool(\.speakOnlyWithHeadphones))
+                    Toggle("Apple Watch companion bridge", isOn: featureBool(\.watchCompanionEnabled))
+                    Text("Watch reachable: \(WatchBridge.shared.isWatchReachable ? "yes" : "no")")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
-            }
-            Section("Updates & diagnostics") {
-                TextField("Sparkle appcast URL", text: featureString(\.sparkleFeedURL))
-                Toggle("Prefer Sparkle when linked", isOn: featureBool(\.preferSparkleUpdates))
-                Toggle("Opt-in diagnostics breadcrumbs", isOn: featureBool(\.diagnosticsEnabled))
-                TextField("Diagnostics endpoint (POST JSON)", text: featureString(\.diagnosticsEndpoint))
-            }
-            Section("Accessibility") {
-                Toggle("Prefer reduced motion in UI", isOn: featureBool(\.reduceMotionOverrides))
-                Toggle("Break demo symbols", isOn: featureBool(\.breakDemoSymbolsEnabled))
-                Toggle("Offer sample-day tour", isOn: featureBool(\.showSampleDayTour))
-                Button("Replay sample-day tour") { appState.showSampleDayTour = true }
+                Section("Learning & sensors (on-device)") {
+                    Toggle("Learn my schedule from activity", isOn: featureBool(\.learnedScheduleEnabled))
+                    if let suggestion = appState.learnedSuggestion {
+                        Text("Suggested hours: \(suggestion.startHour):00–\(suggestion.endHour):00")
+                        Button("Apply learned schedule to weekdays") { appState.applyLearnedSchedule() }
+                    } else {
+                        Text("Need ~5 active days before a suggestion appears.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Toggle("Webcam stillness (local face boxes only)", isOn: featureBool(\.webcamStillnessEnabled))
+                    Stepper(
+                        "Stillness threshold \(appState.config.features.webcamStillnessMinutes)m",
+                        value: Binding(
+                            get: { appState.config.features.webcamStillnessMinutes },
+                            set: { v in
+                                var c = appState.config
+                                c.features.webcamStillnessMinutes = v
+                                appState.config = c
+                                WebcamStillnessMonitor.shared.configure(enabled: c.features.webcamStillnessEnabled, thresholdMinutes: v)
+                            }
+                        ),
+                        in: 15...120,
+                        step: 5
+                    )
+                    Text("Camera: \(WebcamStillnessMonitor.shared.status)")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Button("Refresh weather") { Task { await appState.refreshWeather() } }
+                    if let weather = appState.weather {
+                        Text(String(format: "%.0f°C · %@", weather.temperatureC, weather.summary))
+                            .font(.caption)
+                    }
+                }
+                Section("Updates & diagnostics") {
+                    TextField("Sparkle appcast URL (empty = GitHub Releases checker)", text: featureString(\.sparkleFeedURL))
+                    Toggle("Prefer Sparkle when linked", isOn: featureBool(\.preferSparkleUpdates))
+                    Text("Sparkle is wired only in distribution builds with a signed appcast; otherwise the app uses the GitHub Releases API.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Toggle("Opt-in diagnostics breadcrumbs", isOn: featureBool(\.diagnosticsEnabled))
+                    TextField("Diagnostics endpoint (https only)", text: featureString(\.diagnosticsEndpoint))
+                    Text("HTTPS required; localhost and private IPs are rejected.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Section("Accessibility") {
+                    Toggle("Break demo symbols", isOn: featureBool(\.breakDemoSymbolsEnabled))
+                    Toggle("Offer sample-day tour", isOn: featureBool(\.showSampleDayTour))
+                    Button("Replay sample-day tour") { appState.showSampleDayTour = true }
+                }
             }
         }
         .padding()

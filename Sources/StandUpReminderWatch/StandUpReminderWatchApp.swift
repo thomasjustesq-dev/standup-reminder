@@ -58,7 +58,7 @@ final class WatchModel: NSObject, ObservableObject, WCSessionDelegate {
     /// The complication runs in its own extension and can't reach
     /// WatchConnectivity; hand it the latest state via the app group.
     private func publishComplicationSnapshot() {
-        guard let defaults = UserDefaults(suiteName: "group.com.user.StandUpReminder") else { return }
+        guard let defaults = UserDefaults(suiteName: "group.com.thomasjust.standupreminder") else { return }
         let iso = ISO8601DateFormatter()
         var snapshot: [String: Any] = [
             "statusMessage": status,

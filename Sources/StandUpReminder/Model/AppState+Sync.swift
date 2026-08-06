@@ -56,29 +56,35 @@ extension AppState {
         }
     }
 
-    /// Newest-wins per field, and only ever forward in time — a stale doc
-    /// can extend nothing and clear nothing. Docs not newer than this
-    /// device's last mutation are ignored entirely (that includes the
-    /// device's own last push).
+    /// Newest-wins merge via `RuntimeMerge` — remote can extend anchors and
+    /// also clear snooze/skip when the remote doc is newer.
     private func applyCloudRuntime(_ doc: CloudSync.RuntimeDoc) {
-        if let local = lastRuntimeMutationAt, doc.updatedAt <= local { return }
-        var changed = false
-        if let remote = doc.lastAcknowledgedAt, (lastAcknowledgedAt ?? .distantPast) < remote {
-            lastAcknowledgedAt = remote; changed = true
+        let outcome = RuntimeMerge.apply(
+            local: RuntimeMerge.Local(
+                lastReminderAt: lastReminderAt,
+                lastAcknowledgedAt: lastAcknowledgedAt,
+                snoozeUntil: snoozeUntil,
+                skipRestOfDayDate: skipRestOfDayDate,
+                effectiveIntervalMinutes: effectiveIntervalMinutes,
+                lastRuntimeMutationAt: lastRuntimeMutationAt
+            ),
+            remote: doc,
+            calendar: config.scheduleCalendar
+        )
+        guard outcome.changed else { return }
+        lastReminderAt = outcome.local.lastReminderAt
+        lastAcknowledgedAt = outcome.local.lastAcknowledgedAt
+        snoozeUntil = outcome.local.snoozeUntil
+        skipRestOfDayDate = outcome.local.skipRestOfDayDate
+        if let minutes = outcome.local.effectiveIntervalMinutes {
+            // Only adopt a peer's adaptive interval when this Mac is not
+            // computing its own (adaptive off) — otherwise local samples win.
+            if !config.adaptiveIntervalEnabled {
+                effectiveIntervalMinutes = minutes
+            }
         }
-        if let remote = doc.lastReminderAt, (lastReminderAt ?? .distantPast) < remote {
-            lastReminderAt = remote; changed = true
-        }
-        if let remote = doc.snoozeUntil, remote > Date(), (snoozeUntil ?? .distantPast) < remote {
-            snoozeUntil = remote; changed = true
-        }
-        if let remote = doc.skipRestOfDayDate, Calendar.current.isDateInToday(remote), !isSkipTodayActive {
-            skipRestOfDayDate = remote; changed = true
-        }
-        if changed {
-            statusMessage = "Synced from \(doc.deviceName)"
-            refreshNextFire()
-        }
+        statusMessage = "Synced from \(doc.deviceName)"
+        refreshNextFire()
     }
 
     func syncRuntimeToCloud() {
@@ -91,7 +97,8 @@ extension AppState {
             lastReminderAt: lastReminderAt,
             lastAcknowledgedAt: lastAcknowledgedAt,
             snoozeUntil: snoozeUntil,
-            skipRestOfDayDate: skipRestOfDayDate
+            skipRestOfDayDate: skipRestOfDayDate,
+            effectiveIntervalMinutes: effectiveIntervalMinutes
         ))
     }
 

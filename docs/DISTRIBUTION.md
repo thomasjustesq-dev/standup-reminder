@@ -1,5 +1,24 @@
 # Distribution guide
 
+## Version source of truth
+
+Marketing version and build number live in:
+
+- `Sources/StandUpReminderCore/AppIdentity.swift` → `AppVersion.marketing` / `AppVersion.build`
+- `Resources/Info.plist` (`CFBundleShortVersionString` / `CFBundleVersion`)
+- `project.yml` iOS/Watch/widget version fields
+- `Formula/standup-reminder.rb` and `Casks/standup-reminder.rb`
+
+Bump all of the above together before tagging. CI release workflow fails if the
+git tag disagrees with `Resources/Info.plist`.
+
+## Sparkle
+
+Distribution builds can ship Sparkle with a signed `docs/appcast.xml` (see
+release workflow + `SPARKLE_ED_PRIVATE_KEY`). Day-to-day / SPM builds use the
+GitHub Releases checker unless a feed URL is set and Sparkle is linked. Empty
+appcast feed URL is normal for non-distribution builds.
+
 ## Tag-triggered releases (GitHub Actions)
 
 `.github/workflows/release.yml` turns a tag push into a full release:
@@ -46,7 +65,7 @@ the same version replaces its appcast item instead of duplicating it.
 
 ## Mac App Store
 
-1. Create App ID + iCloud container `iCloud.com.user.StandUpReminder`
+1. Create App ID + iCloud container `iCloud.com.thomasjust.standupreminder` and App Group `group.com.thomasjust.standupreminder`
 2. Use `Resources/StandUpReminder.mas.entitlements` (sandbox on)
 3. Archive with Apple Distribution certificate
 4. Disable Sparkle for MAS builds (App Store provides updates)

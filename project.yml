@@ -6,7 +6,7 @@
 #     -destination 'platform=iOS Simulator,name=iPhone 17' build   # iPhone + Watch
 name: StandUpReminder
 options:
-  bundleIdPrefix: com.user
+  bundleIdPrefix: com.thomasjust
   deploymentTarget:
     macOS: "14.0"
     iOS: "17.0"
@@ -27,7 +27,7 @@ targets:
       - Resources/Assets.xcassets
     settings:
       ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-      PRODUCT_BUNDLE_IDENTIFIER: com.user.StandUpReminder
+      PRODUCT_BUNDLE_IDENTIFIER: com.thomasjust.standupreminder
       INFOPLIST_FILE: Resources/Info.plist
       CODE_SIGN_ENTITLEMENTS: Resources/StandUpReminder.entitlements
       LD_RUNPATH_SEARCH_PATHS: ["@executable_path/../Frameworks"]
@@ -42,8 +42,9 @@ targets:
       - Sources/StandUpReminderWidget
       - Sources/StandUpReminderCore
     settings:
-      PRODUCT_BUNDLE_IDENTIFIER: com.user.StandUpReminder.widget
+      PRODUCT_BUNDLE_IDENTIFIER: com.thomasjust.standupreminder.widget
       INFOPLIST_FILE: Sources/StandUpReminderWidget/Info.plist
+      CODE_SIGN_ENTITLEMENTS: Resources/StandUpReminderWidget.entitlements
       SKIP_INSTALL: true
 
   StandUpReminderiOS:
@@ -82,6 +83,7 @@ targets:
     sources:
       - Sources/StandUpReminderWidget/StandUpReminderWidget.swift
       - Sources/StandUpReminderCore/BreakActivity.swift
+      - Sources/StandUpReminderCore/AppIdentity.swift
     info:
       path: Resources/iOSWidget-Info.plist
       properties:
@@ -121,6 +123,7 @@ targets:
     platform: watchOS
     sources:
       - Sources/StandUpReminderWidget/StandUpReminderWidget.swift
+      - Sources/StandUpReminderCore/AppIdentity.swift
     info:
       path: Resources/WatchWidget-Info.plist
       properties:

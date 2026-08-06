@@ -1,15 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- Without this file the iOS target shipped with no entitlements at all:
-     the ubiquity container came back nil (iCloud sync silently dead) and
-     time-sensitive banners were quietly downgraded. -->
+<!-- iCloud + App Group + time-sensitive + HealthKit for the phone app. -->
 <plist version="1.0">
 <dict>
 	<key>com.apple.developer.healthkit</key>
 	<true/>
 	<key>com.apple.developer.icloud-container-identifiers</key>
 	<array>
-		<string>iCloud.com.user.StandUpReminder</string>
+		<string>iCloud.com.thomasjust.standupreminder</string>
 	</array>
 	<key>com.apple.developer.icloud-services</key>
 	<array>
@@ -19,7 +17,7 @@
 	<true/>
 	<key>com.apple.security.application-groups</key>
 	<array>
-		<string>group.com.user.StandUpReminder</string>
+		<string>group.com.thomasjust.standupreminder</string>
 	</array>
 </dict>
 </plist>

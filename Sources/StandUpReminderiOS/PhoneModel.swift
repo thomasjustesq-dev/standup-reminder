@@ -38,7 +38,10 @@ final class PhoneModel: ObservableObject {
     @Published var notificationsAuthorized = false
     @Published var pendingGuidedPayload: GuidedSheetPayload?
 
-    static let backgroundRefreshTaskId = "com.thomasjust.standupreminder.refresh"
+    static let backgroundRefreshTaskId = AppIdentity.backgroundRefreshTaskId
+
+    /// Adaptive interval pushed from a Mac peer (iOS has no idle samples).
+    private var cloudEffectiveIntervalMinutes: Int?
 
     private let notificationDelegate = NotificationDelegate()
     private var suppressPersist = false
@@ -213,30 +216,35 @@ final class PhoneModel: ObservableObject {
             lastReminderAt: lastReminderAt,
             lastAcknowledgedAt: lastAcknowledgedAt,
             snoozeUntil: snoozeUntil,
-            skipRestOfDayDate: skipRestOfDayDate
+            skipRestOfDayDate: skipRestOfDayDate,
+            effectiveIntervalMinutes: cloudEffectiveIntervalMinutes ?? config.intervalMinutes
         ))
     }
 
-    /// Newest-wins per field, forward-in-time only (mirror of the Mac's
-    /// merge); docs not newer than this device's last mutation are ignored.
+    /// Newest-wins merge via `RuntimeMerge` (clears snooze/skip when remote is newer).
     private func syncRuntimeFromCloud() {
         guard config.features.iCloudSyncEnabled else { return }
-        if let doc = CloudSync.pullRuntime(),
-           doc.updatedAt > (lastRuntimeMutationAt ?? .distantPast) {
-            var changed = false
-            if let remote = doc.lastAcknowledgedAt, (lastAcknowledgedAt ?? .distantPast) < remote {
-                lastAcknowledgedAt = remote; changed = true
+        if let doc = CloudSync.pullRuntime() {
+            let outcome = RuntimeMerge.apply(
+                local: RuntimeMerge.Local(
+                    lastReminderAt: lastReminderAt,
+                    lastAcknowledgedAt: lastAcknowledgedAt,
+                    snoozeUntil: snoozeUntil,
+                    skipRestOfDayDate: skipRestOfDayDate,
+                    effectiveIntervalMinutes: cloudEffectiveIntervalMinutes,
+                    lastRuntimeMutationAt: lastRuntimeMutationAt
+                ),
+                remote: doc,
+                calendar: config.scheduleCalendar
+            )
+            if outcome.changed {
+                lastReminderAt = outcome.local.lastReminderAt
+                lastAcknowledgedAt = outcome.local.lastAcknowledgedAt
+                snoozeUntil = outcome.local.snoozeUntil
+                skipRestOfDayDate = outcome.local.skipRestOfDayDate
+                cloudEffectiveIntervalMinutes = outcome.local.effectiveIntervalMinutes
+                rescheduleNotifications()
             }
-            if let remote = doc.lastReminderAt, (lastReminderAt ?? .distantPast) < remote {
-                lastReminderAt = remote; changed = true
-            }
-            if let remote = doc.snoozeUntil, remote > Date(), (snoozeUntil ?? .distantPast) < remote {
-                snoozeUntil = remote; changed = true
-            }
-            if let remote = doc.skipRestOfDayDate, Calendar.current.isDateInToday(remote), !isSkipTodayActive {
-                skipRestOfDayDate = remote; changed = true
-            }
-            if changed { rescheduleNotifications() }
         }
         if stats != lastPushedStats {
             CloudSync.pushStats(stats, deviceId: CloudSync.deviceId())
@@ -248,9 +256,11 @@ final class PhoneModel: ObservableObject {
     // MARK: Scheduling
 
     private func schedulerInput(now: Date) -> Scheduler.Input {
-        Scheduler.Input(
+        // Prefer Mac-pushed adaptive interval when present so cadence matches.
+        let interval = cloudEffectiveIntervalMinutes ?? config.intervalMinutes
+        return Scheduler.Input(
             config: config,
-            intervalMinutes: config.intervalMinutes,
+            intervalMinutes: interval,
             now: now,
             paused: isPaused || !config.enabled || isSkipTodayActive,
             snoozeUntil: snoozeUntil,

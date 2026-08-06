@@ -4,7 +4,7 @@ import SwiftUI
 
 /// Notification Center / desktop widget.
 /// Embed this target with XcodeGen (`project.yml`) or Xcode, using App Group
-/// `group.com.user.StandUpReminder` or the shared `widget.json` snapshot.
+/// `group.com.thomasjust.standupreminder` or the shared `widget.json` snapshot.
 
 struct StandUpWidgetEntry: TimelineEntry {
     let date: Date
@@ -56,7 +56,7 @@ struct StandUpWidgetProvider: TimelineProvider {
     }
 
     private func loadSnapshot() -> WidgetSnapshotDTO? {
-        if let data = UserDefaults(suiteName: "group.com.user.StandUpReminder")?.data(forKey: "widgetSnapshot"),
+        if let data = UserDefaults(suiteName: AppIdentity.appGroupID)?.data(forKey: "widgetSnapshot"),
            let snap = try? decodeSnapshot(data) {
             return snap
         }

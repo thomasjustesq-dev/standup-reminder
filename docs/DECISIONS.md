@@ -13,3 +13,19 @@ Append-only. `merge=union`.
 classes once multi-agent work is real.
 
 **Scope:** process/docs/scripts only for this land. Product behavior unchanged.
+
+---
+
+## 2026-08-06 — Canonical identity + multi-device runtime correctness
+
+**Decision:** Single reverse-DNS root `com.thomasjust.standupreminder` for
+bundle IDs, App Group, and iCloud container across Mac / iOS / Watch / widgets.
+Runtime merge clears snooze and skip-today when a newer remote doc has no
+active value; Mac adaptive interval is pushed in the runtime doc for iOS.
+
+**Rationale:** Split `com.user` vs `com.thomasjust` broke App Groups and
+confused provisioning; snooze resume on one device could not clear peers;
+iOS ignored adaptive cadence.
+
+**Migration:** Local Application Support path unchanged. Re-push iCloud after
+install. Create App Group + iCloud container on the App ID if missing.

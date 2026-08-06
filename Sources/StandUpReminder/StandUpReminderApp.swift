@@ -187,9 +187,9 @@ extension Notification.Name {
     #endif
     /// Posted via DistributedNotificationCenter by the CLI process after it
     /// mutates state on disk, so the running app picks it up immediately.
-    static let standUpExternalStateChanged = Notification.Name("com.user.StandUpReminder.externalStateChanged")
+    static let standUpExternalStateChanged = AppIdentity.externalStateChanged
     /// Posted via DistributedNotificationCenter by the CLI process to run a
     /// command (e.g. a test reminder) inside the running app, where windows
     /// and notification actions actually live.
-    static let standUpRemoteCommand = Notification.Name("com.user.StandUpReminder.remoteCommand")
+    static let standUpRemoteCommand = AppIdentity.remoteCommand
 }

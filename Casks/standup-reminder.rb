@@ -1,17 +1,17 @@
 # Homebrew Cask template.
-# Publish a notarized .dmg/.zip, then:
-#   brew install --cask ./Casks/standup-reminder.rb
-#
-# Or tap a repo that vendors this cask and points at your release assets.
+# Publish a notarized .dmg/.zip, then point `url` + `sha256` at the release asset.
+# Until then this file is a packaging stub — not installable from example.com.
 
 cask "standup-reminder" do
-  version "4.0.0"
+  version "4.2.1"
   sha256 :no_check
 
-  url "https://example.com/releases/StandUpReminder-#{version}.zip"
+  # Replace with the GitHub release asset after notarization:
+  #   https://github.com/thomasjustesq-dev/standup-reminder/releases/download/v#{version}/StandUpReminder-#{version}.zip
+  url "https://github.com/thomasjustesq-dev/standup-reminder/releases/download/v#{version}/StandUpReminder-#{version}.zip"
   name "Stand Up Reminder"
   desc "Menu bar break reminders with lunch, quiet rules, and guided stretches"
-  homepage "https://example.com/standup-reminder"
+  homepage "https://github.com/thomasjustesq-dev/standup-reminder"
 
   depends_on macos: ">= :sonoma"
 
@@ -21,6 +21,6 @@ cask "standup-reminder" do
   zap trash: [
     "~/Library/Application Support/StandUpReminder",
     "~/Library/Logs/standup-reminder.log",
-    "~/Library/Preferences/com.user.StandUpReminder.plist",
+    "~/Library/Preferences/com.thomasjust.standupreminder.plist",
   ]
 end

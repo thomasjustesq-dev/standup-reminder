@@ -7,15 +7,15 @@
 	<key>CFBundleExecutable</key>
 	<string>StandUpReminderWidget</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.user.StandUpReminder.widget</string>
+	<string>com.thomasjust.standupreminder.widget</string>
 	<key>CFBundleName</key>
 	<string>StandUpReminderWidget</string>
 	<key>CFBundlePackageType</key>
 	<string>XPC!</string>
 	<key>CFBundleShortVersionString</key>
-	<string>4.2.0</string>
+	<string>4.2.1</string>
 	<key>CFBundleVersion</key>
-	<string>6</string>
+	<string>7</string>
 	<key>NSExtension</key>
 	<dict>
 		<key>NSExtensionPointIdentifier</key>

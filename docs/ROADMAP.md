@@ -13,6 +13,9 @@
 | Item | Status | Notes |
 | --- | --- | --- |
 | Multi-agent coordination package | **Done** | Landed 2026-08-04 |
+| Identity lock + runtime clear + adaptive sync | **Done** | Landed 2026-08-06 |
+| Diagnostics HTTPS gate + fire-gate pure eval | **Done** | 2026-08-06 |
+| Packaging version align (Formula/Cask 4.2.1) | **Done** | Cask still needs a real notarized zip asset |
 | Next product work | **Next** | Thomas assigns Task ID |
 
 ## Related
