@@ -11,12 +11,19 @@ struct StandUpReminderApp: App {
             MenuBarView()
                 .environmentObject(appState)
         } label: {
-            if appState.config.showMenuBarCountdown, !appState.menuBarTitle.isEmpty {
-                Text("\(appState.menuBarTitle)")
-                    .accessibilityLabel("Next break in \(appState.menuBarTitle)")
-            } else {
-                Image(systemName: appState.menuBarSymbolName)
-                    .accessibilityLabel("Stand Up Reminder")
+            HStack(spacing: 2) {
+                if appState.notificationsAuthorized == false {
+                    Image(systemName: "bell.slash.fill")
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(.orange, .primary)
+                        .accessibilityLabel("Notifications denied")
+                } else if appState.config.showMenuBarCountdown, !appState.menuBarTitle.isEmpty {
+                    Text("\(appState.menuBarTitle)")
+                        .accessibilityLabel("Next break in \(appState.menuBarTitle)")
+                } else {
+                    Image(systemName: appState.menuBarSymbolName)
+                        .accessibilityLabel("Stand Up Reminder")
+                }
             }
         }
         .menuBarExtraStyle(.menu)

@@ -101,6 +101,16 @@ struct FeatureFlags: Codable, Equatable {
     var fightingShapeBaseURL: String
     /// When true, a meeting-heavy calendar day auto-selects the Meeting-heavy pack.
     var autoProfileFromCalendar: Bool
+    /// Record how often each quiet rule blocked a fire (menu/CLI report).
+    var recordBlockReasons: Bool
+    /// Soft-credit a break when the Apple Stand hour for the current hour is already closed.
+    var creditStandHourAsBreak: Bool
+    /// Calendar event title substrings that are never treated as meetings.
+    var calendarTitleDenylist: [String]
+    /// Time-of-day pack rules (first match wins).
+    var scheduleProfileRules: [ScheduleProfileRule]
+    /// When true, guided break may activate the app over full-screen / denylist apps.
+    var guidedBreakStealFocus: Bool
 
     /// Quiet defaults for new installs — power features stay opt-in.
     static let `default` = FeatureFlags(
@@ -126,7 +136,12 @@ struct FeatureFlags: Codable, Equatable {
         liveActivityEnabled: true,
         fightingShapeEnabled: false,
         fightingShapeBaseURL: "",
-        autoProfileFromCalendar: false
+        autoProfileFromCalendar: false,
+        recordBlockReasons: true,
+        creditStandHourAsBreak: false,
+        calendarTitleDenylist: ["focus block", "blocked", "deep work", "no meetings", "hold"],
+        scheduleProfileRules: [],
+        guidedBreakStealFocus: false
     )
 
     init(
@@ -139,7 +154,12 @@ struct FeatureFlags: Codable, Equatable {
         weatherLatitude: Double? = nil, weatherLongitude: Double? = nil,
         liveActivityEnabled: Bool = true,
         fightingShapeEnabled: Bool = false, fightingShapeBaseURL: String = "",
-        autoProfileFromCalendar: Bool = false
+        autoProfileFromCalendar: Bool = false,
+        recordBlockReasons: Bool = true,
+        creditStandHourAsBreak: Bool = false,
+        calendarTitleDenylist: [String] = [],
+        scheduleProfileRules: [ScheduleProfileRule] = [],
+        guidedBreakStealFocus: Bool = false
     ) {
         self.iCloudSyncEnabled = iCloudSyncEnabled
         self.teamQuiet = teamQuiet
@@ -164,6 +184,11 @@ struct FeatureFlags: Codable, Equatable {
         self.fightingShapeEnabled = fightingShapeEnabled
         self.fightingShapeBaseURL = fightingShapeBaseURL
         self.autoProfileFromCalendar = autoProfileFromCalendar
+        self.recordBlockReasons = recordBlockReasons
+        self.creditStandHourAsBreak = creditStandHourAsBreak
+        self.calendarTitleDenylist = calendarTitleDenylist
+        self.scheduleProfileRules = scheduleProfileRules
+        self.guidedBreakStealFocus = guidedBreakStealFocus
     }
 
     enum CodingKeys: String, CodingKey {
@@ -174,7 +199,8 @@ struct FeatureFlags: Codable, Equatable {
         case showSampleDayTour, reduceMotionOverrides, breakDemoSymbolsEnabled
         case weatherLatitude, weatherLongitude
         case liveActivityEnabled, fightingShapeEnabled, fightingShapeBaseURL
-        case autoProfileFromCalendar
+        case autoProfileFromCalendar, recordBlockReasons, creditStandHourAsBreak
+        case calendarTitleDenylist, scheduleProfileRules, guidedBreakStealFocus
     }
 
     init(from decoder: Decoder) throws {
@@ -203,5 +229,10 @@ struct FeatureFlags: Codable, Equatable {
         fightingShapeEnabled = try d.decodeIfPresent(Bool.self, forKey: .fightingShapeEnabled) ?? base.fightingShapeEnabled
         fightingShapeBaseURL = try d.decodeIfPresent(String.self, forKey: .fightingShapeBaseURL) ?? base.fightingShapeBaseURL
         autoProfileFromCalendar = try d.decodeIfPresent(Bool.self, forKey: .autoProfileFromCalendar) ?? base.autoProfileFromCalendar
+        recordBlockReasons = try d.decodeIfPresent(Bool.self, forKey: .recordBlockReasons) ?? base.recordBlockReasons
+        creditStandHourAsBreak = try d.decodeIfPresent(Bool.self, forKey: .creditStandHourAsBreak) ?? base.creditStandHourAsBreak
+        calendarTitleDenylist = try d.decodeIfPresent([String].self, forKey: .calendarTitleDenylist) ?? base.calendarTitleDenylist
+        scheduleProfileRules = try d.decodeIfPresent([ScheduleProfileRule].self, forKey: .scheduleProfileRules) ?? base.scheduleProfileRules
+        guidedBreakStealFocus = try d.decodeIfPresent(Bool.self, forKey: .guidedBreakStealFocus) ?? base.guidedBreakStealFocus
     }
 }

@@ -95,7 +95,20 @@ extension AppState {
     func openGuidedBreak(_ payload: ReminderPayload) {
         pendingGuidedPayload = payload
         showGuidedBreak = true
-        NSApp.activate(ignoringOtherApps: true)
+        // Default: do not steal focus over Zoom/Teams/Keynote/fullscreen deep work.
+        let steal = config.features.guidedBreakStealFocus
+            || !DeepWorkMonitor.isDenylisted(bundleId: frontmostBundleId, denylist: config.denylistBundleIds)
+        if steal {
+            let fullscreen = DeepWorkMonitor.isInDeepWork(
+                frontmostBundleId: frontmostBundleId,
+                frontmostSince: frontmostSince,
+                quietMinutes: 0,
+                requireFullscreen: true
+            )
+            if config.features.guidedBreakStealFocus || !fullscreen {
+                NSApp.activate(ignoringOtherApps: true)
+            }
+        }
         NotificationCenter.default.post(name: .openGuidedBreakWindow, object: nil)
     }
 

@@ -30,6 +30,14 @@ chmod +x scripts/*.sh
 - Config: `~/Library/Application Support/StandUpReminder/`
 - Log: `~/Library/Logs/standup-reminder.log`
 
+### Sync doctor
+
+```bash
+standup-reminder sync-doctor
+standup-reminder block-stats
+standup-reminder icloud-pull --force   # only if you mean to overwrite local
+```
+
 ### Multi-device checklist (~5 minutes)
 
 Identity (must match Apple Developer App IDs):

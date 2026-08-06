@@ -37,6 +37,7 @@ extension AppState {
         }()
         return """
         profile: \(activeProfileName)
+        role: Mac (primary quiet-rule suppressor)
         enabled: \(config.enabled)
         paused: \(isPaused)
         interval: \(effectiveIntervalMinutes)m (base \(config.intervalMinutes))
@@ -44,10 +45,36 @@ extension AppState {
         timezone: \(config.scheduleTimeZone.identifier)
         status: \(statusMessage)
         next: \(next)
+        notifications: \(notificationsAuthorized.map { $0 ? "authorized" : "DENIED" } ?? "unknown")
+        sync: \(syncHealth.summary(iCloudEnabled: config.features.iCloudSyncEnabled))
         update: \(updateInfo.map { "\($0.tagName) \($0.isNewer ? "(newer)" : "")" } ?? "n/a")
         \(weekStatsText())
         config: \(Paths.configFile.path)
         """
+    }
+
+    /// CLI `sync-doctor` report.
+    func syncDoctorReport() -> String {
+        var lines: [String] = []
+        lines.append("container: \(CloudSync.isContainerAvailable ? "available" : "UNAVAILABLE")")
+        lines.append("iCloud enabled in config: \(config.features.iCloudSyncEnabled)")
+        lines.append("identity: \(AppIdentity.iCloudContainer) · \(AppIdentity.appGroupID)")
+        lines.append(syncHealth.summary(iCloudEnabled: config.features.iCloudSyncEnabled))
+        if let msg = syncHealth.lastPullMessage { lines.append("last pull: \(msg)") }
+        if let runtime = CloudSync.pullRuntime() {
+            lines.append("runtime.json: \(runtime.deviceName) @ \(runtime.updatedAt)")
+            lines.append("  paused=\(runtime.isPaused.map(String.init(describing:)) ?? "nil") snooze=\(runtime.snoozeUntil.map { "\($0)" } ?? "nil") interval=\(runtime.effectiveIntervalMinutes.map(String.init) ?? "nil")")
+        } else {
+            lines.append("runtime.json: missing")
+        }
+        if syncHealth.lastPullWasStale {
+            lines.append("ACTION: local config newer than iCloud — run icloud-push or icloud-pull --force")
+        }
+        if !CloudSync.isContainerAvailable {
+            lines.append("ACTION: sign into iCloud Drive; enable App Group + iCloud on App ID")
+        }
+        lines.append(blockStats.report())
+        return lines.joined(separator: "\n")
     }
 
     // MARK: Scheduler Input

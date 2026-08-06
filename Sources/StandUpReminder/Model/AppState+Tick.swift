@@ -16,7 +16,8 @@ extension AppState {
         persistRuntime()
         publishWidget()
 
-        if pendingMeetingCatchUp && config.meetingCatchUpEnabled && !CalendarMonitor.isInMeeting() {
+        if pendingMeetingCatchUp && config.meetingCatchUpEnabled
+            && !CalendarMonitor.isInMeeting(titleDenylist: config.features.calendarTitleDenylist) {
             // A catch-up that couldn't land for a couple of intervals is
             // stale (locked screen into the evening → don't fire yesterday's
             // catch-up tomorrow morning).
@@ -115,7 +116,7 @@ extension AppState {
             skipWhenLocked: config.skipWhenLocked,
             focused: FocusMonitor.isFocused(),
             skipWhenFocused: config.skipWhenFocused,
-            inMeeting: CalendarMonitor.isInMeeting(),
+            inMeeting: CalendarMonitor.isInMeeting(titleDenylist: config.features.calendarTitleDenylist),
             skipWhenInMeeting: config.skipWhenInMeeting,
             denylisted: DeepWorkMonitor.isDenylisted(
                 bundleId: frontmostBundleId, denylist: config.denylistBundleIds
@@ -179,7 +180,7 @@ extension AppState {
     }
 
     private func updateMeetingCatchUpFlag() {
-        let inMeeting = CalendarMonitor.isInMeeting()
+        let inMeeting = CalendarMonitor.isInMeeting(titleDenylist: config.features.calendarTitleDenylist)
         let wasPending = pendingMeetingCatchUp
         if lastMeetingState && !inMeeting && config.meetingCatchUpEnabled {
             if let last = lastReminderAt {
@@ -207,6 +208,13 @@ extension AppState {
         if force { return true }
         let result = FireGateEvaluator.evaluate(fireGateContext())
         statusMessage = result.status
+        if !result.allowed, config.features.recordBlockReasons,
+           result.status != "Disabled", result.status != "Paused",
+           result.status != "Skipped today", result.status != "Snoozing",
+           result.status != "Outside work hours", result.status != "Armed" {
+            blockStats.record(reason: result.status, dayKey: StatsSnapshot.dayKey(calendar: config.scheduleCalendar))
+            BlockStats.save(blockStats)
+        }
         return result.allowed
     }
 
@@ -380,7 +388,10 @@ extension AppState {
         guard config.features.autoProfileFromCalendar else { return }
         let day = StatsSnapshot.dayKey(calendar: config.scheduleCalendar)
         guard autoPackAppliedDayKey != day else { return }
-        let count = CalendarMonitor.meetingEventCountToday(calendar: config.scheduleCalendar)
+        let count = CalendarMonitor.meetingEventCountToday(
+            calendar: config.scheduleCalendar,
+            titleDenylist: config.features.calendarTitleDenylist
+        )
         guard count >= 4, config.reminderPack != .meetingHeavy else { return }
         applyReminderPack(.meetingHeavy)
         autoPackAppliedDayKey = day

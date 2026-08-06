@@ -15,6 +15,12 @@ struct CloudEnvelope<Payload: Codable>: Codable {
 
 /// Multi-device sync via iCloud Drive Documents (opt-in).
 enum CloudSync {
+    /// Current container (AppIdentity). Also tried for migration from the
+    /// pre-4.2.1 placeholder `iCloud.com.user.StandUpReminder`.
+    static let legacyContainerIdentifiers = [
+        "iCloud.com.user.StandUpReminder"
+    ]
+
     static var containerURL: URL? {
         FileManager.default.url(forUbiquityContainerIdentifier: nil)?
             .appendingPathComponent("Documents/StandUpReminder", isDirectory: true)
@@ -24,6 +30,52 @@ enum CloudSync {
         guard let url = containerURL else { return nil }
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
+    }
+
+    /// Doctor / status: is the ubiquity container reachable?
+    static var isContainerAvailable: Bool { containerURL != nil }
+
+    /// Copy config/profiles/runtime from a legacy container into the current
+    /// one when the new folder is empty. Returns a user-facing note or nil.
+    @discardableResult
+    static func migrateFromLegacyContainerIfNeeded() -> String? {
+        guard let dest = ensureFolder() else { return nil }
+        let destConfig = dest.appendingPathComponent("config.json")
+        if FileManager.default.fileExists(atPath: destConfig.path) {
+            return nil // already seeded
+        }
+        for id in legacyContainerIdentifiers {
+            guard let root = FileManager.default.url(forUbiquityContainerIdentifier: id) else { continue }
+            let src = root.appendingPathComponent("Documents/StandUpReminder", isDirectory: true)
+            guard FileManager.default.fileExists(atPath: src.path) else { continue }
+            var copied = 0
+            for name in ["config.json", "profiles.json", "runtime.json"] {
+                let from = src.appendingPathComponent(name)
+                let to = dest.appendingPathComponent(name)
+                guard FileManager.default.fileExists(atPath: from.path),
+                      !FileManager.default.fileExists(atPath: to.path),
+                      let data = try? Data(contentsOf: from) else { continue }
+                try? data.write(to: to, options: .atomic)
+                copied += 1
+            }
+            // Also copy any stats-*.json
+            if let entries = try? FileManager.default.contentsOfDirectory(at: src, includingPropertiesForKeys: nil) {
+                for url in entries where url.lastPathComponent.hasPrefix("stats-") {
+                    let to = dest.appendingPathComponent(url.lastPathComponent)
+                    if !FileManager.default.fileExists(atPath: to.path),
+                       let data = try? Data(contentsOf: url) {
+                        try? data.write(to: to, options: .atomic)
+                        copied += 1
+                    }
+                }
+            }
+            if copied > 0 {
+                let note = "Migrated \(copied) file(s) from legacy iCloud container"
+                AppLog.write(note)
+                return note
+            }
+        }
+        return nil
     }
 
     enum PullOutcome {
@@ -47,9 +99,15 @@ enum CloudSync {
             case .empty: return "Nothing in iCloud yet — push from a synced device first"
             case .downloading: return "iCloud copy is still downloading — try again in a moment"
             case .corrupt(let detail): return "iCloud copy unreadable (\(detail)) — nothing changed"
-            case .staleRemote: return "Local settings are newer than the iCloud copy — push instead"
+            case .staleRemote: return "Local settings are newer than iCloud — Push, or Force pull to overwrite local"
             }
         }
+    }
+
+    /// Pull that always accepts remote (ignores local mtime). Use after the
+    /// user confirms they want to discard newer local settings.
+    static func forcePull() -> PullOutcome {
+        pull(localModifiedAt: nil)
     }
 
     @discardableResult

@@ -64,7 +64,7 @@ struct ContentView: View {
 
                 Section {
                     Label(
-                        "iPhone reminders fire on the schedule only — they cannot skip meetings, Focus, or idle time the way the Mac app does. Use the Mac for quiet-rule suppression.",
+                        "Role: iPhone schedules local notifications. Mac is the primary quiet-rule suppressor (meetings, Focus, idle). Cadence syncs via iCloud when enabled.",
                         systemImage: "info.circle"
                     )
                     .font(.footnote)

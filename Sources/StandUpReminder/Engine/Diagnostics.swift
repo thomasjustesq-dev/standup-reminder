@@ -12,10 +12,11 @@ enum Diagnostics {
     }
 
     static func report(event: String, details: [String: String] = [:], endpoint: String) async {
+        // Empty endpoint = local breadcrumbs only (AppLog). No network.
+        let trimmed = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
         guard case let .success(url) = DiagnosticsURL.validate(endpoint) else {
-            if !endpoint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                AppLog.write("Diagnostics endpoint rejected (https + public host required)")
-            }
+            AppLog.write("Diagnostics endpoint rejected (https + public host required)")
             return
         }
         guard let request = postRequest(url: url, event: event, details: details) else { return }

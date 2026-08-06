@@ -40,3 +40,13 @@ feature flags keep weather/watch/learn/voice off until opted in.
 
 **Rationale:** Pause was local-only; multi-Mac adaptive thrash; first-run
 settings overload.
+
+---
+
+## 2026-08-06 — Mac primary suppressor; diagnostics local-only by default
+
+**Decision:** Product copy and architecture treat Mac as the quiet-rule primary;
+iOS schedules notifications. Diagnostics POST only when a validated HTTPS
+endpoint is set — empty endpoint means AppLog only.
+
+**Rationale:** Platform limits on phone; half-wired telemetry is a privacy footgun.

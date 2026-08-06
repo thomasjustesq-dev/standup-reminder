@@ -15,11 +15,11 @@ enum CalendarMonitor {
         EKEventStore.authorizationStatus(for: .event) == .fullAccess
     }
 
-    static func isInMeeting(now: Date = Date()) -> Bool {
+    static func isInMeeting(now: Date = Date(), titleDenylist: [String] = []) -> Bool {
         guard hasEventAccess else { return false }
         let windowEnd = now.addingTimeInterval(60)
         let predicate = store.predicateForEvents(withStart: now, end: windowEnd, calendars: nil)
-        return store.events(matching: predicate).contains { looksLikeMeeting($0) }
+        return store.events(matching: predicate).contains { looksLikeMeeting($0, titleDenylist: titleDenylist) }
     }
 
     /// Current meeting event ending soonest, if any.
@@ -28,19 +28,23 @@ enum CalendarMonitor {
         let windowEnd = now.addingTimeInterval(60)
         let predicate = store.predicateForEvents(withStart: now, end: windowEnd, calendars: nil)
         return store.events(matching: predicate)
-            .filter(looksLikeMeeting)
+            .filter { looksLikeMeeting($0) }
             .compactMap(\.endDate)
             .sorted()
             .first
     }
 
     /// Count of meeting-like events that start today (for auto pack switch).
-    static func meetingEventCountToday(now: Date = Date(), calendar: Calendar = .current) -> Int {
+    static func meetingEventCountToday(
+        now: Date = Date(),
+        calendar: Calendar = .current,
+        titleDenylist: [String] = []
+    ) -> Int {
         guard hasEventAccess else { return 0 }
         let start = calendar.startOfDay(for: now)
         guard let end = calendar.date(byAdding: .day, value: 1, to: start) else { return 0 }
         let predicate = store.predicateForEvents(withStart: start, end: end, calendars: nil)
-        return store.events(matching: predicate).filter(looksLikeMeeting).count
+        return store.events(matching: predicate).filter { looksLikeMeeting($0, titleDenylist: titleDenylist) }.count
     }
 
     /// All-day or titled events that look like PTO / OOO / holiday.
@@ -60,12 +64,15 @@ enum CalendarMonitor {
         }
     }
 
-    private static func looksLikeMeeting(_ event: EKEvent) -> Bool {
+    private static func looksLikeMeeting(_ event: EKEvent, titleDenylist: [String] = []) -> Bool {
         if event.isAllDay { return false }
         if event.availability == .free { return false }
+        let title = (event.title ?? "").lowercased()
+        let denied = titleDenylist.map { $0.lowercased() }.filter { !$0.isEmpty }
+        if denied.contains(where: { title.contains($0) }) { return false }
         let attendees = event.attendees?.count ?? 0
         if attendees > 0 { return true }
-        let haystack = ((event.title ?? "") + " " + (event.notes ?? "") + " " + (event.location ?? "")).lowercased()
+        let haystack = (title + " " + (event.notes ?? "") + " " + (event.location ?? "")).lowercased()
         let keywords = ["zoom", "meet.google", "teams.microsoft", "webex", "call", "standup", "stand-up", "sync", "interview"]
         return keywords.contains { haystack.contains($0) }
     }

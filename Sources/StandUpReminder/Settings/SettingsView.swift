@@ -420,9 +420,16 @@ private struct SyncPrivacySettingsTab: View {
         Form {
             Section("iCloud") {
                 Toggle("Sync settings & cadence via iCloud Drive", isOn: featureBool(\.iCloudSyncEnabled))
-                Button("Push to iCloud now") { appState.pushToiCloud() }
-                Button("Pull from iCloud now") { appState.pullFromiCloud() }
-                Text("After upgrading identity containers, push once from any device to re-seed iCloud.")
+                Text(appState.syncHealth.summary(iCloudEnabled: appState.config.features.iCloudSyncEnabled))
+                    .font(.caption)
+                    .foregroundStyle(appState.syncHealth.lastPullWasStale ? .orange : .secondary)
+                Button("Push to iCloud now") { _ = appState.pushToiCloud() }
+                Button("Pull from iCloud now") { _ = appState.pullFromiCloud() }
+                if appState.syncHealth.lastPullWasStale {
+                    Button("Force pull (overwrite newer local)") { _ = appState.pullFromiCloud(force: true) }
+                }
+                Button("Migrate legacy iCloud container…") { appState.migrateLegacyiCloudIfNeeded() }
+                Text("Mac is the primary quiet-rule suppressor; phone/watch follow cadence via iCloud.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Everyday options") {
@@ -454,6 +461,11 @@ private struct SyncPrivacySettingsTab: View {
                 Section("Learning & sensors (on-device)") {
                     Toggle("Auto Meeting-heavy pack on busy calendar days", isOn: featureBool(\.autoProfileFromCalendar))
                     Text("Applies once per day when ≥4 meeting-like events are on today's calendar.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Toggle("Credit Apple Stand hour as a break", isOn: featureBool(\.creditStandHourAsBreak))
+                    Toggle("Record quiet-rule block reasons", isOn: featureBool(\.recordBlockReasons))
+                    Toggle("Guided break may steal focus", isOn: featureBool(\.guidedBreakStealFocus))
+                    Text("Off (default): won't activate over Zoom/Teams/fullscreen.")
                         .font(.caption).foregroundStyle(.secondary)
                     Toggle("Learn my schedule from activity", isOn: featureBool(\.learnedScheduleEnabled))
                     if let suggestion = appState.learnedSuggestion {
@@ -545,6 +557,11 @@ private struct StatsSettingsTab: View {
                 if week.selfLogged > 0 {
                     LabeledContent("Self-logged", value: "\(week.selfLogged) (no banner first)")
                 }
+            }
+            if appState.config.features.recordBlockReasons, !appState.blockStats.byReason.isEmpty {
+                Text(appState.blockStats.report())
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
             if let h = appState.stats.weekHighlights(calendar: appState.config.scheduleCalendar) {
                 LabeledContent("Best day", value: "\(h.bestDay ?? "—") · \(h.bestDone) done")

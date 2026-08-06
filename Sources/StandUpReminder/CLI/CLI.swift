@@ -121,10 +121,18 @@ enum CLI {
             if !ok { exit(1) }
             return true
         case "icloud-pull":
-            let outcome = state.pullFromiCloud()
+            let force = args.contains("--force")
+            let outcome = state.pullFromiCloud(force: force)
             notifyRunningApp()
             print(state.statusMessage)
             if case .success = outcome {} else { exit(1) }
+            return true
+        case "sync-doctor":
+            state.migrateLegacyiCloudIfNeeded()
+            print(state.syncDoctorReport())
+            return true
+        case "block-stats":
+            print(state.blockStats.report())
             return true
         case "weather":
             await state.refreshWeather()
@@ -178,7 +186,9 @@ enum CLI {
       standup-reminder export [file.json]
       standup-reminder import <file.json>
       standup-reminder test|test-lunch|test-wind-down|test-guided
-      standup-reminder icloud-push|icloud-pull
+      standup-reminder icloud-push|icloud-pull [--force]
+      standup-reminder sync-doctor             iCloud + runtime + block stats
+      standup-reminder block-stats             Quiet-rule block counts today
       standup-reminder weather
       standup-reminder learn-apply
       standup-reminder help

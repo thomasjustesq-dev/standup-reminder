@@ -12,6 +12,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Core purity (no AppKit in StandUpReminderCore)
         run: bash scripts/check-core-purity.sh
+      - name: Version sources agree
+        run: bash scripts/check-version-agree.sh
       - name: Build
         run: swift build -v
       - name: Test

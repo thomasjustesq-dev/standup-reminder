@@ -87,6 +87,10 @@ final class AppState: ObservableObject {
     var shownAwaitingAck = false
     /// Day key when auto meeting-heavy pack was last applied (once per day max).
     var autoPackAppliedDayKey: String?
+    var syncHealth = SyncHealth.load()
+    var blockStats = BlockStats.load()
+    var lastScheduleRulePack: ReminderPack?
+    var lastStandCreditAt: Date?
 
     // MARK: Truly private state (used only in this file)
 

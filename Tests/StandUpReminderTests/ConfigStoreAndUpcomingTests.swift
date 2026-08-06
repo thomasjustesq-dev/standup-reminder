@@ -101,4 +101,32 @@ final class ConfigStoreAndUpcomingTests: XCTestCase {
         XCTAssertFalse(RuntimeMerge.shouldPublishAdaptiveChange(from: 30, to: 32))
         XCTAssertTrue(RuntimeMerge.shouldPublishAdaptiveChange(from: 30, to: 35))
     }
+
+    func testScheduleProfileRuleMatchesHours() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: timeZone)!
+        let rule = ScheduleProfileRule(weekdays: [3], startHour: 9, endHour: 12, pack: .developer)
+        // 2026-07-15 is Wednesday (ISO 3)
+        let morning = date(2026, 7, 15, 10, 0)
+        let afternoon = date(2026, 7, 15, 14, 0)
+        XCTAssertTrue(rule.matches(morning, calendar: calendar))
+        XCTAssertFalse(rule.matches(afternoon, calendar: calendar))
+        XCTAssertEqual(
+            ScheduleProfileRule.activePack(rules: [rule], at: morning, calendar: calendar),
+            .developer
+        )
+    }
+
+    func testBlockStatsResetsOnNewDay() {
+        var stats = BlockStats(dayKey: "2026-07-14", byReason: ["Deep work": 3])
+        stats.record(reason: "In a meeting", dayKey: "2026-07-15")
+        XCTAssertEqual(stats.dayKey, "2026-07-15")
+        XCTAssertEqual(stats.byReason["In a meeting"], 1)
+        XCTAssertNil(stats.byReason["Deep work"])
+    }
+
+    func testSyncHealthSummaryWhenOff() {
+        let h = SyncHealth()
+        XCTAssertEqual(h.summary(iCloudEnabled: false), "iCloud sync off")
+    }
 }

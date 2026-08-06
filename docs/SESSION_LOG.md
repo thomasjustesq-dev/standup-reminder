@@ -27,3 +27,11 @@ Append-only. `merge=union`.
 - Webcam burst sampling; widget minute timeline; iOS quiet-rule honesty copy.
 - `scripts/bump-version.sh`, `check-core-purity.sh`, QUICKSTART multi-device checklist.
 - Solo-author note on ASSIGNMENT; release checklist in DISTRIBUTION.
+
+## 2026-08-06 — Sync health, doctor, intents, stand credit
+
+- SyncHealth + menu/settings surface; force pull; legacy iCloud container migration.
+- `sync-doctor` / `block-stats` CLI; quiet-rule block reason counters.
+- Calendar title denylist; guided break focus steal guard; notif denied menu badge.
+- Schedule profile rules; stand-hour soft credit; App Intents (log/snooze/pause/resume).
+- `check-version-agree.sh` in CI; Mac/iPhone role labels.

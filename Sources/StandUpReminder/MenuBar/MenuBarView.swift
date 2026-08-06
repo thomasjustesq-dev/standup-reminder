@@ -22,12 +22,20 @@ struct MenuBarView: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
             }
+            Text("Mac · primary quiet-rule suppressor")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
             Text("Profile: \(appState.activeProfileName)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Text(nextFireText)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            if appState.config.features.iCloudSyncEnabled {
+                Text(appState.syncHealth.summary(iCloudEnabled: true))
+                    .font(.caption2)
+                    .foregroundStyle(appState.syncHealth.lastPullWasStale ? .orange : .secondary)
+            }
             if appState.config.sitStandModeEnabled {
                 Text("Desk: \(appState.deskPhase.rawValue)")
                     .font(.caption2)
@@ -99,9 +107,23 @@ struct MenuBarView: View {
 
         if appState.notificationsAuthorized == false {
             Button("Enable notifications…") {
-                let target = "x-apple.systempreferences:com.apple.preference.notifications"
-                if let url = URL(string: target) { NSWorkspace.shared.open(url) }
+                // macOS 13+ Notifications pane; fall back to legacy pref pane id.
+                let candidates = [
+                    "x-apple.systempreferences:com.apple.Notifications-Settings.extension",
+                    "x-apple.systempreferences:com.apple.preference.notifications"
+                ]
+                for target in candidates {
+                    if let url = URL(string: target) {
+                        NSWorkspace.shared.open(url)
+                        break
+                    }
+                }
             }
+        }
+
+        if appState.config.features.iCloudSyncEnabled, appState.syncHealth.lastPullWasStale {
+            Button("Push local settings to iCloud") { _ = appState.pushToiCloud() }
+            Button("Force pull (overwrite local)") { _ = appState.pullFromiCloud(force: true) }
         }
 
         Button("Settings…") { openSettings() }
