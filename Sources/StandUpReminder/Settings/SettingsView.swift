@@ -418,6 +418,20 @@ private struct SyncPrivacySettingsTab: View {
 
     var body: some View {
         Form {
+            Section("Cadence role") {
+                Picker("Role", selection: Binding(
+                    get: { appState.config.features.cadenceRole },
+                    set: { v in var c = appState.config; c.features.cadenceRole = v; appState.config = c }
+                )) {
+                    ForEach(CadenceRole.allCases) { role in
+                        Text(role.displayName).tag(role)
+                    }
+                }
+                Text("Authority evaluates presence (meetings, Focus, idle). Followers only follow shared cadence.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Text("Resolved: \(appState.resolvedCadenceRole.displayName)")
+                    .font(.caption2)
+            }
             Section("iCloud") {
                 Toggle("Sync settings & cadence via iCloud Drive", isOn: featureBool(\.iCloudSyncEnabled))
                 Text(appState.syncHealth.summary(iCloudEnabled: appState.config.features.iCloudSyncEnabled))

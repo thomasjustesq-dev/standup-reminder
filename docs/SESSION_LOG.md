@@ -35,3 +35,11 @@ Append-only. `merge=union`.
 - Calendar title denylist; guided break focus steal guard; notif denied menu badge.
 - Schedule profile rules; stand-hour soft credit; App Intents (log/snooze/pause/resume).
 - `check-version-agree.sh` in CI; Mac/iPhone role labels.
+
+## 2026-08-06 — Substantial upgrade: presence, authority, simulation, today UI
+
+- `PresenceState` + resolver; fire gates presence-first; menu shows one state.
+- Cadence authority/follower (automatic Mac=authority); runtime lease fields.
+- `DaySimulation` pure day replay + tests; `AdaptiveCoach` explainable suggestions.
+- Break evidence kinds (banner/away/stand/self); Today timeline window.
+- iOS explicit follower role; shorter notification queue.

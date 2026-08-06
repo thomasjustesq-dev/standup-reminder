@@ -64,7 +64,7 @@ struct ContentView: View {
 
                 Section {
                     Label(
-                        "Role: iPhone schedules local notifications. Mac is the primary quiet-rule suppressor (meetings, Focus, idle). Cadence syncs via iCloud when enabled.",
+                        "Role: Follower — schedules local notifications from shared anchors. Mac is cadence authority (presence / quiet rules). iCloud sync publishes authority presence + next fire.",
                         systemImage: "info.circle"
                     )
                     .font(.footnote)

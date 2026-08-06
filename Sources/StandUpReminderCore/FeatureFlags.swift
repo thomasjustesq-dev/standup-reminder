@@ -111,6 +111,10 @@ struct FeatureFlags: Codable, Equatable {
     var scheduleProfileRules: [ScheduleProfileRule]
     /// When true, guided break may activate the app over full-screen / denylist apps.
     var guidedBreakStealFocus: Bool
+    /// Multi-device cadence ownership (automatic = Mac authority, phone follower).
+    var cadenceRole: CadenceRole
+    /// Claim authority lease when this device is authority (pushed on runtime).
+    var claimCadenceAuthority: Bool
 
     /// Quiet defaults for new installs — power features stay opt-in.
     static let `default` = FeatureFlags(
@@ -141,7 +145,9 @@ struct FeatureFlags: Codable, Equatable {
         creditStandHourAsBreak: false,
         calendarTitleDenylist: ["focus block", "blocked", "deep work", "no meetings", "hold"],
         scheduleProfileRules: [],
-        guidedBreakStealFocus: false
+        guidedBreakStealFocus: false,
+        cadenceRole: .automatic,
+        claimCadenceAuthority: true
     )
 
     init(
@@ -159,7 +165,9 @@ struct FeatureFlags: Codable, Equatable {
         creditStandHourAsBreak: Bool = false,
         calendarTitleDenylist: [String] = [],
         scheduleProfileRules: [ScheduleProfileRule] = [],
-        guidedBreakStealFocus: Bool = false
+        guidedBreakStealFocus: Bool = false,
+        cadenceRole: CadenceRole = .automatic,
+        claimCadenceAuthority: Bool = true
     ) {
         self.iCloudSyncEnabled = iCloudSyncEnabled
         self.teamQuiet = teamQuiet
@@ -189,6 +197,8 @@ struct FeatureFlags: Codable, Equatable {
         self.calendarTitleDenylist = calendarTitleDenylist
         self.scheduleProfileRules = scheduleProfileRules
         self.guidedBreakStealFocus = guidedBreakStealFocus
+        self.cadenceRole = cadenceRole
+        self.claimCadenceAuthority = claimCadenceAuthority
     }
 
     enum CodingKeys: String, CodingKey {
@@ -201,6 +211,7 @@ struct FeatureFlags: Codable, Equatable {
         case liveActivityEnabled, fightingShapeEnabled, fightingShapeBaseURL
         case autoProfileFromCalendar, recordBlockReasons, creditStandHourAsBreak
         case calendarTitleDenylist, scheduleProfileRules, guidedBreakStealFocus
+        case cadenceRole, claimCadenceAuthority
     }
 
     init(from decoder: Decoder) throws {
@@ -234,5 +245,7 @@ struct FeatureFlags: Codable, Equatable {
         calendarTitleDenylist = try d.decodeIfPresent([String].self, forKey: .calendarTitleDenylist) ?? base.calendarTitleDenylist
         scheduleProfileRules = try d.decodeIfPresent([ScheduleProfileRule].self, forKey: .scheduleProfileRules) ?? base.scheduleProfileRules
         guidedBreakStealFocus = try d.decodeIfPresent(Bool.self, forKey: .guidedBreakStealFocus) ?? base.guidedBreakStealFocus
+        cadenceRole = try d.decodeIfPresent(CadenceRole.self, forKey: .cadenceRole) ?? base.cadenceRole
+        claimCadenceAuthority = try d.decodeIfPresent(Bool.self, forKey: .claimCadenceAuthority) ?? base.claimCadenceAuthority
     }
 }

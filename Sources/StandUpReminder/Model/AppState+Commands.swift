@@ -67,6 +67,7 @@ extension AppState {
         // weeks explainable in the weekly stats.
         let selfLogged = !shownAwaitingAck
         shownAwaitingAck = false
+        recordEvidence(selfLogged ? .selfLogged : .bannerAck)
         stats.recordDone(on: StatsSnapshot.dayKey(calendar: config.scheduleCalendar), selfLogged: selfLogged)
         if config.sitStandModeEnabled {
             toggleDeskPhase()
@@ -135,5 +136,21 @@ extension AppState {
             guidedSteps: ["Stand up", "Shoulder rolls ×10", "Look far away 20s", "Drink water"]
         )
         openGuidedBreak(payload)
+    }
+
+    func recordEvidence(_ evidence: BreakEvidence) {
+        evidenceStats.record(evidence)
+        EvidenceStats.save(evidenceStats)
+    }
+
+    func applyAdaptiveSuggestion() {
+        guard let suggestion = adaptiveSuggestion else { return }
+        var c = config
+        c.intervalMinutes = suggestion.recommendedMinutes
+        config = c
+        effectiveIntervalMinutes = suggestion.recommendedMinutes
+        statusMessage = "Applied \(suggestion.recommendedMinutes)m — \(suggestion.explanation)"
+        refreshNextFire()
+        syncRuntimeToCloud()
     }
 }

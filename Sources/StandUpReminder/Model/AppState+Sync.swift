@@ -108,6 +108,7 @@ extension AppState {
                    Calendar.current.isDate(last, equalTo: Date(), toGranularity: .hour) { return }
                 self.lastAcknowledgedAt = Date()
                 self.lastStandCreditAt = Date()
+                self.recordEvidence(.standHour)
                 self.statusMessage = "Stand hour closed — break credited"
                 self.refreshNextFire()
                 self.syncRuntimeToCloud()
@@ -143,6 +144,15 @@ extension AppState {
         }
         syncHealth.lastRuntimeRemoteAt = doc.updatedAt
         syncHealth.lastRuntimeRemoteDevice = doc.deviceName
+        if let auth = doc.authorityDeviceName {
+            remoteAuthorityName = auth
+        }
+        if let p = doc.authorityPresence {
+            remoteAuthorityPresence = p
+            if !isCadenceAuthority, let state = PresenceState(rawValue: p) {
+                presence = state
+            }
+        }
         SyncHealth.save(syncHealth)
         statusMessage = "Synced from \(doc.deviceName)"
         refreshNextFire()
@@ -152,6 +162,7 @@ extension AppState {
         let stamp = Date()
         lastRuntimeMutationAt = stamp
         guard config.features.iCloudSyncEnabled else { return }
+        let claim = isCadenceAuthority && config.features.claimCadenceAuthority
         let ok = CloudSync.pushRuntime(CloudSync.RuntimeDoc(
             updatedAt: stamp,
             deviceName: CloudSync.defaultDeviceName(),
@@ -160,7 +171,11 @@ extension AppState {
             snoozeUntil: snoozeUntil,
             skipRestOfDayDate: skipRestOfDayDate,
             effectiveIntervalMinutes: effectiveIntervalMinutes,
-            isPaused: isPaused
+            isPaused: isPaused,
+            authorityDeviceId: claim ? CloudSync.deviceId() : nil,
+            authorityDeviceName: claim ? CloudSync.defaultDeviceName() : remoteAuthorityName,
+            authorityPresence: claim ? presence.rawValue : remoteAuthorityPresence,
+            nextFireAt: nextFireAt
         ))
         if ok {
             syncHealth.lastPushAt = stamp

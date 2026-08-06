@@ -55,6 +55,10 @@ final class AppState: ObservableObject {
     @Published var showSampleDayTour = false
     /// nil = not yet determined/unknown; false = user denied notifications.
     @Published var notificationsAuthorized: Bool?
+    /// Resolved presence (one state). Updated every tick.
+    @Published var presence: PresenceState = .atDesk
+    @Published var adaptiveSuggestion: AdaptiveSuggestion?
+    @Published var showDayTimeline = false
 
     // MARK: Stored state shared with the extension files (internal by design)
 
@@ -91,6 +95,21 @@ final class AppState: ObservableObject {
     var blockStats = BlockStats.load()
     var lastScheduleRulePack: ReminderPack?
     var lastStandCreditAt: Date?
+    var evidenceStats = EvidenceStats.load()
+    var remoteAuthorityName: String?
+    var remoteAuthorityPresence: String?
+
+    #if os(macOS)
+    var resolvedCadenceRole: CadenceRole {
+        CadenceRole.resolved(configRole: config.features.cadenceRole, isMac: true)
+    }
+    #else
+    var resolvedCadenceRole: CadenceRole {
+        CadenceRole.resolved(configRole: config.features.cadenceRole, isMac: false)
+    }
+    #endif
+
+    var isCadenceAuthority: Bool { resolvedCadenceRole == .authority }
 
     // MARK: Truly private state (used only in this file)
 
@@ -108,14 +127,7 @@ final class AppState: ObservableObject {
     }
 
     var menuBarSymbolName: String {
-        if !config.enabled { return "pause.circle" }
-        if isPaused { return "pause.circle.fill" }
-        if isSnoozing { return "zzz" }
-        if isSkipTodayActive { return "moon.zzz" }
-        if config.sitStandModeEnabled {
-            return deskPhase == .stand ? "figure.stand" : "desktopcomputer"
-        }
-        return "figure.stand"
+        presence.symbolName
     }
 
     var menuBarTitle: String {

@@ -17,6 +17,18 @@ Bump with one command:
 
 CI release workflow fails if the git tag disagrees with `Resources/Info.plist`.
 
+## Canonical install path (Thomas)
+
+Until a notarized asset exists, install is source-build only:
+
+```bash
+./scripts/build-app.sh
+# open dist/StandUpReminder.app
+```
+
+After first notarized release, prefer GitHub Releases zip + optional Sparkle.
+Do not maintain a second install story (Homebrew cask stays a template until sha256 is real).
+
 ## One-shot release checklist (first real ship)
 
 1. `./scripts/bump-version.sh <ver> <build>` and commit.

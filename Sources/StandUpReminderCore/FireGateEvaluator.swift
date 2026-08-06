@@ -1,7 +1,7 @@
 import Foundation
 
-/// Pure quiet-rule evaluation for the full fire gate. AppState builds the
-/// context from live monitors; unit tests inject fixtures.
+/// Inputs for presence resolution and fire gates. AppState builds this from
+/// live monitors; unit tests inject fixtures.
 struct FireGateContext: Equatable {
     var enabled: Bool = true
     var paused: Bool = false
@@ -29,40 +29,54 @@ struct FireGateContext: Equatable {
     var minActiveSeconds: TimeInterval = 0
     /// Lunch/wind-down skip the min-active warm-up.
     var isLunchOrWindDown: Bool = false
+    /// Guided break UI open.
+    var onBreak: Bool = false
+}
+
+struct FireGateResult: Equatable {
+    var allowed: Bool
+    var status: String
+    var presence: PresenceState
 }
 
 enum FireGateEvaluator {
-    /// Returns whether a full-gated fire may proceed, and a status string for the menu bar.
-    static func evaluate(_ ctx: FireGateContext) -> (allowed: Bool, status: String) {
-        if !ctx.enabled { return (false, "Disabled") }
-        if ctx.paused { return (false, "Paused") }
-        if ctx.skipToday { return (false, "Skipped today") }
-        if ctx.snoozing { return (false, "Snoozing") }
-        if ctx.onPTO { return (false, "PTO / OOO") }
-        if ctx.teamQuiet { return (false, "Team quiet hours") }
-        if !ctx.withinWorkHoursOrWindDown { return (false, "Outside work hours") }
-        if ctx.skipWhenDisplayAsleep && ctx.displayAsleep { return (false, "Display asleep") }
-        if ctx.skipWhenLocked && ctx.screenLocked { return (false, "Screen locked") }
-        if ctx.skipWhenFocused && ctx.focused { return (false, "Focus mode on") }
-        if ctx.skipWhenInMeeting && ctx.inMeeting { return (false, "In a meeting") }
-        if ctx.denylisted { return (false, "Quiet app (denylist)") }
-        if ctx.deepWorkEnabled && ctx.deepWork && ctx.sinceAnchor < ctx.overdueLimit {
-            return (false, "Deep work")
+    /// Presence-first evaluation: one state, then fire permission.
+    static func evaluate(_ ctx: FireGateContext) -> FireGateResult {
+        let presence = PresenceResolver.resolve(ctx)
+        if presence == .warmingUp {
+            return FireGateResult(
+                allowed: false,
+                status: "Warming up (active \(Int(ctx.activeFor / 60))m)",
+                presence: presence
+            )
         }
-        if ctx.idle { return (false, "Idle — skipped") }
-        if !ctx.isLunchOrWindDown, ctx.minActiveSeconds > 0, ctx.activeFor < ctx.minActiveSeconds {
-            return (false, "Warming up (active \(Int(ctx.activeFor / 60))m)")
+        if presence == .atDesk {
+            return FireGateResult(allowed: true, status: "Armed", presence: .atDesk)
         }
-        return (true, "Armed")
+        return FireGateResult(allowed: false, status: presence.displayName, presence: presence)
     }
 
     /// Environment-only gate used by wind-down and meeting catch-up.
+    /// Ignores meeting/focus/deep-work/denylist/warm-up; still blocks
+    /// locked, asleep, away, off-hours, pause, disabled.
     static func environmentAllows(_ ctx: FireGateContext) -> Bool {
-        guard ctx.enabled, !ctx.paused, !ctx.skipToday else { return false }
-        guard ctx.withinWorkHoursOrWindDown else { return false }
-        if ctx.skipWhenDisplayAsleep && ctx.displayAsleep { return false }
-        if ctx.skipWhenLocked && ctx.screenLocked { return false }
-        if ctx.idle { return false }
-        return true
+        var env = ctx
+        env.inMeeting = false
+        env.focused = false
+        env.deepWork = false
+        env.denylisted = false
+        env.minActiveSeconds = 0
+        env.onBreak = false
+        let presence = PresenceResolver.resolve(env)
+        switch presence {
+        case .atDesk, .warmingUp:
+            return true
+        case .disabled, .paused, .skippedToday, .snoozing, .pto, .teamQuiet,
+             .offHours, .displayAsleep, .locked, .away, .onBreak:
+            return false
+        case .meeting, .focus, .quietApp, .deepWork:
+            // Cleared above — should not appear.
+            return true
+        }
     }
 }

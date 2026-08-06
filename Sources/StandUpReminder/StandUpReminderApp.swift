@@ -51,6 +51,12 @@ struct StandUpReminderApp: App {
         }
         .windowResizability(.contentSize)
 
+        Window("Today", id: "day-timeline") {
+            DayTimelineView()
+                .environmentObject(appState)
+        }
+        .windowResizability(.contentSize)
+
         #if DEBUG
         Window("Debug Panel", id: "debug-panel") {
             DebugPanel()
@@ -85,6 +91,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             observe(.openSampleDayTour) { [weak self] in
                 self?.present(id: "sample-day", title: "Sample Day") {
                     SampleDayTourView().environmentObject(AppState.shared)
+                }
+            }
+            observe(.openDayTimeline) { [weak self] in
+                self?.present(id: "day-timeline", title: "Today") {
+                    DayTimelineView().environmentObject(AppState.shared)
                 }
             }
             observe(.openOnboardingWindow) { [weak self] in
@@ -189,6 +200,7 @@ extension Notification.Name {
     static let openGuidedBreakWindow = Notification.Name("openGuidedBreakWindow")
     static let openSampleDayTour = Notification.Name("openSampleDayTour")
     static let openOnboardingWindow = Notification.Name("openOnboardingWindow")
+    static let openDayTimeline = Notification.Name("openDayTimeline")
     #if DEBUG
     static let openDebugPanel = Notification.Name("openDebugPanel")
     #endif

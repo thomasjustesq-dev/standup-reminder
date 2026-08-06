@@ -163,7 +163,7 @@ final class RuntimeMergeAndGateTests: XCTestCase {
         XCTAssertEqual(FireGateEvaluator.evaluate(ctx).status, "Focus mode on")
         ctx.focused = false
         ctx.idle = true
-        XCTAssertEqual(FireGateEvaluator.evaluate(ctx).status, "Idle — skipped")
+        XCTAssertEqual(FireGateEvaluator.evaluate(ctx).status, "Away")
     }
 
     func testWarmUpSkippedForLunch() {

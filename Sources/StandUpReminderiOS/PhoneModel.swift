@@ -16,7 +16,8 @@ final class PhoneModel: ObservableObject {
 
     /// How many future reminders to keep queued (iOS caps pending local
     /// notifications at 64 per app).
-    static let queueDepth = 24
+    /// Followers keep a shorter queue — authority owns presence; phone is delivery.
+    static let queueDepth = 12
 
     @Published var config: AppConfig {
         didSet {
@@ -137,6 +138,7 @@ final class PhoneModel: ObservableObject {
                 guard let self, let end, end <= Date() else { return }
                 if (self.lastAcknowledgedAt ?? .distantPast) < end {
                     self.lastAcknowledgedAt = end
+                    // Evidence-backed: recent workout counts as the break.
                     self.rescheduleNotifications()
                     self.syncRuntimeToCloud()
                 }

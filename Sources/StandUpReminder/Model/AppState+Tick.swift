@@ -133,7 +133,8 @@ extension AppState {
             idle: IdleMonitor.isIdle(thresholdMinutes: config.idleSkipMinutes),
             activeFor: activeFor,
             minActiveSeconds: TimeInterval(config.minActiveMinutes * 60),
-            isLunchOrWindDown: config.isLunchTime() || config.isWindDownTime()
+            isLunchOrWindDown: config.isLunchTime() || config.isWindDownTime(),
+            onBreak: showGuidedBreak
         )
     }
 
@@ -157,6 +158,7 @@ extension AppState {
             let awayThreshold = TimeInterval(max(1, config.idleSkipMinutes) * 60)
             if lastObservedIdleSeconds >= awayThreshold {
                 lastAcknowledgedAt = Date()
+                recordEvidence(.awayReturn)
                 statusMessage = "Away \(Int(lastObservedIdleSeconds / 60))m — break credited"
                 refreshNextFire()
                 syncRuntimeToCloud()
@@ -206,7 +208,16 @@ extension AppState {
 
     func shouldFireNow(force: Bool) -> Bool {
         if force { return true }
+        // Followers do not independently invent quiet-rule fires; they only
+        // deliver when schedule hits (phone) or when authority says at-desk.
+        if !isCadenceAuthority {
+            presence = remoteAuthorityPresence.flatMap(PresenceState.init(rawValue:)) ?? .atDesk
+            statusMessage = remoteAuthorityName.map { "Follower · \($0): \(presence.displayName)" }
+                ?? "Follower · waiting for authority"
+            return false // Mac follower never fires local banners; phone uses notifications
+        }
         let result = FireGateEvaluator.evaluate(fireGateContext())
+        presence = result.presence
         statusMessage = result.status
         if !result.allowed, config.features.recordBlockReasons,
            result.status != "Disabled", result.status != "Paused",
@@ -362,6 +373,10 @@ extension AppState {
                     syncRuntimeToCloud()
                 }
             }
+            adaptiveSuggestion = AdaptiveCoach.suggest(
+                config: config, stats: stats, samples: activitySamples,
+                calendar: config.scheduleCalendar
+            )
             lastAdaptiveComputedAt = Date()
             lastAdaptiveAnchor = anchor
         }

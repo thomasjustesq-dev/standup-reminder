@@ -237,10 +237,18 @@ enum CloudSync {
         var effectiveIntervalMinutes: Int?
         /// Authoritative pause across devices when present.
         var isPaused: Bool?
+        /// Device that currently owns quiet-rule / presence evaluation.
+        var authorityDeviceId: String?
+        var authorityDeviceName: String?
+        /// Presence published by the authority for followers' UI.
+        var authorityPresence: String?
+        /// Optional fire-window hint for followers (next allowed fire).
+        var nextFireAt: Date?
 
         enum CodingKeys: String, CodingKey {
             case updatedAt, deviceName, lastReminderAt, lastAcknowledgedAt
             case snoozeUntil, skipRestOfDayDate, effectiveIntervalMinutes, isPaused
+            case authorityDeviceId, authorityDeviceName, authorityPresence, nextFireAt
         }
 
         init(
@@ -251,7 +259,11 @@ enum CloudSync {
             snoozeUntil: Date? = nil,
             skipRestOfDayDate: Date? = nil,
             effectiveIntervalMinutes: Int? = nil,
-            isPaused: Bool? = nil
+            isPaused: Bool? = nil,
+            authorityDeviceId: String? = nil,
+            authorityDeviceName: String? = nil,
+            authorityPresence: String? = nil,
+            nextFireAt: Date? = nil
         ) {
             self.updatedAt = updatedAt
             self.deviceName = deviceName
@@ -261,6 +273,10 @@ enum CloudSync {
             self.skipRestOfDayDate = skipRestOfDayDate
             self.effectiveIntervalMinutes = effectiveIntervalMinutes
             self.isPaused = isPaused
+            self.authorityDeviceId = authorityDeviceId
+            self.authorityDeviceName = authorityDeviceName
+            self.authorityPresence = authorityPresence
+            self.nextFireAt = nextFireAt
         }
 
         init(from decoder: Decoder) throws {
@@ -273,6 +289,10 @@ enum CloudSync {
             skipRestOfDayDate = try c.decodeIfPresent(Date.self, forKey: .skipRestOfDayDate)
             effectiveIntervalMinutes = try c.decodeIfPresent(Int.self, forKey: .effectiveIntervalMinutes)
             isPaused = try c.decodeIfPresent(Bool.self, forKey: .isPaused)
+            authorityDeviceId = try c.decodeIfPresent(String.self, forKey: .authorityDeviceId)
+            authorityDeviceName = try c.decodeIfPresent(String.self, forKey: .authorityDeviceName)
+            authorityPresence = try c.decodeIfPresent(String.self, forKey: .authorityPresence)
+            nextFireAt = try c.decodeIfPresent(Date.self, forKey: .nextFireAt)
         }
     }
 

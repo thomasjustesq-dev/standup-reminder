@@ -15,14 +15,22 @@ struct MenuBarView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 6) {
+                Image(systemName: appState.presence.symbolName)
+                Text(appState.presence.displayName)
+                    .font(.headline)
+            }
             Text(appState.statusMessage)
-                .font(.headline)
+                .font(.caption)
+                .foregroundStyle(.secondary)
             if appState.notificationsAuthorized == false {
                 Text("⚠ Notifications are off — reminders can't appear")
                     .font(.caption)
                     .foregroundStyle(.orange)
             }
-            Text("Mac · primary quiet-rule suppressor")
+            Text(appState.isCadenceAuthority
+                 ? "Mac · cadence authority"
+                 : "Mac · follower")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
             Text("Profile: \(appState.activeProfileName)")
@@ -98,6 +106,9 @@ struct MenuBarView: View {
 
         Divider()
 
+        Button("Today…") {
+            NotificationCenter.default.post(name: .openDayTimeline, object: nil)
+        }
         Button("Start guided break") { appState.testGuided() }
         Button("Test stand-up reminder") { appState.testStandUp() }
         Button("Test lunch reminder") { appState.testLunch() }

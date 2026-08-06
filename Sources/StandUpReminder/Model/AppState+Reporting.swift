@@ -37,7 +37,8 @@ extension AppState {
         }()
         return """
         profile: \(activeProfileName)
-        role: Mac (primary quiet-rule suppressor)
+        presence: \(presence.displayName)
+        cadence: \(resolvedCadenceRole.rawValue)\(isCadenceAuthority ? " (authority)" : " (follower)")
         enabled: \(config.enabled)
         paused: \(isPaused)
         interval: \(effectiveIntervalMinutes)m (base \(config.intervalMinutes))
@@ -47,6 +48,7 @@ extension AppState {
         next: \(next)
         notifications: \(notificationsAuthorized.map { $0 ? "authorized" : "DENIED" } ?? "unknown")
         sync: \(syncHealth.summary(iCloudEnabled: config.features.iCloudSyncEnabled))
+        \(evidenceStats.summaryLine())
         update: \(updateInfo.map { "\($0.tagName) \($0.isNewer ? "(newer)" : "")" } ?? "n/a")
         \(weekStatsText())
         config: \(Paths.configFile.path)

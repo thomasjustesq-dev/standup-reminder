@@ -50,3 +50,18 @@ iOS schedules notifications. Diagnostics POST only when a validated HTTPS
 endpoint is set — empty endpoint means AppLog only.
 
 **Rationale:** Platform limits on phone; half-wired telemetry is a privacy footgun.
+
+---
+
+## 2026-08-06 — Presence state machine + cadence authority
+
+**Decision:** Quiet rules resolve to a single `PresenceState`. Full fires only
+from `atDesk`. Multi-device cadence uses authority/follower (automatic → Mac
+authority, iOS follower). Runtime doc carries authority id, presence, next fire.
+
+**Rationale:** Competing if-ladders made suppression opaque; last-writer iCloud
+JSON cannot be a CRDT — explicit authority is the workable multi-device model
+without a CloudKit rewrite.
+
+**Out of scope this land:** CloudKit schema, step-count pedometer on Mac,
+Focus Filters entitlements.
