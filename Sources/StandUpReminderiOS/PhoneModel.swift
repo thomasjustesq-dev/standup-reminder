@@ -38,6 +38,10 @@ final class PhoneModel: ObservableObject {
     @Published var upcoming: [Scheduler.Next] = []
     @Published var notificationsAuthorized = false
     @Published var pendingGuidedPayload: GuidedSheetPayload?
+    /// Published by the Mac (cadence authority) via iCloud runtime.
+    @Published var authorityPresence: PresenceState?
+    @Published var authorityName: String?
+    @Published var authorityNextFireAt: Date?
 
     static let backgroundRefreshTaskId = AppIdentity.backgroundRefreshTaskId
 
@@ -89,7 +93,16 @@ final class PhoneModel: ObservableObject {
         if isPaused { return "Paused" }
         if isSkipTodayActive { return "Skipped today" }
         if isSnoozing { return "Snoozing" }
-        return upcoming.isEmpty ? "Outside work hours" : "Armed"
+        if let presence = authorityPresence, FollowerSchedulePolicy.blocksFullFire(presence) {
+            let who = authorityName.map { " · \($0)" } ?? ""
+            return "Mac\(who): \(presence.displayName)"
+        }
+        if upcoming.isEmpty { return "Outside work hours" }
+        return "Armed (follower)"
+    }
+
+    var resolvedCadenceRole: CadenceRole {
+        CadenceRole.resolved(configRole: config.features.cadenceRole, isMac: false)
     }
 
     private init() {
@@ -212,6 +225,7 @@ final class PhoneModel: ObservableObject {
         let stamp = Date()
         lastRuntimeMutationAt = stamp
         guard config.features.iCloudSyncEnabled else { return }
+        // Phone is a follower: push anchors only, never claim authority.
         CloudSync.pushRuntime(CloudSync.RuntimeDoc(
             updatedAt: stamp,
             deviceName: CloudSync.defaultDeviceName(),
@@ -220,11 +234,16 @@ final class PhoneModel: ObservableObject {
             snoozeUntil: snoozeUntil,
             skipRestOfDayDate: skipRestOfDayDate,
             effectiveIntervalMinutes: cloudEffectiveIntervalMinutes ?? config.intervalMinutes,
-            isPaused: isPaused
+            isPaused: isPaused,
+            authorityDeviceId: nil,
+            authorityDeviceName: authorityName,
+            authorityPresence: authorityPresence?.rawValue,
+            nextFireAt: authorityNextFireAt
         ))
     }
 
     /// Newest-wins merge via `RuntimeMerge` (clears snooze/skip when remote is newer).
+    /// Always refreshes authority presence / next-fire for follower scheduling.
     private func syncRuntimeFromCloud() {
         guard config.features.iCloudSyncEnabled else { return }
         if let doc = CloudSync.pullRuntime() {
@@ -248,6 +267,20 @@ final class PhoneModel: ObservableObject {
                 skipRestOfDayDate = outcome.local.skipRestOfDayDate
                 cloudEffectiveIntervalMinutes = outcome.local.effectiveIntervalMinutes
                 isPaused = outcome.local.isPaused
+            }
+
+            let newPresence = doc.authorityPresence.flatMap(PresenceState.init(rawValue:))
+            let newGate = doc.nextFireAt
+            let newName = doc.authorityDeviceName
+            let authorityChanged =
+                newPresence != authorityPresence
+                || newGate != authorityNextFireAt
+                || newName != authorityName
+            authorityPresence = newPresence
+            authorityNextFireAt = newGate
+            authorityName = newName
+
+            if outcome.changed || authorityChanged {
                 rescheduleNotifications()
             }
         }
@@ -281,15 +314,39 @@ final class PhoneModel: ObservableObject {
         guard !suppressReschedule else { return }
         NotificationManager.cancelScheduledQueue()
         let generation = Int(Date().timeIntervalSince1970)
-        let generated = Scheduler.upcoming(schedulerInput(now: Date()), count: Self.queueDepth)
+        let now = Date()
+        let generated = Scheduler.upcoming(schedulerInput(now: now), count: Self.queueDepth)
         // Exhaustion is judged on the pre-filter count: a quiet-window filter
         // below can shrink a full queue, and a shrunken-but-full queue drains
         // exactly the same way.
         let queueWasFull = generated.count == Self.queueDepth
-        // Honor team quiet windows here too — the Mac gates them at fire
-        // time, but a pre-scheduled iOS banner would sail through them.
-        let chain = generated.filter { next in
+        // Honor team quiet windows + cadence-authority presence / next-fire gate.
+        // Mac suppresses at fire time; a pre-scheduled iOS banner would otherwise
+        // fire during meetings/Focus while the Mac stays quiet.
+        var chain = generated.filter { next in
             !TeamQuietHours.isInTeamQuiet(config: config.features, at: next.date, calendar: config.scheduleCalendar)
+        }
+        if resolvedCadenceRole == .follower || config.features.cadenceRole == .automatic {
+            chain = FollowerSchedulePolicy.clampFirstBreak(
+                chain: chain,
+                authorityNextFireAt: authorityNextFireAt
+            )
+            chain = chain.filter { next in
+                FollowerSchedulePolicy.shouldSchedule(
+                    next,
+                    authorityPresence: authorityPresence,
+                    authorityNextFireAt: authorityNextFireAt,
+                    now: now
+                )
+            }
+            // Dedup after clamp (multiple slots may collapse onto the same gate).
+            var seen = Set<String>()
+            chain = chain.filter { next in
+                let key = "\(next.kind.rawValue)-\(Int(next.date.timeIntervalSince1970))"
+                if seen.contains(key) { return false }
+                seen.insert(key)
+                return true
+            }
         }
         var promptIndex = 0
         var phase = deskPhase

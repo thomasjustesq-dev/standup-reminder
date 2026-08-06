@@ -23,6 +23,16 @@ struct ContentView: View {
                         Text(model.statusText)
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                        if let auth = model.authorityPresence {
+                            Text("Authority: \(auth.displayName)\(model.authorityName.map { " · \($0)" } ?? "")")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        if let gate = model.authorityNextFireAt, gate > Date() {
+                            Text("Mac next fire \(gate, style: .time)")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)

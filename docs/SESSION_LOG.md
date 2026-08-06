@@ -43,3 +43,10 @@ Append-only. `merge=union`.
 - `DaySimulation` pure day replay + tests; `AdaptiveCoach` explainable suggestions.
 - Break evidence kinds (banner/away/stand/self); Today timeline window.
 - iOS explicit follower role; shorter notification queue.
+
+## 2026-08-06 — iOS respects authority nextFireAt / presence
+
+- `FollowerSchedulePolicy`: drop break/sit-stand before Mac gate; suppress near
+  breaks while authority presence is blocking (meeting/away/Focus/…).
+- PhoneModel always pulls authority fields; status + UI show Mac presence/gate.
+- BG/foreground reschedule rebuilds queue under policy.

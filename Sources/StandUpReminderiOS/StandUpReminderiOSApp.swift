@@ -39,6 +39,7 @@ struct StandUpReminderiOSApp: App {
                 PhoneModel.shared.isForeground = true
                 PhoneModel.shared.refreshAuthorizationStatus()
                 PhoneModel.shared.creditRecentWorkoutIfAny()
+                // Pull authority presence / next-fire before rebuild.
                 Task { await PhoneModel.shared.reconcileDelivered() }
             case .background:
                 PhoneModel.shared.isForeground = false
