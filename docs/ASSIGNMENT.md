@@ -12,9 +12,13 @@ If every continuous slot is **empty**, agents may only:
 
 **Do not self-select** from ROADMAP when this card is empty.
 
+**Solo human mode:** if Thomas is the only author, ignore agent slots. Open a
+normal product branch/PR; leave this card empty. The claim package is for
+multi-agent concurrency, not a tax on solo work.
+
 ## Current assignments
 
-**Card date:** 2026-08-04
+**Card date:** 2026-08-06
 
 | Slot | Owner | Task ID | Claim on main? | Work PR | Notes |
 | --- | --- | --- | --- | --- | --- |

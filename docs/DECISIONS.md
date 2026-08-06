@@ -29,3 +29,14 @@ iOS ignored adaptive cadence.
 
 **Migration:** Local Application Support path unchanged. Re-push iCloud after
 install. Create App Group + iCloud container on the App ID if missing.
+
+---
+
+## 2026-08-06 — Pause sync + adaptive newest-wins + quiet defaults
+
+**Decision:** `isPaused` travels on the runtime doc; effective interval is
+newest-doc-wins with ≥5 minute hysteresis on local recompute. New-install
+feature flags keep weather/watch/learn/voice off until opted in.
+
+**Rationale:** Pause was local-only; multi-Mac adaptive thrash; first-run
+settings overload.

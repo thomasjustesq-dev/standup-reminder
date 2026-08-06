@@ -192,6 +192,34 @@ enum ReminderPack: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+/// When the guided-break window auto-opens after a reminder fires.
+/// Banner body click still opens guided break whenever `guidedBreakEnabled`.
+enum GuidedBreakOpenMode: String, Codable, CaseIterable, Identifiable {
+    case never
+    case bannerOnly
+    case catchUpAndSitStand
+    case always
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .never: return "Never auto-open"
+        case .bannerOnly: return "Only when I click the banner"
+        case .catchUpAndSitStand: return "Catch-up & sit/stand only"
+        case .always: return "Every movement break"
+        }
+    }
+
+    func shouldAutoOpen(mode: String) -> Bool {
+        switch self {
+        case .never, .bannerOnly: return false
+        case .always: return mode == "breakPrompt" || mode == "sitStand" || mode == "meetingCatchUp"
+        case .catchUpAndSitStand: return mode == "sitStand" || mode == "meetingCatchUp"
+        }
+    }
+}
+
 struct AppConfig: Codable, Equatable {
     var enabled: Bool
     var intervalMinutes: Int
@@ -241,6 +269,8 @@ struct AppConfig: Codable, Equatable {
     // Guided break overlay
     var guidedBreakEnabled: Bool
     var guidedBreakSeconds: Int
+    /// When to auto-open the guided break window (banner click always works when enabled).
+    var guidedBreakOpenMode: GuidedBreakOpenMode
 
     // Menu bar countdown (Mac Live Activity stand-in)
     var showMenuBarCountdown: Bool
@@ -304,6 +334,7 @@ struct AppConfig: Codable, Equatable {
         healthMindfulMinutes: 1,
         guidedBreakEnabled: true,
         guidedBreakSeconds: 45,
+        guidedBreakOpenMode: .catchUpAndSitStand,
         showMenuBarCountdown: true,
         scheduleTimeZoneIdentifier: "",
         updateCheckEnabled: true,
@@ -401,7 +432,7 @@ struct AppConfig: Codable, Equatable {
         case meetingCatchUpEnabled, skipOnPTO, ptoKeywords
         case deepWorkEnabled, deepWorkQuietMinutes, deepWorkRequireFullscreen
         case denylistBundleIds, healthLoggingEnabled, healthMindfulMinutes
-        case guidedBreakEnabled, guidedBreakSeconds, showMenuBarCountdown
+        case guidedBreakEnabled, guidedBreakSeconds, guidedBreakOpenMode, showMenuBarCountdown
         case scheduleTimeZoneIdentifier, updateCheckEnabled, githubReleasesURL
         case features
     }
@@ -441,6 +472,11 @@ struct AppConfig: Codable, Equatable {
         healthMindfulMinutes = try d.decodeIfPresent(Double.self, forKey: .healthMindfulMinutes) ?? base.healthMindfulMinutes
         guidedBreakEnabled = try d.decodeIfPresent(Bool.self, forKey: .guidedBreakEnabled) ?? base.guidedBreakEnabled
         guidedBreakSeconds = try d.decodeIfPresent(Int.self, forKey: .guidedBreakSeconds) ?? base.guidedBreakSeconds
+        if let mode = try d.decodeIfPresent(GuidedBreakOpenMode.self, forKey: .guidedBreakOpenMode) {
+            guidedBreakOpenMode = mode
+        } else {
+            guidedBreakOpenMode = guidedBreakEnabled ? .catchUpAndSitStand : .never
+        }
         showMenuBarCountdown = try d.decodeIfPresent(Bool.self, forKey: .showMenuBarCountdown) ?? base.showMenuBarCountdown
         scheduleTimeZoneIdentifier = try d.decodeIfPresent(String.self, forKey: .scheduleTimeZoneIdentifier) ?? base.scheduleTimeZoneIdentifier
         updateCheckEnabled = try d.decodeIfPresent(Bool.self, forKey: .updateCheckEnabled) ?? base.updateCheckEnabled
@@ -468,7 +504,9 @@ struct AppConfig: Codable, Equatable {
         adaptiveMaxMinutes: Int, meetingCatchUpEnabled: Bool, skipOnPTO: Bool, ptoKeywords: [String],
         deepWorkEnabled: Bool, deepWorkQuietMinutes: Int, deepWorkRequireFullscreen: Bool,
         denylistBundleIds: [String], healthLoggingEnabled: Bool, healthMindfulMinutes: Double,
-        guidedBreakEnabled: Bool, guidedBreakSeconds: Int, showMenuBarCountdown: Bool,
+        guidedBreakEnabled: Bool, guidedBreakSeconds: Int,
+        guidedBreakOpenMode: GuidedBreakOpenMode = .catchUpAndSitStand,
+        showMenuBarCountdown: Bool,
         scheduleTimeZoneIdentifier: String, updateCheckEnabled: Bool, githubReleasesURL: String,
         features: FeatureFlags
     ) {
@@ -504,6 +542,7 @@ struct AppConfig: Codable, Equatable {
         self.healthMindfulMinutes = healthMindfulMinutes
         self.guidedBreakEnabled = guidedBreakEnabled
         self.guidedBreakSeconds = guidedBreakSeconds
+        self.guidedBreakOpenMode = guidedBreakOpenMode
         self.showMenuBarCountdown = showMenuBarCountdown
         self.scheduleTimeZoneIdentifier = scheduleTimeZoneIdentifier
         self.updateCheckEnabled = updateCheckEnabled

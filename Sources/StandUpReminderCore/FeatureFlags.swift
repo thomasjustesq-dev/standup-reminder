@@ -99,30 +99,34 @@ struct FeatureFlags: Codable, Equatable {
     /// (fightingshape-api-key in Application Support), never in synced config.
     var fightingShapeEnabled: Bool
     var fightingShapeBaseURL: String
+    /// When true, a meeting-heavy calendar day auto-selects the Meeting-heavy pack.
+    var autoProfileFromCalendar: Bool
 
+    /// Quiet defaults for new installs — power features stay opt-in.
     static let `default` = FeatureFlags(
         iCloudSyncEnabled: false,
         teamQuiet: .default,
         voiceAnnouncementsEnabled: false,
         speakOnlyWithHeadphones: true,
-        watchCompanionEnabled: true,
-        learnedScheduleEnabled: true,
+        watchCompanionEnabled: false,
+        learnedScheduleEnabled: false,
         applyLearnedScheduleAutomatically: false,
         webcamStillnessEnabled: false,
         webcamStillnessMinutes: 45,
-        weatherBreaksEnabled: true,
+        weatherBreaksEnabled: false,
         diagnosticsEnabled: false,
         diagnosticsEndpoint: "",
         sparkleFeedURL: "",
-        preferSparkleUpdates: true,
+        preferSparkleUpdates: false,
         showSampleDayTour: true,
         reduceMotionOverrides: true,
-        breakDemoSymbolsEnabled: true,
+        breakDemoSymbolsEnabled: false,
         weatherLatitude: nil,
         weatherLongitude: nil,
         liveActivityEnabled: true,
         fightingShapeEnabled: false,
-        fightingShapeBaseURL: ""
+        fightingShapeBaseURL: "",
+        autoProfileFromCalendar: false
     )
 
     init(
@@ -134,7 +138,8 @@ struct FeatureFlags: Codable, Equatable {
         reduceMotionOverrides: Bool, breakDemoSymbolsEnabled: Bool,
         weatherLatitude: Double? = nil, weatherLongitude: Double? = nil,
         liveActivityEnabled: Bool = true,
-        fightingShapeEnabled: Bool = false, fightingShapeBaseURL: String = ""
+        fightingShapeEnabled: Bool = false, fightingShapeBaseURL: String = "",
+        autoProfileFromCalendar: Bool = false
     ) {
         self.iCloudSyncEnabled = iCloudSyncEnabled
         self.teamQuiet = teamQuiet
@@ -158,6 +163,7 @@ struct FeatureFlags: Codable, Equatable {
         self.liveActivityEnabled = liveActivityEnabled
         self.fightingShapeEnabled = fightingShapeEnabled
         self.fightingShapeBaseURL = fightingShapeBaseURL
+        self.autoProfileFromCalendar = autoProfileFromCalendar
     }
 
     enum CodingKeys: String, CodingKey {
@@ -168,6 +174,7 @@ struct FeatureFlags: Codable, Equatable {
         case showSampleDayTour, reduceMotionOverrides, breakDemoSymbolsEnabled
         case weatherLatitude, weatherLongitude
         case liveActivityEnabled, fightingShapeEnabled, fightingShapeBaseURL
+        case autoProfileFromCalendar
     }
 
     init(from decoder: Decoder) throws {
@@ -195,5 +202,6 @@ struct FeatureFlags: Codable, Equatable {
         liveActivityEnabled = try d.decodeIfPresent(Bool.self, forKey: .liveActivityEnabled) ?? base.liveActivityEnabled
         fightingShapeEnabled = try d.decodeIfPresent(Bool.self, forKey: .fightingShapeEnabled) ?? base.fightingShapeEnabled
         fightingShapeBaseURL = try d.decodeIfPresent(String.self, forKey: .fightingShapeBaseURL) ?? base.fightingShapeBaseURL
+        autoProfileFromCalendar = try d.decodeIfPresent(Bool.self, forKey: .autoProfileFromCalendar) ?? base.autoProfileFromCalendar
     }
 }

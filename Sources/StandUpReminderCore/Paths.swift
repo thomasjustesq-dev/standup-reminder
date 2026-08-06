@@ -1,7 +1,42 @@
 import Foundation
 
 enum Paths {
+    private static let lock = NSLock()
+    /// When set (tests only), all support-file paths resolve under this directory
+    /// instead of the user's real Application Support.
+    private static var supportOverride: URL?
+
+    /// Point Application Support (and related state files) at a fresh temp
+    /// directory. Call `resetSupportDirectoryOverride()` in tearDown.
+    @discardableResult
+    static func useTemporarySupportDirectory(label: String = "tests") -> URL {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("StandUpReminder-\(label)-\(UUID().uuidString)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        lock.lock()
+        supportOverride = dir
+        lock.unlock()
+        return dir
+    }
+
+    static func resetSupportDirectoryOverride() {
+        lock.lock()
+        let previous = supportOverride
+        supportOverride = nil
+        lock.unlock()
+        if let previous {
+            try? FileManager.default.removeItem(at: previous)
+        }
+    }
+
     static var appSupport: URL {
+        lock.lock()
+        let override = supportOverride
+        lock.unlock()
+        if let override {
+            try? FileManager.default.createDirectory(at: override, withIntermediateDirectories: true)
+            return override
+        }
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let dir = base.appendingPathComponent("StandUpReminder", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -11,6 +46,12 @@ enum Paths {
     static var configFile: URL { appSupport.appendingPathComponent("config.json") }
     static var statsFile: URL { appSupport.appendingPathComponent("stats.json") }
     static var logFile: URL {
+        lock.lock()
+        let override = supportOverride
+        lock.unlock()
+        if let override {
+            return override.appendingPathComponent("standup-reminder.log")
+        }
         // Library/Logs resolves inside the sandbox container on iOS/watchOS
         // and to ~/Library/Logs on macOS (homeDirectoryForCurrentUser is
         // macOS-only, so it can't be used in shared code).

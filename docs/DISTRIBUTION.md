@@ -9,8 +9,24 @@ Marketing version and build number live in:
 - `project.yml` iOS/Watch/widget version fields
 - `Formula/standup-reminder.rb` and `Casks/standup-reminder.rb`
 
-Bump all of the above together before tagging. CI release workflow fails if the
-git tag disagrees with `Resources/Info.plist`.
+Bump with one command:
+
+```bash
+./scripts/bump-version.sh 4.2.2 8
+```
+
+CI release workflow fails if the git tag disagrees with `Resources/Info.plist`.
+
+## One-shot release checklist (first real ship)
+
+1. `./scripts/bump-version.sh <ver> <build>` and commit.
+2. `./scripts/check-core-purity.sh && swift test`
+3. Provision App Group + iCloud container on App IDs (see QUICKSTART).
+4. `./scripts/build-app.sh` then `./scripts/notarize.sh` with Apple ID secrets.
+5. Zip/DMG stapled app; attach to GitHub release for tag `v<ver>`.
+6. Fill `Casks/standup-reminder.rb` `sha256` for the zip (or rely on tag-triggered
+   `.github/workflows/release.yml` if secrets are configured).
+7. Optional Sparkle: set `SPARKLE_ED_PRIVATE_KEY` so the release job signs appcast.
 
 ## Sparkle
 

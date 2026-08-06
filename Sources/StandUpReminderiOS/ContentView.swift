@@ -55,6 +55,20 @@ struct ContentView: View {
                 Section("This week") {
                     Text(model.weekStatsText())
                         .font(.footnote)
+                    if let h = model.stats.weekHighlights(calendar: model.config.scheduleCalendar) {
+                        Text("Best \(h.bestDay ?? "—") (\(h.bestDone) done) · quietest \(h.worstDay ?? "—")")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Section {
+                    Label(
+                        "iPhone reminders fire on the schedule only — they cannot skip meetings, Focus, or idle time the way the Mac app does. Use the Mac for quiet-rule suppression.",
+                        systemImage: "info.circle"
+                    )
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
                 }
 
                 if !model.notificationsAuthorized {
@@ -158,6 +172,10 @@ struct SettingsSheet: View {
                 }
 
                 Section("iCloud sync") {
+                    Toggle("Sync cadence via iCloud", isOn: Binding(
+                        get: { model.config.features.iCloudSyncEnabled },
+                        set: { v in var c = model.config; c.features.iCloudSyncEnabled = v; model.config = c }
+                    ))
                     Button("Push settings to iCloud") {
                         cloudMessage = model.pushToiCloud()
                             ? "Pushed."
@@ -169,6 +187,12 @@ struct SettingsSheet: View {
                     if let cloudMessage {
                         Text(cloudMessage).font(.footnote).foregroundStyle(.secondary)
                     }
+                }
+
+                Section("Platform limits") {
+                    Text("Unlike the Mac menu bar app, this phone cannot observe meetings, Focus/DND, deep work, or idle presence. Scheduled local notifications still fire in those states.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
             }
             .navigationTitle("Settings")

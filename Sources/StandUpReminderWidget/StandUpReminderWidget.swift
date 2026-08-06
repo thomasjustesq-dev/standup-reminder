@@ -26,14 +26,40 @@ struct StandUpWidgetProvider: TimelineProvider {
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<StandUpWidgetEntry>) -> Void) {
-        let entry = loadEntry()
-        // Refresh at the fire time (the countdown hits zero there) or in
-        // 15 minutes, whichever is sooner.
-        var refreshAt = Date().addingTimeInterval(15 * 60)
-        if let next = entry.nextFireAt, next > Date(), next < refreshAt {
-            refreshAt = next.addingTimeInterval(30)
+        let base = loadEntry()
+        let now = Date()
+        // Minute-resolution entries keep Lock Screen countdown honest while
+        // armed; fall back to a single entry when nothing is scheduled.
+        var entries: [StandUpWidgetEntry] = []
+        if let next = base.nextFireAt, next > now {
+            var t = now
+            let cap = min(60, Int(ceil(next.timeIntervalSince(now) / 60)) + 1)
+            for _ in 0..<cap {
+                entries.append(entry(at: t, template: base))
+                t = t.addingTimeInterval(60)
+                if t > next { break }
+            }
+            entries.append(entry(at: next, template: base))
+            completion(Timeline(entries: entries, policy: .after(next.addingTimeInterval(30))))
+        } else {
+            completion(Timeline(entries: [base], policy: .after(now.addingTimeInterval(15 * 60))))
         }
-        completion(Timeline(entries: [entry], policy: .after(refreshAt)))
+    }
+
+    private func entry(at date: Date, template: StandUpWidgetEntry) -> StandUpWidgetEntry {
+        let countdown: Int? = {
+            guard let next = template.nextFireAt else { return nil }
+            return max(0, Int(ceil(next.timeIntervalSince(date) / 60)))
+        }()
+        return StandUpWidgetEntry(
+            date: date,
+            status: template.status,
+            nextText: template.nextText,
+            nextFireAt: template.nextFireAt,
+            weekDone: template.weekDone,
+            countdown: countdown,
+            profileName: template.profileName
+        )
     }
 
     private func loadEntry() -> StandUpWidgetEntry {

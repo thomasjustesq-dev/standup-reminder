@@ -6,6 +6,9 @@ import Vision
 
 /// Opt-in, on-device stillness heuristic using the camera face detector.
 /// Frames are never uploaded — only a local "face present & stable" signal is kept.
+///
+/// Power policy: the capture session runs in short bursts (default 6s every
+/// 3 minutes) instead of continuous green-light streaming.
 @MainActor
 final class WebcamStillnessMonitor: NSObject, ObservableObject {
     static let shared = WebcamStillnessMonitor()
@@ -18,9 +21,17 @@ final class WebcamStillnessMonitor: NSObject, ObservableObject {
     private var session: AVCaptureSession?
     private var lastMotionAt = Date()
     private var lastFaceBox: CGRect?
-    private var timer: Timer?
+    private var evaluateTimer: Timer?
+    private var burstTimer: Timer?
     private var enabled = false
     private var thresholdMinutes = 45
+    private var burstActive = false
+
+    /// How long each sample burst runs.
+    private let burstDuration: TimeInterval = 6
+    /// Gap between bursts when not still-too-long (tighter when overdue).
+    private let idleBurstInterval: TimeInterval = 3 * 60
+    private let overdueBurstInterval: TimeInterval = 60
 
     func configure(enabled: Bool, thresholdMinutes: Int) {
         self.thresholdMinutes = max(10, thresholdMinutes)
@@ -31,11 +42,11 @@ final class WebcamStillnessMonitor: NSObject, ObservableObject {
         guard !enabled else { return }
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
-            beginSession()
+            beginBurstCycle()
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .video) { granted in
                 Task { @MainActor in
-                    if granted { self.beginSession() }
+                    if granted { self.beginBurstCycle() }
                     else { self.status = "Camera denied" }
                 }
             }
@@ -46,15 +57,51 @@ final class WebcamStillnessMonitor: NSObject, ObservableObject {
 
     func stop() {
         enabled = false
-        timer?.invalidate()
-        timer = nil
-        session?.stopRunning()
-        session = nil
+        evaluateTimer?.invalidate()
+        evaluateTimer = nil
+        burstTimer?.invalidate()
+        burstTimer = nil
+        stopSession()
         isStillTooLong = false
         status = "Off"
     }
 
-    private func beginSession() {
+    private func beginBurstCycle() {
+        enabled = true
+        status = "Burst sampling (on-device)"
+        evaluateTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.evaluateStillness() }
+        }
+        scheduleNextBurst(after: 1)
+    }
+
+    private func scheduleNextBurst(after delay: TimeInterval) {
+        burstTimer?.invalidate()
+        burstTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
+            Task { @MainActor in self?.runBurst() }
+        }
+    }
+
+    private func runBurst() {
+        guard enabled else { return }
+        startSessionIfNeeded()
+        burstActive = true
+        status = "Sampling…"
+        DispatchQueue.main.asyncAfter(deadline: .now() + burstDuration) { [weak self] in
+            guard let self, self.enabled else { return }
+            self.burstActive = false
+            self.stopSession()
+            self.evaluateStillness()
+            let interval = self.isStillTooLong ? self.overdueBurstInterval : self.idleBurstInterval
+            self.status = self.isStillTooLong
+                ? String(format: "Still — next sample %.0fs", interval)
+                : String(format: "Idle sample in %.0fm", interval / 60)
+            self.scheduleNextBurst(after: interval)
+        }
+    }
+
+    private func startSessionIfNeeded() {
+        if session != nil { return }
         let session = AVCaptureSession()
         session.sessionPreset = .low
         guard let device = AVCaptureDevice.default(for: .video),
@@ -67,12 +114,12 @@ final class WebcamStillnessMonitor: NSObject, ObservableObject {
         output.setSampleBufferDelegate(self, queue: DispatchQueue(label: "standup.webcam"))
         if session.canAddOutput(output) { session.addOutput(output) }
         self.session = session
-        enabled = true
-        status = "Watching (on-device)"
         session.startRunning()
-        timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.evaluateStillness() }
-        }
+    }
+
+    private func stopSession() {
+        session?.stopRunning()
+        session = nil
     }
 
     private func evaluateStillness() {
@@ -91,9 +138,7 @@ extension WebcamStillnessMonitor: AVCaptureVideoDataOutputSampleBufferDelegate {
         didOutput sampleBuffer: CMSampleBuffer,
         from connection: AVCaptureConnection
     ) {
-        // Face detection on every camera frame burns CPU/battery for a
-        // signal that only needs minute-level resolution.
-        guard frameGate.shouldProcess(minInterval: 3) else { return }
+        guard frameGate.shouldProcess(minInterval: 1.5) else { return }
         guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         let requestHandler = VNImageRequestHandler(cvPixelBuffer: imageBuffer, options: [:])
         let request = VNDetectFaceRectanglesRequest()

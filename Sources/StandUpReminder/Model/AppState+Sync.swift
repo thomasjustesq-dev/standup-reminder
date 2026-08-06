@@ -56,8 +56,8 @@ extension AppState {
         }
     }
 
-    /// Newest-wins merge via `RuntimeMerge` — remote can extend anchors and
-    /// also clear snooze/skip when the remote doc is newer.
+    /// Newest-wins merge via `RuntimeMerge` — remote can extend anchors,
+    /// clear snooze/skip, set pause, and publish adaptive interval.
     private func applyCloudRuntime(_ doc: CloudSync.RuntimeDoc) {
         let outcome = RuntimeMerge.apply(
             local: RuntimeMerge.Local(
@@ -66,6 +66,7 @@ extension AppState {
                 snoozeUntil: snoozeUntil,
                 skipRestOfDayDate: skipRestOfDayDate,
                 effectiveIntervalMinutes: effectiveIntervalMinutes,
+                isPaused: isPaused,
                 lastRuntimeMutationAt: lastRuntimeMutationAt
             ),
             remote: doc,
@@ -76,12 +77,10 @@ extension AppState {
         lastAcknowledgedAt = outcome.local.lastAcknowledgedAt
         snoozeUntil = outcome.local.snoozeUntil
         skipRestOfDayDate = outcome.local.skipRestOfDayDate
+        isPaused = outcome.local.isPaused
+        // Newest remote doc wins for adaptive interval (multi-Mac / Mac→iOS).
         if let minutes = outcome.local.effectiveIntervalMinutes {
-            // Only adopt a peer's adaptive interval when this Mac is not
-            // computing its own (adaptive off) — otherwise local samples win.
-            if !config.adaptiveIntervalEnabled {
-                effectiveIntervalMinutes = minutes
-            }
+            effectiveIntervalMinutes = minutes
         }
         statusMessage = "Synced from \(doc.deviceName)"
         refreshNextFire()
@@ -98,7 +97,8 @@ extension AppState {
             lastAcknowledgedAt: lastAcknowledgedAt,
             snoozeUntil: snoozeUntil,
             skipRestOfDayDate: skipRestOfDayDate,
-            effectiveIntervalMinutes: effectiveIntervalMinutes
+            effectiveIntervalMinutes: effectiveIntervalMinutes,
+            isPaused: isPaused
         ))
     }
 

@@ -175,12 +175,14 @@ enum CloudSync {
         var lastAcknowledgedAt: Date?
         var snoozeUntil: Date?
         var skipRestOfDayDate: Date?
-        /// Mac adaptive (and Fighting Shape) interval so iOS can pre-schedule the same cadence.
+        /// Adaptive / Fighting Shape interval so peers pre-schedule the same cadence.
         var effectiveIntervalMinutes: Int?
+        /// Authoritative pause across devices when present.
+        var isPaused: Bool?
 
         enum CodingKeys: String, CodingKey {
             case updatedAt, deviceName, lastReminderAt, lastAcknowledgedAt
-            case snoozeUntil, skipRestOfDayDate, effectiveIntervalMinutes
+            case snoozeUntil, skipRestOfDayDate, effectiveIntervalMinutes, isPaused
         }
 
         init(
@@ -190,7 +192,8 @@ enum CloudSync {
             lastAcknowledgedAt: Date? = nil,
             snoozeUntil: Date? = nil,
             skipRestOfDayDate: Date? = nil,
-            effectiveIntervalMinutes: Int? = nil
+            effectiveIntervalMinutes: Int? = nil,
+            isPaused: Bool? = nil
         ) {
             self.updatedAt = updatedAt
             self.deviceName = deviceName
@@ -199,6 +202,7 @@ enum CloudSync {
             self.snoozeUntil = snoozeUntil
             self.skipRestOfDayDate = skipRestOfDayDate
             self.effectiveIntervalMinutes = effectiveIntervalMinutes
+            self.isPaused = isPaused
         }
 
         init(from decoder: Decoder) throws {
@@ -210,6 +214,7 @@ enum CloudSync {
             snoozeUntil = try c.decodeIfPresent(Date.self, forKey: .snoozeUntil)
             skipRestOfDayDate = try c.decodeIfPresent(Date.self, forKey: .skipRestOfDayDate)
             effectiveIntervalMinutes = try c.decodeIfPresent(Int.self, forKey: .effectiveIntervalMinutes)
+            isPaused = try c.decodeIfPresent(Bool.self, forKey: .isPaused)
         }
     }
 

@@ -30,6 +30,7 @@ struct SettingsView: View {
 
 private struct GeneralSettingsTab: View {
     @EnvironmentObject private var appState: AppState
+    @AppStorage("settings.generalAdvanced") private var showSystemIntegrations = false
 
     var body: some View {
         Form {
@@ -39,44 +40,59 @@ private struct GeneralSettingsTab: View {
                 Stepper("Require \(appState.config.minActiveMinutes) min active before reminding",
                         value: intBinding(\.minActiveMinutes), in: 0...120)
             }
-            Section("Experience") {
+            Section("Breaks & schedule UI") {
                 Toggle("Show menu bar countdown", isOn: boolBinding(\.showMenuBarCountdown))
                 Toggle("Guided break available", isOn: boolBinding(\.guidedBreakEnabled))
-                Stepper("Guided break length \(appState.config.guidedBreakSeconds)s",
-                        value: intBinding(\.guidedBreakSeconds), in: 20...180, step: 5)
+                if appState.config.guidedBreakEnabled {
+                    Picker("Auto-open guided window", selection: Binding(
+                        get: { appState.config.guidedBreakOpenMode },
+                        set: { v in var c = appState.config; c.guidedBreakOpenMode = v; appState.config = c }
+                    )) {
+                        ForEach(GuidedBreakOpenMode.allCases) { mode in
+                            Text(mode.displayName).tag(mode)
+                        }
+                    }
+                    Stepper("Guided break length \(appState.config.guidedBreakSeconds)s",
+                            value: intBinding(\.guidedBreakSeconds), in: 20...180, step: 5)
+                }
                 TextField("Alert sound name", text: stringBinding(\.soundName))
             }
-            Section("Health") {
-                Toggle("Write mindful minutes to Apple Health on Done", isOn: boolBinding(\.healthLoggingEnabled))
-                Text("Mac writes only (mindful minutes). iOS reads recent workouts so a gym session counts as a break — never writes.")
-                    .font(.caption).foregroundStyle(.secondary)
-                Stepper("Minutes per Done: \(String(format: "%.0f", appState.config.healthMindfulMinutes))",
-                        value: Binding(
-                            get: { Int(appState.config.healthMindfulMinutes) },
-                            set: {
-                                var c = appState.config
-                                c.healthMindfulMinutes = Double($0)
-                                appState.config = c
-                            }
-                        ),
-                        in: 1...15)
-                Button("Request Health access…") {
-                    HealthLogger.requestAuthorization { _ in }
-                }
+            Section {
+                Toggle("Show system integrations", isOn: $showSystemIntegrations)
             }
-            Section("Updates") {
-                Toggle("Check for updates", isOn: boolBinding(\.updateCheckEnabled))
-                TextField("GitHub Releases API URL", text: stringBinding(\.githubReleasesURL))
-                Text("Example: https://api.github.com/repos/you/standup-reminder/releases/latest")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Button("Check now") {
-                    Task { await appState.maybeCheckForUpdates(force: true) }
+            if showSystemIntegrations {
+                Section("Health") {
+                    Toggle("Write mindful minutes to Apple Health on Done", isOn: boolBinding(\.healthLoggingEnabled))
+                    Text("Mac writes only (mindful minutes). iOS reads recent workouts so a gym session counts as a break — never writes.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Stepper("Minutes per Done: \(String(format: "%.0f", appState.config.healthMindfulMinutes))",
+                            value: Binding(
+                                get: { Int(appState.config.healthMindfulMinutes) },
+                                set: {
+                                    var c = appState.config
+                                    c.healthMindfulMinutes = Double($0)
+                                    appState.config = c
+                                }
+                            ),
+                            in: 1...15)
+                    Button("Request Health access…") {
+                        HealthLogger.requestAuthorization { _ in }
+                    }
                 }
-            }
-            Section("Backup") {
-                Button("Export settings…") { exportSettings() }
-                Button("Import settings…") { importSettings() }
+                Section("Updates") {
+                    Toggle("Check for updates", isOn: boolBinding(\.updateCheckEnabled))
+                    TextField("GitHub Releases API URL", text: stringBinding(\.githubReleasesURL))
+                    Text("Example: https://api.github.com/repos/you/standup-reminder/releases/latest")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Button("Check now") {
+                        Task { await appState.maybeCheckForUpdates(force: true) }
+                    }
+                }
+                Section("Backup") {
+                    Button("Export settings…") { exportSettings() }
+                    Button("Import settings…") { importSettings() }
+                }
             }
         }
         .padding()
@@ -436,6 +452,9 @@ private struct SyncPrivacySettingsTab: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Section("Learning & sensors (on-device)") {
+                    Toggle("Auto Meeting-heavy pack on busy calendar days", isOn: featureBool(\.autoProfileFromCalendar))
+                    Text("Applies once per day when ≥4 meeting-like events are on today's calendar.")
+                        .font(.caption).foregroundStyle(.secondary)
                     Toggle("Learn my schedule from activity", isOn: featureBool(\.learnedScheduleEnabled))
                     if let suggestion = appState.learnedSuggestion {
                         Text("Suggested hours: \(suggestion.startHour):00–\(suggestion.endHour):00")
@@ -516,13 +535,28 @@ private struct StatsSettingsTab: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Local stats").font(.headline)
+            Text("Weekly review").font(.headline)
             Text(appState.weekStatsText())
+            let week = appState.stats.weekSummary(calendar: appState.config.scheduleCalendar)
+            if week.shown > 0 {
+                let rate = Int((Double(week.done) / Double(max(week.shown, 1))) * 100)
+                LabeledContent("Completion rate", value: "\(rate)% (\(week.done)/\(week.shown))")
+                LabeledContent("Snooze rate", value: "\(week.snoozed) snoozes · \(week.skipped) skips")
+                if week.selfLogged > 0 {
+                    LabeledContent("Self-logged", value: "\(week.selfLogged) (no banner first)")
+                }
+            }
+            if let h = appState.stats.weekHighlights(calendar: appState.config.scheduleCalendar) {
+                LabeledContent("Best day", value: "\(h.bestDay ?? "—") · \(h.bestDone) done")
+                LabeledContent("Quietest day", value: "\(h.worstDay ?? "—") · \(h.worstDone) done")
+            }
+            Divider()
+            Text("All-time").font(.headline)
             let s = appState.stats
-            LabeledContent("All-time shown", value: "\(s.shownTotal)")
-            LabeledContent("All-time done", value: "\(s.acknowledgedTotal)")
-            LabeledContent("All-time snoozed", value: "\(s.snoozedTotal)")
-            LabeledContent("All-time skipped", value: "\(s.skippedTotal)")
+            LabeledContent("Shown", value: "\(s.shownTotal)")
+            LabeledContent("Done", value: "\(s.acknowledgedTotal)")
+            LabeledContent("Snoozed", value: "\(s.snoozedTotal)")
+            LabeledContent("Skipped", value: "\(s.skippedTotal)")
             Text("Widget snapshot: \(WidgetSnapshot.fileURL.path)")
                 .font(.caption2).foregroundStyle(.secondary)
             Button("Reset stats") { appState.stats = StatsSnapshot() }

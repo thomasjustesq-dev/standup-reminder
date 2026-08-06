@@ -10,6 +10,9 @@ let package = Package(
         .executable(name: "StandUpReminder", targets: ["StandUpReminder"])
     ],
     targets: [
+        // Core sources live under Sources/StandUpReminderCore and must stay
+        // free of AppKit (scripts/check-core-purity.sh). Compiled into the
+        // app module so members stay internal across the menu bar target.
         .executableTarget(
             name: "StandUpReminder",
             path: "Sources",

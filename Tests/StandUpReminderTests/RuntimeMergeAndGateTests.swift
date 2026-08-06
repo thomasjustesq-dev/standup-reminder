@@ -81,6 +81,35 @@ final class RuntimeMergeAndGateTests: XCTestCase {
         XCTAssertEqual(outcome.local.effectiveIntervalMinutes, 22)
     }
 
+    func testPauseAuthoritativeOnNewerDoc() {
+        let local = RuntimeMerge.Local(
+            isPaused: false,
+            lastRuntimeMutationAt: now.addingTimeInterval(-60)
+        )
+        let remote = CloudSync.RuntimeDoc(
+            updatedAt: now,
+            deviceName: "phone",
+            isPaused: true
+        )
+        let outcome = RuntimeMerge.apply(local: local, remote: remote, now: now)
+        XCTAssertTrue(outcome.changed)
+        XCTAssertTrue(outcome.local.isPaused)
+    }
+
+    func testResumeClearsPauseOnNewerDoc() {
+        let local = RuntimeMerge.Local(
+            isPaused: true,
+            lastRuntimeMutationAt: now.addingTimeInterval(-60)
+        )
+        let remote = CloudSync.RuntimeDoc(
+            updatedAt: now,
+            deviceName: "mac",
+            isPaused: false
+        )
+        let outcome = RuntimeMerge.apply(local: local, remote: remote, now: now)
+        XCTAssertFalse(outcome.local.isPaused)
+    }
+
     func testForwardOnlyAnchors() {
         let earlier = now.addingTimeInterval(-3600)
         let later = now.addingTimeInterval(-60)

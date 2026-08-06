@@ -70,6 +70,21 @@ struct StatsSnapshot: Codable, Equatable {
         return (shown, done, skipped, snoozed, selfLogged)
     }
 
+    /// Best / worst workday by `done` count over the last 7 days (nil if no data).
+    func weekHighlights(reference: Date = Date(), calendar: Calendar = .current) -> (bestDay: String?, bestDone: Int, worstDay: String?, worstDone: Int)? {
+        var rows: [(String, Int)] = []
+        for offset in 0..<7 {
+            guard let day = calendar.date(byAdding: .day, value: -offset, to: reference) else { continue }
+            let key = Self.dayKey(day, calendar: calendar)
+            let done = byDay[key]?.done ?? 0
+            rows.append((key, done))
+        }
+        guard rows.contains(where: { $0.1 > 0 }) else { return nil }
+        let best = rows.max(by: { $0.1 < $1.1 })!
+        let worst = rows.min(by: { $0.1 < $1.1 })!
+        return (best.0, best.1, worst.0, worst.1)
+    }
+
     static func dayKey(_ date: Date = Date(), calendar: Calendar = .current) -> String {
         let c = calendar.dateComponents([.year, .month, .day], from: date)
         return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)

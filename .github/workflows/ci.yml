@@ -10,6 +10,8 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+      - name: Core purity (no AppKit in StandUpReminderCore)
+        run: bash scripts/check-core-purity.sh
       - name: Build
         run: swift build -v
       - name: Test

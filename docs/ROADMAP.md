@@ -16,7 +16,9 @@
 | Identity lock + runtime clear + adaptive sync | **Done** | Landed 2026-08-06 |
 | Diagnostics HTTPS gate + fire-gate pure eval | **Done** | 2026-08-06 |
 | Packaging version align (Formula/Cask 4.2.1) | **Done** | Cask still needs a real notarized zip asset |
-| Next product work | **Next** | Thomas assigns Task ID |
+| Pause sync, path isolation, guided modes, weekly review | **Done** | 2026-08-06 improvement pass |
+| First notarized GitHub release + Cask sha | **Next** | Needs Apple secrets + portal App Group/iCloud |
+| Next product work | **Next** | Thomas assigns Task ID (solo: ignore ASSIGNMENT empty) |
 
 ## Related
 

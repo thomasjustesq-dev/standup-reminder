@@ -312,10 +312,16 @@ extension AppState {
             persistRuntime()
         }
 
-        if config.guidedBreakEnabled && (mode == .breakPrompt || mode == .sitStand || mode == .meetingCatchUp) {
-            // Auto-open guided UI optionally — only if user prefers; keep subtle: don't auto-steal focus every time
-            // Open only when guidedBreakSeconds > 0 and mode is catch-up or sitStand
-            if mode == .meetingCatchUp || mode == .sitStand {
+        if config.guidedBreakEnabled {
+            let modeKey: String = {
+                switch mode {
+                case .breakPrompt: return "breakPrompt"
+                case .sitStand: return "sitStand"
+                case .meetingCatchUp: return "meetingCatchUp"
+                case .lunch, .windDown: return "other"
+                }
+            }()
+            if config.guidedBreakOpenMode.shouldAutoOpen(mode: modeKey) {
                 openGuidedBreak(payload)
             }
         }
@@ -340,10 +346,18 @@ extension AppState {
             if FightingShapeMonitor.shared.lowRecovery {
                 minutes = max(config.adaptiveMinMinutes, Int(Double(minutes) * 0.8))
             }
-            effectiveIntervalMinutes = minutes
+            // Hysteresis: ignore 1–4 minute noise so multi-device sync doesn't thrash.
+            if RuntimeMerge.shouldPublishAdaptiveChange(from: effectiveIntervalMinutes, to: minutes)
+                || lastAdaptiveComputedAt == nil {
+                effectiveIntervalMinutes = minutes
+                if config.features.iCloudSyncEnabled {
+                    syncRuntimeToCloud()
+                }
+            }
             lastAdaptiveComputedAt = Date()
             lastAdaptiveAnchor = anchor
         }
+        maybeAutoSwitchMeetingHeavyPack()
         scheduledNext = Scheduler.next(Scheduler.Input(
             config: config,
             intervalMinutes: effectiveIntervalMinutes,
@@ -358,5 +372,18 @@ extension AppState {
         ))
         nextFireAt = scheduledNext?.date
         publishWidget()
+    }
+
+    /// Opt-in: if today's calendar looks meeting-heavy, switch to the
+    /// Meeting-heavy pack once per day.
+    private func maybeAutoSwitchMeetingHeavyPack() {
+        guard config.features.autoProfileFromCalendar else { return }
+        let day = StatsSnapshot.dayKey(calendar: config.scheduleCalendar)
+        guard autoPackAppliedDayKey != day else { return }
+        let count = CalendarMonitor.meetingEventCountToday(calendar: config.scheduleCalendar)
+        guard count >= 4, config.reminderPack != .meetingHeavy else { return }
+        applyReminderPack(.meetingHeavy)
+        autoPackAppliedDayKey = day
+        statusMessage = "Meeting-heavy day (\(count) events) — pack applied"
     }
 }

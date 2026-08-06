@@ -34,6 +34,15 @@ enum CalendarMonitor {
             .first
     }
 
+    /// Count of meeting-like events that start today (for auto pack switch).
+    static func meetingEventCountToday(now: Date = Date(), calendar: Calendar = .current) -> Int {
+        guard hasEventAccess else { return 0 }
+        let start = calendar.startOfDay(for: now)
+        guard let end = calendar.date(byAdding: .day, value: 1, to: start) else { return 0 }
+        let predicate = store.predicateForEvents(withStart: start, end: end, calendars: nil)
+        return store.events(matching: predicate).filter(looksLikeMeeting).count
+    }
+
     /// All-day or titled events that look like PTO / OOO / holiday.
     static func isOutOfOffice(now: Date = Date(), keywords: [String], calendar: Calendar = .current) -> Bool {
         guard hasEventAccess else { return false }

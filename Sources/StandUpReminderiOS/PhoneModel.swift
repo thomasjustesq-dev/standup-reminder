@@ -217,7 +217,8 @@ final class PhoneModel: ObservableObject {
             lastAcknowledgedAt: lastAcknowledgedAt,
             snoozeUntil: snoozeUntil,
             skipRestOfDayDate: skipRestOfDayDate,
-            effectiveIntervalMinutes: cloudEffectiveIntervalMinutes ?? config.intervalMinutes
+            effectiveIntervalMinutes: cloudEffectiveIntervalMinutes ?? config.intervalMinutes,
+            isPaused: isPaused
         ))
     }
 
@@ -232,6 +233,7 @@ final class PhoneModel: ObservableObject {
                     snoozeUntil: snoozeUntil,
                     skipRestOfDayDate: skipRestOfDayDate,
                     effectiveIntervalMinutes: cloudEffectiveIntervalMinutes,
+                    isPaused: isPaused,
                     lastRuntimeMutationAt: lastRuntimeMutationAt
                 ),
                 remote: doc,
@@ -243,6 +245,7 @@ final class PhoneModel: ObservableObject {
                 snoozeUntil = outcome.local.snoozeUntil
                 skipRestOfDayDate = outcome.local.skipRestOfDayDate
                 cloudEffectiveIntervalMinutes = outcome.local.effectiveIntervalMinutes
+                isPaused = outcome.local.isPaused
                 rescheduleNotifications()
             }
         }

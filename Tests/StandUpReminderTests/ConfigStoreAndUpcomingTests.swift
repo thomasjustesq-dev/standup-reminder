@@ -4,6 +4,16 @@ import XCTest
 final class ConfigStoreAndUpcomingTests: XCTestCase {
     private let timeZone = "America/Chicago"
 
+    override func setUp() {
+        super.setUp()
+        _ = Paths.useTemporarySupportDirectory(label: "config-tests")
+    }
+
+    override func tearDown() {
+        Paths.resetSupportDirectoryOverride()
+        super.tearDown()
+    }
+
     private func date(_ year: Int, _ month: Int, _ day: Int, _ hour: Int, _ minute: Int) -> Date {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: timeZone)!
@@ -38,21 +48,6 @@ final class ConfigStoreAndUpcomingTests: XCTestCase {
 
     func testCorruptConfigPreservedOnDisk() throws {
         let url = Paths.configFile
-        let backup = url.deletingLastPathComponent().appendingPathComponent("config.test-backup.json")
-        let hadOriginal = FileManager.default.fileExists(atPath: url.path)
-        if hadOriginal {
-            try? FileManager.default.removeItem(at: backup)
-            try FileManager.default.copyItem(at: url, to: backup)
-        }
-        defer {
-            try? FileManager.default.removeItem(at: url)
-            try? FileManager.default.removeItem(at: url.appendingPathExtension("corrupt"))
-            if hadOriginal {
-                try? FileManager.default.copyItem(at: backup, to: url)
-                try? FileManager.default.removeItem(at: backup)
-            }
-        }
-
         let garbage = Data(#"{"enabled": "not-a-bool", "features": 1}"#.utf8)
         try garbage.write(to: url, options: .atomic)
         let loaded = ConfigStore.load()
@@ -61,22 +56,49 @@ final class ConfigStoreAndUpcomingTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: corrupt.path))
         let preserved = try Data(contentsOf: corrupt)
         XCTAssertEqual(preserved, garbage)
-        // Original path still holds the garbage (not overwritten with defaults)
         XCTAssertEqual(try Data(contentsOf: url), garbage)
     }
 
-    func testRuntimeDocRoundTripWithEffectiveInterval() throws {
+    func testRuntimeDocRoundTripWithEffectiveIntervalAndPause() throws {
         let doc = CloudSync.RuntimeDoc(
             updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
             deviceName: "mac",
             lastAcknowledgedAt: Date(timeIntervalSince1970: 1_700_000_100),
             snoozeUntil: nil,
-            effectiveIntervalMinutes: 27
+            effectiveIntervalMinutes: 27,
+            isPaused: true
         )
         let data = try JSONCoding.encoder().encode(doc)
         let decoded = try JSONCoding.decoder().decode(CloudSync.RuntimeDoc.self, from: data)
         XCTAssertEqual(decoded.effectiveIntervalMinutes, 27)
         XCTAssertNil(decoded.snoozeUntil)
+        XCTAssertEqual(decoded.isPaused, true)
         XCTAssertEqual(decoded.deviceName, "mac")
+    }
+
+    func testWeekHighlights() {
+        var stats = StatsSnapshot()
+        stats.recordDone(on: "2026-07-14")
+        stats.recordDone(on: "2026-07-14")
+        stats.recordDone(on: "2026-07-15")
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: timeZone)!
+        let ref = date(2026, 7, 15, 12, 0)
+        let h = stats.weekHighlights(reference: ref, calendar: calendar)
+        XCTAssertEqual(h?.bestDay, "2026-07-14")
+        XCTAssertEqual(h?.bestDone, 2)
+    }
+
+    func testGuidedBreakOpenModes() {
+        XCTAssertFalse(GuidedBreakOpenMode.never.shouldAutoOpen(mode: "breakPrompt"))
+        XCTAssertFalse(GuidedBreakOpenMode.bannerOnly.shouldAutoOpen(mode: "sitStand"))
+        XCTAssertTrue(GuidedBreakOpenMode.catchUpAndSitStand.shouldAutoOpen(mode: "sitStand"))
+        XCTAssertFalse(GuidedBreakOpenMode.catchUpAndSitStand.shouldAutoOpen(mode: "breakPrompt"))
+        XCTAssertTrue(GuidedBreakOpenMode.always.shouldAutoOpen(mode: "breakPrompt"))
+    }
+
+    func testAdaptiveHysteresis() {
+        XCTAssertFalse(RuntimeMerge.shouldPublishAdaptiveChange(from: 30, to: 32))
+        XCTAssertTrue(RuntimeMerge.shouldPublishAdaptiveChange(from: 30, to: 35))
     }
 }

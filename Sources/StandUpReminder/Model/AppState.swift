@@ -85,6 +85,8 @@ final class AppState: ObservableObject {
     /// Set when a banner is actually shown and cleared when the user logs the
     /// break. A Done with no outstanding shown banner is a self-logged break.
     var shownAwaitingAck = false
+    /// Day key when auto meeting-heavy pack was last applied (once per day max).
+    var autoPackAppliedDayKey: String?
 
     // MARK: Truly private state (used only in this file)
 
