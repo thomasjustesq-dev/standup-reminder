@@ -31,6 +31,12 @@ Do not maintain a second install story (Homebrew cask stays a template until sha
 
 ## One-shot release checklist (first real ship)
 
+Preflight (code + secret presence only):
+
+```bash
+./scripts/check-release-readiness.sh
+```
+
 1. `./scripts/bump-version.sh <ver> <build>` and commit.
 2. `./scripts/check-core-purity.sh && swift test`
 3. Provision App Group + iCloud container on App IDs (see QUICKSTART).
@@ -39,6 +45,8 @@ Do not maintain a second install story (Homebrew cask stays a template until sha
 6. Fill `Casks/standup-reminder.rb` `sha256` for the zip (or rely on tag-triggered
    `.github/workflows/release.yml` if secrets are configured).
 7. Optional Sparkle: set `SPARKLE_ED_PRIVATE_KEY` so the release job signs appcast.
+8. First multi-device install: **Push to iCloud once** (seed banner) so the new
+   container is not empty for the other device.
 
 ## Sparkle
 

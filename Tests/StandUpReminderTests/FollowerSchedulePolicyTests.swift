@@ -63,4 +63,24 @@ final class FollowerSchedulePolicyTests: XCTestCase {
         XCTAssertTrue(FollowerSchedulePolicy.blocksFullFire(.away))
         XCTAssertFalse(FollowerSchedulePolicy.blocksFullFire(.atDesk))
     }
+
+    func testHonorAuthorityFalseKeepsAllSlots() {
+        let breakSoon = Scheduler.Next(date: now.addingTimeInterval(300), kind: .breakPrompt)
+        XCTAssertTrue(FollowerSchedulePolicy.shouldSchedule(
+            breakSoon,
+            authorityPresence: .meeting,
+            authorityNextFireAt: now.addingTimeInterval(3600),
+            now: now,
+            honorAuthority: false
+        ))
+    }
+
+    func testClampNoOpWhenNotHonoring() {
+        let gate = now.addingTimeInterval(1200)
+        let chain = [Scheduler.Next(date: now.addingTimeInterval(300), kind: .breakPrompt)]
+        let clamped = FollowerSchedulePolicy.clampFirstBreak(
+            chain: chain, authorityNextFireAt: gate, honorAuthority: false
+        )
+        XCTAssertEqual(clamped[0].date, now.addingTimeInterval(300))
+    }
 }

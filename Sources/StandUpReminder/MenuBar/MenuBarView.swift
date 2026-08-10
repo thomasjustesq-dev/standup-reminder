@@ -42,7 +42,12 @@ struct MenuBarView: View {
             if appState.config.features.iCloudSyncEnabled {
                 Text(appState.syncHealth.summary(iCloudEnabled: true))
                     .font(.caption2)
-                    .foregroundStyle(appState.syncHealth.lastPullWasStale ? .orange : .secondary)
+                    .foregroundStyle(appState.syncHealth.lastPullWasStale || appState.syncHealth.cloudContainerEmpty ? .orange : .secondary)
+                if appState.syncHealth.shouldShowSeedBanner {
+                    Text("iCloud empty — Push to iCloud once to seed peers")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                }
             }
             if appState.config.sitStandModeEnabled {
                 Text("Desk: \(appState.deskPhase.rawValue)")
@@ -135,6 +140,11 @@ struct MenuBarView: View {
         if appState.config.features.iCloudSyncEnabled, appState.syncHealth.lastPullWasStale {
             Button("Push local settings to iCloud") { _ = appState.pushToiCloud() }
             Button("Force pull (overwrite local)") { _ = appState.pullFromiCloud(force: true) }
+        }
+
+        if appState.config.features.iCloudSyncEnabled, appState.syncHealth.shouldShowSeedBanner {
+            Button("Seed iCloud (push settings)") { _ = appState.pushToiCloud() }
+            Button("Dismiss seed reminder") { appState.dismissCloudSeedBanner() }
         }
 
         Button("Settings…") { openSettings() }

@@ -59,7 +59,10 @@ struct StandUpShortcuts: AppShortcutsProvider {
         )
         AppShortcut(
             intent: SnoozeBreakIntent(),
-            phrases: ["Snooze \(.applicationName)", "Snooze stand up reminder"],
+            phrases: [
+                "Snooze \(.applicationName)",
+                "Snooze stand up reminder in \(.applicationName)"
+            ],
             shortTitle: "Snooze",
             systemImageName: "zzz"
         )

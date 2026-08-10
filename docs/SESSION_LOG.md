@@ -50,3 +50,12 @@ Append-only. `merge=union`.
   breaks while authority presence is blocking (meeting/away/Focus/…).
 - PhoneModel always pulls authority fields; status + UI show Mac presence/gate.
 - BG/foreground reschedule rebuilds queue under policy.
+
+## 2026-08-10 — Authority lease, PhoneModel split, process dormancy, 4.2.2
+
+- `AuthorityLease` 15m TTL: followers honor Mac presence/gate only while runtime stamp is fresh; else local schedule + offline UI.
+- `FollowerSchedulePolicy.applyAuthorityFilters` + `honorAuthority` flag; seed banner on empty iCloud (`SyncHealth.cloudContainerEmpty`).
+- PhoneModel split: Cloud / Scheduling / Persistence extensions.
+- CLI `diagnostics` full support dump; menu seed push actions.
+- Process package marked dormant for solo; OPEN_QUESTIONS closed/deferred as appropriate.
+- Version **4.2.2** (build 8). CI already builds iOS via xcodegen. Release still blocked on Apple portal + secrets.

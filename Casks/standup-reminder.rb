@@ -3,7 +3,7 @@
 # Until then this file is a packaging stub — not installable from example.com.
 
 cask "standup-reminder" do
-  version "4.2.1"
+  version "4.2.2"
   sha256 :no_check
 
   # Replace with the GitHub release asset after notarization:

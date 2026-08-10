@@ -1,4 +1,4 @@
-# Stand Up Reminder · v4.2.1
+# Stand Up Reminder · v4.2.2
 
 Movement-break companion: macOS menu bar app (macOS 14+), iPhone app, and
 Apple Watch companion on one shared scheduler core.
@@ -10,13 +10,26 @@ Apple Watch companion on one shared scheduler core.
 | Bundle ID (Mac / iOS) | `com.thomasjust.standupreminder` |
 | App Group | `group.com.thomasjust.standupreminder` |
 | iCloud container | `iCloud.com.thomasjust.standupreminder` |
-| Marketing version | `4.2.1` (see `AppVersion` in `Sources/StandUpReminderCore/AppIdentity.swift`) |
+| Marketing version | `4.2.2` (see `AppVersion` in `Sources/StandUpReminderCore/AppIdentity.swift`) |
 
 Application Support remains `~/Library/Application Support/StandUpReminder/` so local
 config survives a bundle-id change. After upgrading from the old `com.user.*` /
 `iCloud.com.user.*` identifiers, **push once from any device** to re-seed the new
 iCloud container. Enable the matching App ID capabilities in the Apple Developer
 portal (App Groups + iCloud Documents) for automatic signing.
+
+## What’s new in v4.2.2
+
+- **Authority lease** — phone honors Mac presence/next-fire only while the
+  runtime stamp is ≤15 minutes old; otherwise it runs a full local schedule and
+  shows “Mac offline · local schedule” (no more permanent silence from a stale
+  meeting gate).
+- **Seed iCloud banner** — empty container after identity rename surfaces a
+  one-time push prompt on Mac menu and iPhone home.
+- **`diagnostics` CLI** — one pasteable dump: version, presence, lease, sync
+  doctor, block stats, corrupt artifacts.
+- **PhoneModel split** — Cloud / Scheduling / Persistence extensions for
+  maintainability. CI already builds iOS + Watch via xcodegen.
 
 ## What’s new in v4.2
 

@@ -3,6 +3,9 @@ import Foundation
 /// Pure policy: which pre-scheduled slots a **follower** device (iPhone) may
 /// keep when the cadence **authority** (usually Mac) has published presence
 /// and a next-fire gate.
+///
+/// Always pair with `AuthorityLease`: when the lease is dead, do **not** call
+/// filter/clamp — the phone runs a full local schedule.
 enum FollowerSchedulePolicy {
     /// Presence values that mean "don't deliver a full break banner now."
     static func blocksFullFire(_ presence: PresenceState) -> Bool {
@@ -24,13 +27,17 @@ enum FollowerSchedulePolicy {
     /// - Lunch / wind-down are wall-clock social events → always kept.
     /// - Break / sit-stand: drop if before the authority's `nextFireAt`, or if
     ///   they fall in the near window while authority presence is blocking.
+    /// - Callers must pass `honorAuthority: false` when `AuthorityLease` is dead.
     static func shouldSchedule(
         _ next: Scheduler.Next,
         authorityPresence: PresenceState?,
         authorityNextFireAt: Date?,
         now: Date = Date(),
-        nearWindow: TimeInterval = 2 * 3600
+        nearWindow: TimeInterval = 2 * 3600,
+        honorAuthority: Bool = true
     ) -> Bool {
+        guard honorAuthority else { return true }
+
         switch next.kind {
         case .lunch, .windDown:
             return true
@@ -55,17 +62,51 @@ enum FollowerSchedulePolicy {
     }
 
     /// Align the first break to the authority gate when the pure schedule is earlier.
+    /// No-op when `honorAuthority` is false (dead lease).
     static func clampFirstBreak(
         chain: [Scheduler.Next],
-        authorityNextFireAt: Date?
+        authorityNextFireAt: Date?,
+        honorAuthority: Bool = true
     ) -> [Scheduler.Next] {
-        guard let gate = authorityNextFireAt else { return chain }
+        guard honorAuthority, let gate = authorityNextFireAt else { return chain }
         return chain.map { next in
             guard next.kind == .breakPrompt || next.kind == .sitStand else { return next }
             if next.date < gate {
                 return Scheduler.Next(date: gate, kind: next.kind)
             }
             return next
+        }
+    }
+
+    /// Apply clamp + filter + dedup for a follower queue.
+    static func applyAuthorityFilters(
+        chain: [Scheduler.Next],
+        authorityPresence: PresenceState?,
+        authorityNextFireAt: Date?,
+        now: Date = Date(),
+        honorAuthority: Bool
+    ) -> [Scheduler.Next] {
+        guard honorAuthority else { return chain }
+        var out = clampFirstBreak(
+            chain: chain,
+            authorityNextFireAt: authorityNextFireAt,
+            honorAuthority: true
+        )
+        out = out.filter { next in
+            shouldSchedule(
+                next,
+                authorityPresence: authorityPresence,
+                authorityNextFireAt: authorityNextFireAt,
+                now: now,
+                honorAuthority: true
+            )
+        }
+        var seen = Set<String>()
+        return out.filter { next in
+            let key = "\(next.kind.rawValue)-\(Int(next.date.timeIntervalSince1970))"
+            if seen.contains(key) { return false }
+            seen.insert(key)
+            return true
         }
     }
 }

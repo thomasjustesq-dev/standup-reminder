@@ -65,3 +65,26 @@ without a CloudKit rewrite.
 
 **Out of scope this land:** CloudKit schema, step-count pedometer on Mac,
 Focus Filters entitlements.
+
+---
+
+## 2026-08-10 — Authority lease TTL (15 minutes)
+
+**Decision:** Followers treat Mac `runtime.json` `updatedAt` as an authority
+lease. After 15 minutes without a fresh stamp, the phone drops presence/gate
+filters and schedules locally, with explicit offline/local-schedule status.
+
+**Rationale:** Stale "in a meeting" presence with a dead Mac must not silence
+the phone indefinitely. JSON-over-iCloud cannot be a live lease without TTL.
+
+**Out of scope:** CloudKit, shortening TTL via config UI (constant is enough).
+
+---
+
+## 2026-08-10 — Process package dormant at fleet of one
+
+**Decision:** Claim-first, ASSIGNMENT slots, and write-surface tax stay in the
+repo but are not required for solo product work. Thomas opens normal branches.
+
+**Rationale:** PROCESS_LESSONS: machinery buys nothing at fleet of one and
+costs a merge per claim. Revive only when concurrent agents return.

@@ -12,21 +12,22 @@ If every continuous slot is **empty**, agents may only:
 
 **Do not self-select** from ROADMAP when this card is empty.
 
-**Solo human mode:** if Thomas is the only author, ignore agent slots. Open a
-normal product branch/PR; leave this card empty. The claim package is for
-multi-agent concurrency, not a tax on solo work.
+**Solo human mode (default):** Thomas is the only author. Ignore agent slots.
+Open a normal product branch/PR; leave this card empty. The claim package is
+**dormant** until multi-agent concurrency returns — see PROCESS_LESSONS
+“What this repo should not adopt.”
 
 ## Current assignments
 
-**Card date:** 2026-08-06
+**Card date:** 2026-08-10 · **mode: solo / dormant claims**
 
 | Slot | Owner | Task ID | Claim on main? | Work PR | Notes |
 | --- | --- | --- | --- | --- | --- |
-| Continuous — Grok | | | | | process package 2026-08-04 |
-| Continuous — Codex | | | | | |
-| Continuous — Kimi | | | | | |
-| On-demand — Claude | | | | | |
-| Human — Thomas | | | n/a | n/a | Not agent-matched |
+| Continuous — Grok | | | | | dormant |
+| Continuous — Codex | | | | | dormant |
+| Continuous — Kimi | | | | | dormant |
+| On-demand — Claude | | | | | dormant |
+| Human — Thomas | | | n/a | n/a | Product PRs without claim tax |
 
 ## Standing maintenance menu
 
