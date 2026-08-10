@@ -67,3 +67,9 @@ Append-only. `merge=union`.
 - iOS: notification Settings deep link, empty-queue classifier, lease line, BG refresh sync+reschedule.
 - Guided break: userInitiated always activates; auto respects denylist/fullscreen (window still shown).
 - Pure helpers: SuppressionStatus, EmptyQueueReason, GuidedBreakOpenPolicy + tests.
+
+## 2026-08-10 — #10 + #11 on main
+
+- Merged #10 (authority lease, PhoneModel split, diagnostics, App Shortcut CI fix).
+- Merged #11 (suppression glance, iOS notif trust, guided userInitiated).
+- main at 4.2.2 (8); 122 tests green; release blocked only on portal/secrets.
