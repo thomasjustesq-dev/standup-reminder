@@ -23,3 +23,11 @@ Append-only. `merge=union`.
 
 1. **[OPEN]** Apple notarization secrets (local env and/or GitHub Actions) for first `v4.2.2` release.
 2. **[OPEN]** Cask `sha256` after first notarized zip lands.
+
+
+## 2026-08-10 — product PRs landed
+
+1. **[CLOSED]** Authority lease + daily UX (#10, #11) on main as 4.2.2.
+2. **[OPEN]** Apple notarization secrets / portal (unchanged — blocks tag ship).
+3. **[OPEN]** Cask sha256 after first notarized zip.
+4. **[OPEN]** Live multi-device seed + 15m lease degrade confirm on Thomas hardware.
