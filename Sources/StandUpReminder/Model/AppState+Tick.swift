@@ -220,13 +220,37 @@ extension AppState {
         presence = result.presence
         statusMessage = result.status
         if !result.allowed, config.features.recordBlockReasons,
-           result.status != "Disabled", result.status != "Paused",
-           result.status != "Skipped today", result.status != "Snoozing",
-           result.status != "Outside work hours", result.status != "Armed" {
-            blockStats.record(reason: result.status, dayKey: StatsSnapshot.dayKey(calendar: config.scheduleCalendar))
+           SuppressionStatus.isHoldStatus(result.status) {
+            blockStats.record(
+                reason: result.status,
+                dayKey: StatsSnapshot.dayKey(calendar: config.scheduleCalendar)
+            )
             BlockStats.save(blockStats)
         }
         return result.allowed
+    }
+
+    /// Glanceable “Held: Meeting · 2m ago” for the menu bar.
+    var heldStatusLine: String? {
+        SuppressionStatus.heldLine(
+            currentStatus: statusMessage,
+            lastReason: blockStats.lastReason,
+            lastAt: blockStats.lastAt
+        )
+    }
+
+    /// Top quiet-rule counter for today.
+    var topBlockLine: String? {
+        blockStats.topBlockLine()
+    }
+
+    /// Runtime peer / authority lease age when iCloud is on.
+    var authorityLeaseLine: String? {
+        guard config.features.iCloudSyncEnabled else { return nil }
+        return SuppressionStatus.leaseLine(
+            authorityUpdatedAt: syncHealth.lastRuntimeRemoteAt,
+            authorityName: syncHealth.lastRuntimeRemoteDevice ?? remoteAuthorityName
+        )
     }
 
     func fire(mode: FireMode, gate: FireGate) {

@@ -287,7 +287,9 @@ final class AppState: ObservableObject {
         notificationDelegate.onDone = { [weak self] in self?.acknowledgeDone() }
         notificationDelegate.onSnooze = { [weak self] in self?.snooze(minutes: 10) }
         notificationDelegate.onSkipToday = { [weak self] in self?.skipToday() }
-        notificationDelegate.onGuided = { [weak self] payload in self?.openGuidedBreak(payload) }
+        notificationDelegate.onGuided = { [weak self] payload in
+            self?.openGuidedBreak(payload, userInitiated: true)
+        }
 
         DisplaySleepMonitor.shared.start()
         FocusMonitor.requestAuthorizationIfNeeded()

@@ -23,6 +23,16 @@ struct MenuBarView: View {
             Text(appState.statusMessage)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            if let held = appState.heldStatusLine {
+                Text(held)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+            if let top = appState.topBlockLine {
+                Text(top)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
             if appState.notificationsAuthorized == false {
                 Text("⚠ Notifications are off — reminders can't appear")
                     .font(.caption)
@@ -43,6 +53,11 @@ struct MenuBarView: View {
                 Text(appState.syncHealth.summary(iCloudEnabled: true))
                     .font(.caption2)
                     .foregroundStyle(appState.syncHealth.lastPullWasStale || appState.syncHealth.cloudContainerEmpty ? .orange : .secondary)
+                if let lease = appState.authorityLeaseLine {
+                    Text(lease)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
                 if appState.syncHealth.shouldShowSeedBanner {
                     Text("iCloud empty — Push to iCloud once to seed peers")
                         .font(.caption2)
