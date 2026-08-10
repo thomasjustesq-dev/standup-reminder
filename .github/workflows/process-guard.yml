@@ -25,7 +25,10 @@ jobs:
           chmod +x scripts/coordination-guard.sh
           scripts/coordination-guard.sh
       - name: Stale claims (advisory)
-        continue-on-error: true
         run: |
+          set +e
           chmod +x scripts/stale-claims.sh
-          scripts/stale-claims.sh || true
+          scripts/stale-claims.sh
+          # Advisory must not paint a red X in the checks UI (PENUMBRA §9).
+          # continue-on-error still renders red; exit 0 with warnings instead.
+          exit 0
