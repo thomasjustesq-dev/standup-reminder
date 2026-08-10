@@ -1,5 +1,7 @@
 # Roadmap — Standup Reminder
 
+**After reboot / next session:** open [`NEXT.md`](../NEXT.md) at the repo root (ship 4.2.2 checklist).
+
 ## What to work on next
 
 **Solo mode (default):** pick from Status below. Multi-agent claim package is dormant.
