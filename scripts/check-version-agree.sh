@@ -32,5 +32,16 @@ fi
 if ! grep -q "CFBundleShortVersionString: \"$MARKETING\"" "$ROOT/project.yml"; then
   echo "project.yml marketing mismatch" >&2; fail=1
 fi
+for extra in \
+  "$ROOT/Resources/iOSWidget-Info.plist" \
+  "$ROOT/Resources/WatchWidget-Info.plist"
+do
+  if [[ -f "$extra" ]]; then
+    em=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$extra" 2>/dev/null || true)
+    eb=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$extra" 2>/dev/null || true)
+    if [[ "$em" != "$MARKETING" ]]; then echo "$(basename "$extra") marketing $em != $MARKETING" >&2; fail=1; fi
+    if [[ "$eb" != "$BUILD" ]]; then echo "$(basename "$extra") build $eb != $BUILD" >&2; fail=1; fi
+  fi
+done
 if [[ $fail -ne 0 ]]; then exit 1; fi
 echo "Version agree: $MARKETING ($BUILD)"

@@ -20,13 +20,17 @@ perl -i -pe "s/static let build = \".*\"/static let build = \"$BUILD\"/" \
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $MARKETING" "$ROOT/Resources/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" "$ROOT/Resources/Info.plist"
 
-# Widget Info.plist
-if [[ -f "$ROOT/Sources/StandUpReminderWidget/Info.plist" ]]; then
-  /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $MARKETING" \
-    "$ROOT/Sources/StandUpReminderWidget/Info.plist" 2>/dev/null || true
-  /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" \
-    "$ROOT/Sources/StandUpReminderWidget/Info.plist" 2>/dev/null || true
-fi
+# Widget Info.plist(s)
+for plist in \
+  "$ROOT/Sources/StandUpReminderWidget/Info.plist" \
+  "$ROOT/Resources/iOSWidget-Info.plist" \
+  "$ROOT/Resources/WatchWidget-Info.plist"
+do
+  if [[ -f "$plist" ]]; then
+    /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $MARKETING" "$plist" 2>/dev/null || true
+    /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" "$plist" 2>/dev/null || true
+  fi
+done
 
 # project.yml iOS/Watch versions
 perl -i -pe "s/CFBundleShortVersionString: \"[0-9.]+\"/CFBundleShortVersionString: \"$MARKETING\"/g" \
