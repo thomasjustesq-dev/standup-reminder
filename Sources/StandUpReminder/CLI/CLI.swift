@@ -131,6 +131,12 @@ enum CLI {
             state.migrateLegacyiCloudIfNeeded()
             print(state.syncDoctorReport())
             return true
+        case "diagnostics":
+            state.migrateLegacyiCloudIfNeeded()
+            state.refreshNextFire()
+            _ = state.shouldFireNow(force: false)
+            print(state.diagnosticsDump())
+            return true
         case "block-stats":
             print(state.blockStats.report())
             return true
@@ -188,6 +194,7 @@ enum CLI {
       standup-reminder test|test-lunch|test-wind-down|test-guided
       standup-reminder icloud-push|icloud-pull [--force]
       standup-reminder sync-doctor             iCloud + runtime + block stats
+      standup-reminder diagnostics             Full support dump (copy/paste)
       standup-reminder block-stats             Quiet-rule block counts today
       standup-reminder weather
       standup-reminder learn-apply

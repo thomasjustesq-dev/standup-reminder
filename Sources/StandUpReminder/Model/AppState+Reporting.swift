@@ -66,8 +66,14 @@ extension AppState {
         if let runtime = CloudSync.pullRuntime() {
             lines.append("runtime.json: \(runtime.deviceName) @ \(runtime.updatedAt)")
             lines.append("  paused=\(runtime.isPaused.map(String.init(describing:)) ?? "nil") snooze=\(runtime.snoozeUntil.map { "\($0)" } ?? "nil") interval=\(runtime.effectiveIntervalMinutes.map(String.init) ?? "nil")")
+            lines.append("  authority=\(runtime.authorityDeviceName ?? "nil") presence=\(runtime.authorityPresence ?? "nil") nextFire=\(runtime.nextFireAt.map { "\($0)" } ?? "nil")")
+            let alive = AuthorityLease.isAlive(updatedAt: runtime.updatedAt)
+            lines.append("  lease: \(alive ? "alive" : "EXPIRED") (ttl \(Int(AuthorityLease.defaultTTL / 60))m)")
         } else {
             lines.append("runtime.json: missing")
+        }
+        if syncHealth.cloudContainerEmpty {
+            lines.append("ACTION: iCloud empty — push once from any device to seed multi-device sync")
         }
         if syncHealth.lastPullWasStale {
             lines.append("ACTION: local config newer than iCloud — run icloud-push or icloud-pull --force")
@@ -77,6 +83,53 @@ extension AppState {
         }
         lines.append(blockStats.report())
         return lines.joined(separator: "\n")
+    }
+
+    /// Full support paste: version, presence, lease, sync, blocks, corrupt files.
+    func diagnosticsDump() -> String {
+        let next: String = {
+            guard let nextFireAt else { return "none" }
+            let formatter = DateFormatter()
+            formatter.timeZone = config.scheduleTimeZone
+            formatter.dateStyle = .none
+            formatter.timeStyle = .short
+            return formatter.string(from: nextFireAt)
+        }()
+        let leaseLine: String = {
+            if let remote = syncHealth.lastRuntimeRemoteAt {
+                let alive = AuthorityLease.isAlive(updatedAt: remote)
+                let ageM = Int((AuthorityLease.age(updatedAt: remote) ?? 0) / 60)
+                return "\(alive ? "alive" : "expired") · last \(ageM)m ago · \(syncHealth.lastRuntimeRemoteDevice ?? "?")"
+            }
+            return "no runtime peer stamp"
+        }()
+        return DiagnosticsDump.render(DiagnosticsDump.Input(
+            marketingVersion: AppVersion.marketing,
+            build: AppVersion.build,
+            bundleId: AppIdentity.macBundleId,
+            appGroup: AppIdentity.appGroupID,
+            iCloudContainer: AppIdentity.iCloudContainer,
+            configPath: Paths.configFile.path,
+            supportDir: Paths.appSupport.path,
+            presence: presence.displayName,
+            cadenceRole: resolvedCadenceRole.rawValue,
+            isAuthority: isCadenceAuthority,
+            enabled: config.enabled,
+            paused: isPaused,
+            intervalMinutes: effectiveIntervalMinutes,
+            baseIntervalMinutes: config.intervalMinutes,
+            statusMessage: statusMessage,
+            nextFireDescription: next,
+            notificationsAuthorized: notificationsAuthorized.map { $0 ? "authorized" : "DENIED" } ?? "unknown",
+            iCloudEnabled: config.features.iCloudSyncEnabled,
+            syncSummary: syncHealth.summary(iCloudEnabled: config.features.iCloudSyncEnabled),
+            syncDoctorBody: syncDoctorReport(),
+            authorityLeaseLine: leaseLine,
+            blockStatsReport: blockStats.report(),
+            evidenceLine: evidenceStats.summaryLine(),
+            weekStatsLine: weekStatsText(),
+            corruptArtifacts: DiagnosticsDump.corruptArtifacts(in: Paths.appSupport)
+        ))
     }
 
     // MARK: Scheduler Input

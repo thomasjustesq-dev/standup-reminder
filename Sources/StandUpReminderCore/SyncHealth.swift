@@ -10,6 +10,55 @@ struct SyncHealth: Codable, Equatable {
     var lastRuntimeRemoteDevice: String?
     var lastMigrationAt: Date?
     var migrationNote: String?
+    /// True when last config pull saw an empty container — prompt a seed push.
+    var cloudContainerEmpty: Bool = false
+    /// Dismissed seed banner until the next empty observation.
+    var seedBannerDismissed: Bool = false
+
+    enum CodingKeys: String, CodingKey {
+        case lastPushAt, lastPullAt, lastPullMessage, lastPullWasStale
+        case lastRuntimeRemoteAt, lastRuntimeRemoteDevice
+        case lastMigrationAt, migrationNote
+        case cloudContainerEmpty, seedBannerDismissed
+    }
+
+    init(
+        lastPushAt: Date? = nil,
+        lastPullAt: Date? = nil,
+        lastPullMessage: String? = nil,
+        lastPullWasStale: Bool = false,
+        lastRuntimeRemoteAt: Date? = nil,
+        lastRuntimeRemoteDevice: String? = nil,
+        lastMigrationAt: Date? = nil,
+        migrationNote: String? = nil,
+        cloudContainerEmpty: Bool = false,
+        seedBannerDismissed: Bool = false
+    ) {
+        self.lastPushAt = lastPushAt
+        self.lastPullAt = lastPullAt
+        self.lastPullMessage = lastPullMessage
+        self.lastPullWasStale = lastPullWasStale
+        self.lastRuntimeRemoteAt = lastRuntimeRemoteAt
+        self.lastRuntimeRemoteDevice = lastRuntimeRemoteDevice
+        self.lastMigrationAt = lastMigrationAt
+        self.migrationNote = migrationNote
+        self.cloudContainerEmpty = cloudContainerEmpty
+        self.seedBannerDismissed = seedBannerDismissed
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        lastPushAt = try c.decodeIfPresent(Date.self, forKey: .lastPushAt)
+        lastPullAt = try c.decodeIfPresent(Date.self, forKey: .lastPullAt)
+        lastPullMessage = try c.decodeIfPresent(String.self, forKey: .lastPullMessage)
+        lastPullWasStale = try c.decodeIfPresent(Bool.self, forKey: .lastPullWasStale) ?? false
+        lastRuntimeRemoteAt = try c.decodeIfPresent(Date.self, forKey: .lastRuntimeRemoteAt)
+        lastRuntimeRemoteDevice = try c.decodeIfPresent(String.self, forKey: .lastRuntimeRemoteDevice)
+        lastMigrationAt = try c.decodeIfPresent(Date.self, forKey: .lastMigrationAt)
+        migrationNote = try c.decodeIfPresent(String.self, forKey: .migrationNote)
+        cloudContainerEmpty = try c.decodeIfPresent(Bool.self, forKey: .cloudContainerEmpty) ?? false
+        seedBannerDismissed = try c.decodeIfPresent(Bool.self, forKey: .seedBannerDismissed) ?? false
+    }
 
     static var fileURL: URL { Paths.appSupport.appendingPathComponent("sync-health.json") }
 
@@ -24,6 +73,11 @@ struct SyncHealth: Codable, Equatable {
     static func save(_ health: SyncHealth) {
         guard let data = try? JSONCoding.encoder().encode(health) else { return }
         try? data.write(to: fileURL, options: .atomic)
+    }
+
+    /// Show first-run re-seed UI when the new iCloud container has no config.
+    var shouldShowSeedBanner: Bool {
+        cloudContainerEmpty && !seedBannerDismissed
     }
 
     /// Human summary for menu / status / doctor.
@@ -41,8 +95,11 @@ struct SyncHealth: Codable, Equatable {
         if lastPullWasStale {
             parts.append("local newer than remote")
         }
+        if cloudContainerEmpty {
+            parts.append("iCloud empty — push once to seed")
+        }
         if let remoteAt = lastRuntimeRemoteAt {
-            let stale = now.timeIntervalSince(remoteAt) > 10 * 60
+            let stale = !AuthorityLease.isAlive(updatedAt: remoteAt, now: now)
             let device = lastRuntimeRemoteDevice ?? "peer"
             parts.append(stale ? "runtime stale (\(device))" : "runtime \(device) \(Self.age(remoteAt, now: now))")
         }

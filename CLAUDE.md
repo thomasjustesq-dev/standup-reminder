@@ -18,36 +18,33 @@ rules into those files — duplicated rules drift.
 If something is ambiguous, append to `docs/OPEN_QUESTIONS.md` and implement the
 most conservative reading.
 
-## Multi-agent coordination (PENUMBRA lessons, scaled)
+## Coordination (dormant by default)
 
-- **Claim-first:** land a claim on `main` before product work
-  (`scripts/claim-open.sh`).
-- **ASSIGNMENT.md** is the only self-serve menu. Empty slot = not available.
-- **Write surfaces:** declare paths; do not overlap live claims.
-- **One live claim per tool.**
-- Empty slot: babysit your own PRs, merge green claims-only bot PRs, take a
-  standing maintenance Task ID, or ask Thomas.
+Multi-agent claim-first machinery exists under `docs/` and `scripts/` but is
+**dormant at a fleet of one.** Do not open claims, fill ASSIGNMENT slots, or
+expand process CI unless Thomas is running concurrent agents again.
 
-Full protocol: `docs/WORKBOARD.md`. Failures: `docs/PROCESS_LESSONS.md`.
+Full protocol (when revived): `docs/WORKBOARD.md`. Failures: `docs/PROCESS_LESSONS.md`.
 
 ## Commands
 
 ```bash
 scripts/status.sh
-scripts/claim-open.sh --tool Grok --task process/example --slug example --surface none
-scripts/coordination-guard.sh
-scripts/archive-merged-claims.sh --apply
+scripts/check-core-purity.sh
+scripts/check-version-agree.sh
+scripts/check-release-readiness.sh
+swift test
+# product: normal branch + PR; never push straight to main
 ```
 
 ## Session protocol
 
-1. Read `docs/ASSIGNMENT.md` and `docs/LIVE_CLAIMS.md`.
-2. Claim-first if starting product work.
-3. Stay inside the declared write surface.
-4. Append SESSION_LOG / OPEN_QUESTIONS / DECISIONS as needed.
-5. Never push directly to `main`.
+1. Read `docs/ROADMAP.md` for product sequence (solo mode).
+2. Open a feature branch; implement; PR; do not push to `main`.
+3. Append SESSION_LOG / OPEN_QUESTIONS / DECISIONS as needed.
+4. Skip claim-first / write-surface unless ASSIGNMENT is explicitly filled for multi-agent.
 
 ## Style
 
 - Prefer small, reviewable PRs.
-- Do not self-select ROADMAP items when ASSIGNMENT is empty.
+- Solo: self-select from ROADMAP freely. Multi-agent: only ASSIGNMENT rows.

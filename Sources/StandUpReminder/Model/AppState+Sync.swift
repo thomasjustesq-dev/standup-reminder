@@ -13,16 +13,23 @@ extension AppState {
         let outcome = force ? CloudSync.forcePull() : CloudSync.pull(localModifiedAt: localStamp)
         syncHealth.lastPullAt = Date()
         syncHealth.lastPullMessage = outcome.userMessage
-        if case .staleRemote = outcome {
-            syncHealth.lastPullWasStale = true
-        } else {
-            syncHealth.lastPullWasStale = false
-        }
-        if case let .success(pulledConfig, pulledProfiles, remoteAt) = outcome {
+        switch outcome {
+        case .success(let pulledConfig, let pulledProfiles, let remoteAt):
             config = pulledConfig
             if let pulledProfiles { profiles = pulledProfiles }
             refreshNextFire()
             syncHealth.lastRuntimeRemoteAt = remoteAt
+            syncHealth.lastPullWasStale = false
+            syncHealth.cloudContainerEmpty = false
+        case .empty:
+            syncHealth.lastPullWasStale = false
+            syncHealth.cloudContainerEmpty = true
+            syncHealth.seedBannerDismissed = false
+        case .staleRemote:
+            syncHealth.lastPullWasStale = true
+            syncHealth.cloudContainerEmpty = false
+        default:
+            syncHealth.lastPullWasStale = false
         }
         SyncHealth.save(syncHealth)
         statusMessage = outcome.userMessage
@@ -35,10 +42,16 @@ extension AppState {
         if ok {
             syncHealth.lastPushAt = Date()
             syncHealth.lastPullWasStale = false
+            syncHealth.cloudContainerEmpty = false
             SyncHealth.save(syncHealth)
         }
         statusMessage = ok ? "Pushed to iCloud" : "iCloud push failed — check iCloud Drive"
         return ok
+    }
+
+    func dismissCloudSeedBanner() {
+        syncHealth.seedBannerDismissed = true
+        SyncHealth.save(syncHealth)
     }
 
     /// One-time copy from `iCloud.com.user.StandUpReminder` when the new container is empty.

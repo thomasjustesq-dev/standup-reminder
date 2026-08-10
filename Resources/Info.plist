@@ -15,36 +15,36 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>4.2.1</string>
+	<string>4.2.2</string>
 	<key>CFBundleVersion</key>
-	<string>7</string>
+	<string>8</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
 	<key>LSUIElement</key>
 	<true/>
-	<key>NSHighResolutionCapable</key>
-	<true/>
-	<key>NSCalendarsUsageDescription</key>
-	<string>Stand Up Reminder skips alerts during meetings and on PTO/OOO calendar days.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Stand Up Reminder skips alerts during meetings and on PTO/OOO calendar days.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Stand Up Reminder skips alerts during meetings and on PTO/OOO calendar days.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Optional on-device stillness detection uses face bounding boxes only. Video never leaves your Mac.</string>
 	<key>NSFocusStatusUsageDescription</key>
 	<string>Stand Up Reminder avoids interrupting you when Focus or Do Not Disturb is on.</string>
-	<key>NSUserNotificationsUsageDescription</key>
-	<string>Stand Up Reminder sends break, lunch, and end-of-day reminders during your workday.</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>Optional: when enabled, a short mindful-minutes session is written to Apple Health after you tap Done. Workouts are never written.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>Optional: when enabled, a short mindful-minutes session is written to Apple Health after you tap Done. Workouts are never written.</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Optional: your approximate location fetches local weather for outdoor-walk suggestions. Denying falls back to a time-zone estimate.</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
 	<key>NSLocationUsageDescription</key>
 	<string>Optional: your approximate location fetches local weather for outdoor-walk suggestions. Denying falls back to a time-zone estimate.</string>
-	<key>NSCameraUsageDescription</key>
-	<string>Optional on-device stillness detection uses face bounding boxes only. Video never leaves your Mac.</string>
-	<key>SUFeedURL</key>
-	<string></string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Optional: your approximate location fetches local weather for outdoor-walk suggestions. Denying falls back to a time-zone estimate.</string>
+	<key>NSUserNotificationsUsageDescription</key>
+	<string>Stand Up Reminder sends break, lunch, and end-of-day reminders during your workday.</string>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
+	<key>SUFeedURL</key>
+	<string></string>
 </dict>
 </plist>

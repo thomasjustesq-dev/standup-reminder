@@ -8,7 +8,7 @@
 class StandupReminder < Formula
   desc "Menu bar break reminders for macOS workdays (stand, stretch, lunch)"
   homepage "https://github.com/thomasjustesq-dev/standup-reminder"
-  version "4.2.1"
+  version "4.2.2"
   url "file://#{File.expand_path("..", __dir__)}"
   sha256 :no_check
 

@@ -200,7 +200,7 @@ final class RuntimeMergeAndGateTests: XCTestCase {
     func testAppIdentityStable() {
         XCTAssertEqual(AppIdentity.appGroupID, "group.com.thomasjust.standupreminder")
         XCTAssertEqual(AppIdentity.iCloudContainer, "iCloud.com.thomasjust.standupreminder")
-        XCTAssertEqual(AppVersion.marketing, "4.2.1")
+        XCTAssertEqual(AppVersion.marketing, "4.2.2")
     }
 }
 

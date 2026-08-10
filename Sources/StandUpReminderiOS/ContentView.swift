@@ -23,19 +23,41 @@ struct ContentView: View {
                         Text(model.statusText)
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        if let auth = model.authorityPresence {
+                        if model.honorsAuthority, let auth = model.authorityPresence {
                             Text("Authority: \(auth.displayName)\(model.authorityName.map { " · \($0)" } ?? "")")
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
-                        if let gate = model.authorityNextFireAt, gate > Date() {
+                        if model.honorsAuthority, let gate = model.authorityNextFireAt, gate > Date() {
                             Text("Mac next fire \(gate, style: .time)")
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
+                        if let badge = model.degradationBadge {
+                            Text(badge)
+                                .font(.caption2)
+                                .foregroundStyle(.orange)
+                                .multilineTextAlignment(.center)
+                        }
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
+                }
+
+                if model.syncHealth.shouldShowSeedBanner {
+                    Section {
+                        Label(
+                            "iCloud is empty for this app — push settings from the Mac once to seed multi-device sync (new container after identity rename).",
+                            systemImage: "icloud.and.arrow.up"
+                        )
+                        .font(.footnote)
+                        .foregroundStyle(.orange)
+                        Button("Push this phone’s settings now") {
+                            _ = model.pushToiCloud()
+                        }
+                        Button("Dismiss") { model.dismissSeedBanner() }
+                            .font(.footnote)
+                    }
                 }
 
                 Section {
