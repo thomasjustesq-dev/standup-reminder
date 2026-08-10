@@ -35,6 +35,9 @@ extension AppState {
             formatter.timeStyle = .short
             return formatter.string(from: nextFireAt)
         }()
+        let held = heldStatusLine.map { "held: \($0)\n" } ?? ""
+        let top = topBlockLine.map { "\($0)\n" } ?? ""
+        let lease = authorityLeaseLine.map { "lease: \($0)\n" } ?? ""
         return """
         profile: \(activeProfileName)
         presence: \(presence.displayName)
@@ -45,7 +48,7 @@ extension AppState {
         deskPhase: \(config.sitStandModeEnabled ? deskPhase.rawValue : "off")
         timezone: \(config.scheduleTimeZone.identifier)
         status: \(statusMessage)
-        next: \(next)
+        \(held)\(top)\(lease)next: \(next)
         notifications: \(notificationsAuthorized.map { $0 ? "authorized" : "DENIED" } ?? "unknown")
         sync: \(syncHealth.summary(iCloudEnabled: config.features.iCloudSyncEnabled))
         \(evidenceStats.summaryLine())

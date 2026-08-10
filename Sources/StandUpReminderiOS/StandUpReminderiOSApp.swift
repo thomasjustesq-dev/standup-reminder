@@ -17,8 +17,11 @@ struct StandUpReminderiOSApp: App {
             // the BGTask; expiration only cancels (a second setTaskCompleted
             // from the expiration handler could race the success path).
             let work = Task { @MainActor in
-                PhoneModel.shared.scheduleBackgroundRefresh()
+                // Refill queue + re-pull authority before completion.
+                PhoneModel.shared.syncRuntimeFromCloud()
                 await PhoneModel.shared.reconcileDelivered()
+                PhoneModel.shared.rescheduleNotifications()
+                PhoneModel.shared.scheduleBackgroundRefresh()
                 task.setTaskCompleted(success: !Task.isCancelled)
             }
             task.expirationHandler = {

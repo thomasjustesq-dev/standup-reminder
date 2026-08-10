@@ -143,6 +143,32 @@ final class PhoneModel: ObservableObject {
         )
     }
 
+    var authorityLeaseLine: String? {
+        guard config.features.iCloudSyncEnabled,
+              isFollower || config.features.cadenceRole == .automatic else { return nil }
+        return SuppressionStatus.leaseLine(
+            authorityUpdatedAt: authorityUpdatedAt,
+            authorityName: authorityName
+        )
+    }
+
+    var emptyQueueReason: EmptyQueueReason {
+        EmptyQueueReason.classify(
+            configEnabled: config.enabled,
+            isPaused: isPaused,
+            isSkipToday: isSkipTodayActive,
+            isSnoozing: isSnoozing,
+            notificationsAuthorized: notificationsAuthorized,
+            upcomingEmpty: upcoming.isEmpty,
+            honorsAuthority: honorsAuthority,
+            authorityPresence: authorityPresence
+        )
+    }
+
+    var emptyQueueLine: String? {
+        emptyQueueReason.displayLine
+    }
+
     private init() {
         config = ConfigStore.load()
         stats = StatsStore.load()

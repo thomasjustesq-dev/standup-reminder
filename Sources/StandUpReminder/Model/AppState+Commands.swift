@@ -93,23 +93,33 @@ extension AppState {
         }
     }
 
-    func openGuidedBreak(_ payload: ReminderPayload) {
+    /// Open the guided-break window.
+    /// - Parameter userInitiated: banner click / Guided action / menu test —
+    ///   always activates. Auto-open on fire respects denylist/fullscreen.
+    func openGuidedBreak(_ payload: ReminderPayload, userInitiated: Bool = false) {
+        let denylisted = DeepWorkMonitor.isDenylisted(
+            bundleId: frontmostBundleId, denylist: config.denylistBundleIds
+        )
+        let fullscreen = DeepWorkMonitor.isInDeepWork(
+            frontmostBundleId: frontmostBundleId,
+            frontmostSince: frontmostSince,
+            quietMinutes: 0,
+            requireFullscreen: true
+        )
         pendingGuidedPayload = payload
         showGuidedBreak = true
-        // Default: do not steal focus over Zoom/Teams/Keynote/fullscreen deep work.
-        let steal = config.features.guidedBreakStealFocus
-            || !DeepWorkMonitor.isDenylisted(bundleId: frontmostBundleId, denylist: config.denylistBundleIds)
-        if steal {
-            let fullscreen = DeepWorkMonitor.isInDeepWork(
-                frontmostBundleId: frontmostBundleId,
-                frontmostSince: frontmostSince,
-                quietMinutes: 0,
-                requireFullscreen: true
-            )
-            if config.features.guidedBreakStealFocus || !fullscreen {
-                NSApp.activate(ignoringOtherApps: true)
-            }
+        let activate = GuidedBreakOpenPolicy.shouldActivateApp(
+            userInitiated: userInitiated,
+            stealFocus: config.features.guidedBreakStealFocus,
+            frontmostIsDenylisted: denylisted,
+            isFullscreenDeepWork: fullscreen
+        )
+        if activate {
+            NSApp.activate(ignoringOtherApps: true)
+        } else {
+            AppLog.write("guided break shown without activate (denylist/fullscreen)")
         }
+        AppLog.write("guided break open (\(userInitiated ? "user" : "auto")\(activate ? "+activate" : ""))")
         NotificationCenter.default.post(name: .openGuidedBreakWindow, object: nil)
     }
 
@@ -135,7 +145,7 @@ extension AppState {
             promptId: "guided-test",
             guidedSteps: ["Stand up", "Shoulder rolls ×10", "Look far away 20s", "Drink water"]
         )
-        openGuidedBreak(payload)
+        openGuidedBreak(payload, userInitiated: true)
     }
 
     func recordEvidence(_ evidence: BreakEvidence) {

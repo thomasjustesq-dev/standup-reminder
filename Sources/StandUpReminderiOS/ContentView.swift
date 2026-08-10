@@ -1,5 +1,6 @@
 #if os(iOS)
 import SwiftUI
+import UIKit
 
 struct ContentView: View {
     @EnvironmentObject private var model: PhoneModel
@@ -33,8 +34,19 @@ struct ContentView: View {
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
+                        if let lease = model.authorityLeaseLine {
+                            Text(lease)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
                         if let badge = model.degradationBadge {
                             Text(badge)
+                                .font(.caption2)
+                                .foregroundStyle(.orange)
+                                .multilineTextAlignment(.center)
+                        }
+                        if let empty = model.emptyQueueLine {
+                            Text(empty)
                                 .font(.caption2)
                                 .foregroundStyle(.orange)
                                 .multilineTextAlignment(.center)
@@ -106,11 +118,16 @@ struct ContentView: View {
                 if !model.notificationsAuthorized {
                     Section {
                         Label(
-                            "Notifications are off — reminders can't be delivered. Enable them in Settings → Notifications.",
+                            "Notifications are off — reminders can't be delivered.",
                             systemImage: "bell.slash"
                         )
                         .font(.footnote)
                         .foregroundStyle(.orange)
+                        Button("Open Notification Settings") {
+                            if let url = URL(string: UIApplication.openSettingsURLString) {
+                                UIApplication.shared.open(url)
+                            }
+                        }
                     }
                 }
             }

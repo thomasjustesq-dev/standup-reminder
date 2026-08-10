@@ -59,3 +59,11 @@ Append-only. `merge=union`.
 - CLI `diagnostics` full support dump; menu seed push actions.
 - Process package marked dormant for solo; OPEN_QUESTIONS closed/deferred as appropriate.
 - Version **4.2.2** (build 8). CI already builds iOS via xcodegen. Release still blocked on Apple portal + secrets.
+
+## 2026-08-10 — Daily UX pass (phases 2–4)
+
+- Suppression glance: Held line, top block, lease age on Mac menu + status/diagnostics.
+- BlockStats persists last hold reason/at.
+- iOS: notification Settings deep link, empty-queue classifier, lease line, BG refresh sync+reschedule.
+- Guided break: userInitiated always activates; auto respects denylist/fullscreen (window still shown).
+- Pure helpers: SuppressionStatus, EmptyQueueReason, GuidedBreakOpenPolicy + tests.

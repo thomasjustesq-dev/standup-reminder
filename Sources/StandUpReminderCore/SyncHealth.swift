@@ -122,6 +122,33 @@ struct SyncHealth: Codable, Equatable {
 struct BlockStats: Codable, Equatable {
     var dayKey: String = ""
     var byReason: [String: Int] = [:]
+    /// Most recent quiet-rule hold (survives restart for menu glance).
+    var lastReason: String?
+    var lastAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case dayKey, byReason, lastReason, lastAt
+    }
+
+    init(
+        dayKey: String = "",
+        byReason: [String: Int] = [:],
+        lastReason: String? = nil,
+        lastAt: Date? = nil
+    ) {
+        self.dayKey = dayKey
+        self.byReason = byReason
+        self.lastReason = lastReason
+        self.lastAt = lastAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        dayKey = try c.decodeIfPresent(String.self, forKey: .dayKey) ?? ""
+        byReason = try c.decodeIfPresent([String: Int].self, forKey: .byReason) ?? [:]
+        lastReason = try c.decodeIfPresent(String.self, forKey: .lastReason)
+        lastAt = try c.decodeIfPresent(Date.self, forKey: .lastAt)
+    }
 
     static var fileURL: URL { Paths.appSupport.appendingPathComponent("block-stats.json") }
 
@@ -138,17 +165,29 @@ struct BlockStats: Codable, Equatable {
         try? data.write(to: fileURL, options: .atomic)
     }
 
-    mutating func record(reason: String, dayKey: String) {
+    mutating func record(reason: String, dayKey: String, at: Date = Date()) {
         if self.dayKey != dayKey {
             self.dayKey = dayKey
             byReason = [:]
         }
         byReason[reason, default: 0] += 1
+        if SuppressionStatus.isHoldStatus(reason) {
+            lastReason = reason
+            lastAt = at
+        }
     }
 
     func report() -> String {
         guard !byReason.isEmpty else { return "No blocks recorded today (\(dayKey.isEmpty ? "—" : dayKey))." }
         let lines = byReason.sorted { $0.value > $1.value }.map { "  \($0.key): \($0.value)" }
-        return "Blocks \(dayKey):\n" + lines.joined(separator: "\n")
+        var out = "Blocks \(dayKey):\n" + lines.joined(separator: "\n")
+        if let lastReason, let lastAt {
+            out += "\nLast hold: \(lastReason) · \(SuppressionStatus.relativeAge(lastAt))"
+        }
+        return out
+    }
+
+    func topBlockLine() -> String? {
+        SuppressionStatus.topBlockLine(dayKey: dayKey, byReason: byReason)
     }
 }
