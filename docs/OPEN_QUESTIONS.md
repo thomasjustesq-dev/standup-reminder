@@ -31,3 +31,16 @@ Append-only. `merge=union`.
 2. **[OPEN]** Apple notarization secrets / portal (unchanged — blocks tag ship).
 3. **[OPEN]** Cask sha256 after first notarized zip.
 4. **[OPEN]** Live multi-device seed + 15m lease degrade confirm on Thomas hardware.
+
+## 2026-08-10 — ship preflight (local)
+
+1. **[CLOSED]** iCloud container `iCloud.com.thomasjust.standupreminder` on Mac App ID
+   — present on Development provisioning profile (with legacy container retained).
+2. **[OPEN]** App Group `group.com.thomasjust.standupreminder` registered on portal.
+   — Binary is signed with it; profile listing still showed legacy group + `BBTNHBK7VX.*`.
+   Confirm the group exists and is attached to Mac + iOS + widget App IDs.
+3. **[OPEN]** Developer ID Application certificate.
+   — CSR+private key exist at `~/.standup-release/`; no matching cert in keychain.
+   Blocks notarize + GH `APPLE_CERTIFICATES_P12` / `APPLE_CERTIFICATES_PASSWORD`.
+4. **[PARTIAL]** GH release secrets: ASC key trio + Sparkle Ed present; **p12 pair missing**.
+5. **[CLOSED]** Local Development install of 4.2.2 (8) on this Mac; iCloud legacy migrate ran.

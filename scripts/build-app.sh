@@ -14,14 +14,27 @@ APP_DIR="${ROOT_DIR}/dist/${APP_NAME}.app"
 cd "${ROOT_DIR}"
 
 # Prefer XcodeGen bundle (includes widget) when available.
+# -allowProvisioningUpdates lets automatic signing create/refresh Mac profiles.
 if command -v xcodegen >/dev/null 2>&1 && [[ -f project.yml ]]; then
   echo "→ xcodegen generate + xcodebuild (app + widget)"
   xcodegen generate
-  xcodebuild -scheme StandUpReminder -configuration Release -derivedDataPath "${ROOT_DIR}/.derivedData" build
-  BUILT=$(find "${ROOT_DIR}/.derivedData" -name "${APP_NAME}.app" -type d | head -n1)
+  xcodebuild \
+    -scheme StandUpReminder \
+    -configuration Release \
+    -derivedDataPath "${ROOT_DIR}/.derivedData" \
+    -allowProvisioningUpdates \
+    DEVELOPMENT_TEAM="${DEVELOPMENT_TEAM:-BBTNHBK7VX}" \
+    CODE_SIGN_STYLE=Automatic \
+    build
+  BUILT=$(find "${ROOT_DIR}/.derivedData/Build/Products" -name "${APP_NAME}.app" -type d | head -n1)
+  if [[ -z "${BUILT}" ]]; then
+    echo "error: xcodebuild finished but ${APP_NAME}.app not found under .derivedData" >&2
+    exit 1
+  fi
   rm -rf "${APP_DIR}"
   mkdir -p "${ROOT_DIR}/dist"
   cp -R "${BUILT}" "${APP_DIR}"
+  # Keep Xcode's Development / Developer ID signature. Do not ad-hoc re-sign.
 else
   echo "→ swift build -c release (menu bar app; widget via xcodegen optional)"
   swift build -c release --product "${APP_NAME}"
@@ -31,11 +44,11 @@ else
   cp "${BIN_OUT}" "${APP_DIR}/Contents/MacOS/${APP_NAME}"
   cp "${ROOT_DIR}/Resources/Info.plist" "${APP_DIR}/Contents/Info.plist"
   chmod +x "${APP_DIR}/Contents/MacOS/${APP_NAME}"
-fi
-
-if command -v codesign >/dev/null 2>&1; then
-  codesign --force --deep --sign - "${APP_DIR}" || true
+  if command -v codesign >/dev/null 2>&1; then
+    codesign --force --deep --sign - "${APP_DIR}" || true
+  fi
 fi
 
 echo "Built: ${APP_DIR}"
-echo "Optional: ./scripts/notarize.sh  (Developer ID + notarytool)"
+codesign --verify --deep --strict "${APP_DIR}" 2>/dev/null && echo "codesign: OK" || echo "codesign: ad-hoc / unverified"
+echo "Optional: ./scripts/notarize.sh  (Developer ID Application + notarytool)"

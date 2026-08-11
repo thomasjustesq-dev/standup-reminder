@@ -73,3 +73,13 @@ Append-only. `merge=union`.
 - Merged #10 (authority lease, PhoneModel split, diagnostics, App Shortcut CI fix).
 - Merged #11 (suppression glance, iOS notif trust, guided userInitiated).
 - main at 4.2.2 (8); 122 tests green; release blocked only on portal/secrets.
+
+## 2026-08-10 — ship preflight + local install
+
+- `check-release-readiness.sh` green for code; local `APPLE_*` notary env unset.
+- GH secrets audit: ASC + Sparkle present; **missing** `APPLE_CERTIFICATES_P12` / password.
+- Keychain: only Apple Development; Developer ID CSR+key in `~/.standup-release/`, no cert.
+- Fixed `build-app.sh`: `-allowProvisioningUpdates`, team Automatic, stop ad-hoc re-sign wipe.
+- Aligned `iOSWidget` / `WatchWidget` Info.plist to 4.2.2 (8); bump/check scripts cover them.
+- Built + installed Development-signed 4.2.2 to `~/Applications`; diagnostics live, iCloud
+  migrated 4 files from legacy container. Notarized tag ship still blocked on Developer ID.
