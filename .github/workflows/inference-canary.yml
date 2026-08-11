@@ -1,8 +1,23 @@
+# Standing check that fleet inference credentials can perform inference.
+#
+# Preference order (Thomas 2026-08-11):
+#   grok → gemini → kimi → openai → anthropic
+#
+# Probes every present repository secret in that order via
+# scripts/fleet-inference-canary.sh. Missing secrets are SKIP. Present-but-
+# broken secrets fail the run so dead keys surface before a PR is blocked.
+# Preferred provider = first healthy entry.
+#
+# Anthropic-specific history (2026-08-04 credit exhaustion) remains relevant:
+# list-models-only health checks are not enough; each probe performs real
+# inference. Claude Code Review still uses Anthropic only — this canary is the
+# multi-provider health signal.
+
 name: inference-canary
 
 on:
   schedule:
-    - cron: "0 */6 * * *"
+    - cron: '0 */6 * * *'
   workflow_dispatch:
 
 concurrency:
@@ -17,76 +32,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Verify xAI (Grok) inference access
+      - name: Probe fleet inference secrets (preference order)
         env:
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
           XAI_INFERENCE_MODEL: ${{ vars.XAI_INFERENCE_MODEL || 'grok-3' }}
-        run: bash scripts/xai-inference-preflight.sh
-
-      - name: Soft-probe OpenAI (skip if secret empty)
-        continue-on-error: true
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: |
-          set -euo pipefail
-          if [[ -z "${OPENAI_API_KEY:-}" ]]; then
-            echo "OPENAI_API_KEY not set — skip"
-            exit 0
-          fi
-          code=$(curl -sS -o /tmp/oai.json -w "%{http_code}" \
-            --connect-timeout 10 --max-time 30 \
-            https://api.openai.com/v1/models \
-            -H "Authorization: Bearer ${OPENAI_API_KEY}")
-          if [[ "$code" == "200" ]]; then
-            echo "OpenAI list-models OK"
-          else
-            echo "::warning::OpenAI probe HTTP $code"
-            exit 1
-          fi
-
-      - name: Soft-probe Gemini (skip if secret empty)
-        continue-on-error: true
-        env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: |
-          set -euo pipefail
-          if [[ -z "${GEMINI_API_KEY:-}" ]]; then
-            echo "GEMINI_API_KEY not set — skip"
-            exit 0
-          fi
-          code=$(curl -sS -o /tmp/gem.json -w "%{http_code}" \
-            --connect-timeout 10 --max-time 30 \
-            "https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_API_KEY}")
-          if [[ "$code" == "200" ]]; then
-            echo "Gemini list-models OK"
-          else
-            echo "::warning::Gemini probe HTTP $code"
-            exit 1
-          fi
-
-      - name: Soft-probe Moonshot (skip if secret empty)
-        continue-on-error: true
-        env:
+          GEMINI_INFERENCE_MODEL: ${{ vars.GEMINI_INFERENCE_MODEL || 'gemini-2.0-flash' }}
           MOONSHOT_API_KEY: ${{ secrets.MOONSHOT_API_KEY }}
-        run: |
-          set -euo pipefail
-          if [[ -z "${MOONSHOT_API_KEY:-}" ]]; then
-            echo "MOONSHOT_API_KEY not set — skip"
-            exit 0
-          fi
-          code=$(curl -sS -o /tmp/ms.json -w "%{http_code}" \
-            --connect-timeout 10 --max-time 30 \
-            https://api.moonshot.ai/v1/models \
-            -H "Authorization: Bearer ${MOONSHOT_API_KEY}")
-          if [[ "$code" == "200" ]]; then
-            echo "Moonshot list-models OK"
-          else
-            echo "::warning::Moonshot probe HTTP $code"
-            exit 1
-          fi
-
+          KIMI_INFERENCE_MODEL: ${{ vars.KIMI_INFERENCE_MODEL || 'moonshot-v1-8k' }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_INFERENCE_MODEL: ${{ vars.OPENAI_INFERENCE_MODEL || 'gpt-4o-mini' }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_REVIEW_MODEL: ${{ vars.CLAUDE_REVIEW_MODEL || '' }}
+        run: bash scripts/fleet-inference-canary.sh

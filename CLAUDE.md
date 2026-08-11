@@ -48,3 +48,8 @@ swift test
 
 - Prefer small, reviewable PRs.
 - Solo: self-select from ROADMAP freely. Multi-agent: only ASSIGNMENT rows.
+
+## Fleet inference preference
+
+When selecting an LLM provider, prefer **Grok → Gemini → Kimi → OpenAI → Anthropic** (see `FLEET_INFERENCE.md`).
+
