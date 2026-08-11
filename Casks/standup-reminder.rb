@@ -4,7 +4,7 @@
 
 cask "standup-reminder" do
   version "4.2.2"
-  sha256 "df842f3bf05698445b699dc442396fab8a12cb9bfd3a99d057dfae67dbb2ed6e"
+  sha256 "5e1d9d7b30a21e268e6cdae96ff8230001903a7a1449021b183653b89bec7848"
 
   # Replace with the GitHub release asset after notarization:
   #   https://github.com/thomasjustesq-dev/standup-reminder/releases/download/v#{version}/StandUpReminder-#{version}.zip
