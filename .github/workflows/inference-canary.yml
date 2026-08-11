@@ -1,0 +1,92 @@
+name: inference-canary
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: inference-canary
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify xAI (Grok) inference access
+        env:
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+          XAI_INFERENCE_MODEL: ${{ vars.XAI_INFERENCE_MODEL || 'grok-3' }}
+        run: bash scripts/xai-inference-preflight.sh
+
+      - name: Soft-probe OpenAI (skip if secret empty)
+        continue-on-error: true
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${OPENAI_API_KEY:-}" ]]; then
+            echo "OPENAI_API_KEY not set — skip"
+            exit 0
+          fi
+          code=$(curl -sS -o /tmp/oai.json -w "%{http_code}" \
+            --connect-timeout 10 --max-time 30 \
+            https://api.openai.com/v1/models \
+            -H "Authorization: Bearer ${OPENAI_API_KEY}")
+          if [[ "$code" == "200" ]]; then
+            echo "OpenAI list-models OK"
+          else
+            echo "::warning::OpenAI probe HTTP $code"
+            exit 1
+          fi
+
+      - name: Soft-probe Gemini (skip if secret empty)
+        continue-on-error: true
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${GEMINI_API_KEY:-}" ]]; then
+            echo "GEMINI_API_KEY not set — skip"
+            exit 0
+          fi
+          code=$(curl -sS -o /tmp/gem.json -w "%{http_code}" \
+            --connect-timeout 10 --max-time 30 \
+            "https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_API_KEY}")
+          if [[ "$code" == "200" ]]; then
+            echo "Gemini list-models OK"
+          else
+            echo "::warning::Gemini probe HTTP $code"
+            exit 1
+          fi
+
+      - name: Soft-probe Moonshot (skip if secret empty)
+        continue-on-error: true
+        env:
+          MOONSHOT_API_KEY: ${{ secrets.MOONSHOT_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${MOONSHOT_API_KEY:-}" ]]; then
+            echo "MOONSHOT_API_KEY not set — skip"
+            exit 0
+          fi
+          code=$(curl -sS -o /tmp/ms.json -w "%{http_code}" \
+            --connect-timeout 10 --max-time 30 \
+            https://api.moonshot.ai/v1/models \
+            -H "Authorization: Bearer ${MOONSHOT_API_KEY}")
+          if [[ "$code" == "200" ]]; then
+            echo "Moonshot list-models OK"
+          else
+            echo "::warning::Moonshot probe HTTP $code"
+            exit 1
+          fi
+
