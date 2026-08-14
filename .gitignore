@@ -11,6 +11,7 @@ Resources/iOS-Info.plist
 Resources/Watch-Info.plist
 .build-sim/
 .derivedData/
+.derivedData-*/
 
 # Local session memory index — not part of the project
 .memsearch/
