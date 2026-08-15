@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 @main
@@ -51,6 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var fallbackWindows: [String: NSWindow] = [:]
     private var statusItem: NSStatusItem?
     private var popover: NSPopover?
+    private var cancellables: Set<AnyCancellable> = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Task { @MainActor in
@@ -85,6 +87,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     OnboardingView().environmentObject(AppState.shared)
                 }
             }
+            observe(.openSettingsWindow) { [weak self] in
+                self?.present(id: "settings", title: "Settings") {
+                    SettingsView().environmentObject(AppState.shared)
+                }
+            }
 
             #if DEBUG
             if DebugEnvironment.isDebugMode {
@@ -95,6 +102,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
             #endif
+
+            AppState.shared.$notificationsAuthorized
+                .sink { [weak self] _ in
+                    Task { @MainActor in
+                        self?.refreshStatusItem()
+                    }
+                }
+                .store(in: &cancellables)
 
             AppState.shared.start()
             refreshStatusItem()
@@ -225,6 +240,7 @@ extension Notification.Name {
     static let openGuidedBreakWindow = Notification.Name("openGuidedBreakWindow")
     static let openSampleDayTour = Notification.Name("openSampleDayTour")
     static let openOnboardingWindow = Notification.Name("openOnboardingWindow")
+    static let openSettingsWindow = Notification.Name("openSettingsWindow")
     static let openDayTimeline = Notification.Name("openDayTimeline")
     #if DEBUG
     static let openDebugPanel = Notification.Name("openDebugPanel")

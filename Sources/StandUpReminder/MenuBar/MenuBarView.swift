@@ -163,8 +163,7 @@ struct MenuBarView: View {
         }
 
         Button("Settings…") {
-            NSApp.activate(ignoringOtherApps: true)
-            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+            NotificationCenter.default.post(name: .openSettingsWindow, object: nil)
         }
             .keyboardShortcut(",", modifiers: .command)
         Button("Welcome / permissions…") { NotificationCenter.default.post(name: .openOnboardingWindow, object: nil) }
