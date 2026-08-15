@@ -3,7 +3,6 @@ import SwiftUI
 
 struct MenuBarView: View {
     @EnvironmentObject private var appState: AppState
-    @Environment(\.openSettings) private var openSettings
 
     private var nextFireText: String {
         guard let next = appState.nextFireAt else { return "No upcoming reminder" }
@@ -14,7 +13,8 @@ struct MenuBarView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 6) {
                 Image(systemName: appState.presence.symbolName)
                 Text(appState.presence.displayName)
@@ -162,7 +162,10 @@ struct MenuBarView: View {
             Button("Dismiss seed reminder") { appState.dismissCloudSeedBanner() }
         }
 
-        Button("Settings…") { openSettings() }
+        Button("Settings…") {
+            NSApp.activate(ignoringOtherApps: true)
+            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        }
             .keyboardShortcut(",", modifiers: .command)
         Button("Welcome / permissions…") { NotificationCenter.default.post(name: .openOnboardingWindow, object: nil) }
         Button("Sample day tour…") { NotificationCenter.default.post(name: .openSampleDayTour, object: nil) }
@@ -186,5 +189,8 @@ struct MenuBarView: View {
             }
         }
         #endif
+        }
+        .padding(10)
+        .frame(width: 280, alignment: .leading)
     }
 }
