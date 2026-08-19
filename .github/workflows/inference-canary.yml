@@ -1,17 +1,14 @@
 # Standing check that fleet inference credentials can perform inference.
 #
-# Preference order (Thomas 2026-08-11):
-#   grok → gemini → kimi → openai → anthropic
+# Preference order (Thomas 2026-08-19):
+#   grok → openai (Codex) → kimi → gemini
+#   GitHub-hosted Copilot is last-resort and is not probed here.
+#   Anthropic console key is not a Copilot BYOK rung.
 #
 # Probes every present repository secret in that order via
 # scripts/fleet-inference-canary.sh. Missing secrets are SKIP. Present-but-
-# broken secrets fail the run so dead keys surface before a PR is blocked.
-# Preferred provider = first healthy entry.
-#
-# Anthropic-specific history (2026-08-04 credit exhaustion) remains relevant:
-# list-models-only health checks are not enough; each probe performs real
-# inference. Claude Code Review still uses Anthropic only — this canary is the
-# multi-provider health signal.
+# broken secrets fail the rung so dead keys surface. Preferred provider =
+# first healthy entry.
 
 name: inference-canary
 
@@ -32,7 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        uses: actions/checkout@v4
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -40,14 +37,12 @@ jobs:
       - name: Probe fleet inference secrets (preference order)
         env:
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
-          XAI_INFERENCE_MODEL: ${{ vars.XAI_INFERENCE_MODEL || 'grok-3' }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_INFERENCE_MODEL: ${{ vars.GEMINI_INFERENCE_MODEL || 'gemini-2.0-flash' }}
-          MOONSHOT_API_KEY: ${{ secrets.MOONSHOT_API_KEY }}
-          KIMI_INFERENCE_MODEL: ${{ vars.KIMI_INFERENCE_MODEL || 'moonshot-v1-8k' }}
+          XAI_INFERENCE_MODEL: ${{ vars.XAI_INFERENCE_MODEL || 'grok-4.6' }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_INFERENCE_MODEL: ${{ vars.OPENAI_INFERENCE_MODEL || 'gpt-4o-mini' }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          CLAUDE_REVIEW_MODEL: ${{ vars.CLAUDE_REVIEW_MODEL || '' }}
+          OPENAI_INFERENCE_MODEL: ${{ vars.OPENAI_INFERENCE_MODEL || 'gpt-5.6-sol' }}
+          MOONSHOT_API_KEY: ${{ secrets.MOONSHOT_API_KEY }}
+          KIMI_API_KEY: ${{ secrets.KIMI_API_KEY }}
+          KIMI_INFERENCE_MODEL: ${{ vars.KIMI_INFERENCE_MODEL || 'kimi-k2.7-code' }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_INFERENCE_MODEL: ${{ vars.GEMINI_INFERENCE_MODEL || 'gemini-3.7-flash' }}
         run: bash scripts/fleet-inference-canary.sh

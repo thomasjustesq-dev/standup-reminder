@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Minimal Gemini generateContent preflight. Never prints response text.
-# Env: GEMINI_API_KEY (required), GEMINI_INFERENCE_MODEL (default gemini-2.0-flash)
+# Env: GEMINI_API_KEY (required), GEMINI_INFERENCE_MODEL (default gemini-3.7-flash)
 
 gemini_preflight_main() {
   set -euo pipefail
   umask 077
 
-  local model="${GEMINI_INFERENCE_MODEL:-gemini-2.0-flash}"
+  local model="${GEMINI_INFERENCE_MODEL:-gemini-3.7-flash}"
 
   if ! command -v curl >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
     printf '::error::Gemini preflight cannot run because curl or jq is unavailable.\n' >&2

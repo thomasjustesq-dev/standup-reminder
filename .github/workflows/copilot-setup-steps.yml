@@ -1,0 +1,40 @@
+name: Copilot Setup Steps
+
+# Runs before Copilot cloud agent starts. Also runnable from Actions to
+# validate the BYOK selector. Job name is load-bearing — Copilot ignores
+# any other job id.
+#
+# Do not map ${{ secrets.* }} onto XAI_API_KEY etc. Copilot injects Agents
+# secrets under those names; an empty Actions secret would clobber them.
+# Actions-only copies use the ACTIONS_* prefix as fallback.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+      - scripts/fleet-inference-select.sh
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+      - scripts/fleet-inference-select.sh
+
+jobs:
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      ACTIONS_XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+      ACTIONS_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ACTIONS_MOONSHOT_API_KEY: ${{ secrets.MOONSHOT_API_KEY }}
+      ACTIONS_KIMI_API_KEY: ${{ secrets.KIMI_API_KEY }}
+      ACTIONS_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Select BYOK provider for Copilot
+        run: bash scripts/fleet-inference-select.sh
