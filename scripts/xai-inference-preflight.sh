@@ -7,7 +7,7 @@
 XAI_PREFLIGHT_TEMP_DIR=""
 
 xai_preflight_model() {
-  printf '%s' "${XAI_INFERENCE_MODEL:-grok-3}"
+  printf '%s' "${XAI_INFERENCE_MODEL:-grok-4.6}"
 }
 
 xai_preflight_response_is_success() {
