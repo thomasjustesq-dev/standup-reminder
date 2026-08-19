@@ -13,7 +13,7 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
 # Default model pin
-[[ "$(xai_preflight_model)" == "grok-3" ]] && ok "default model" || bad "default model"
+[[ "$(xai_preflight_model)" == "grok-4.6" ]] && ok "default model" || bad "default model"
 
 # Success shape
 printf '%s\n' '{"id":"x","choices":[{"message":{"role":"assistant","content":"ok"}}]}' > "$tmp/ok.json"
