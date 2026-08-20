@@ -7,27 +7,6 @@ struct StandUpReminderApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
-        MenuBarExtra {
-            MenuBarView()
-                .environmentObject(appState)
-        } label: {
-            HStack(spacing: 2) {
-                if appState.notificationsAuthorized == false {
-                    Image(systemName: "bell.slash.fill")
-                        .symbolRenderingMode(.palette)
-                        .foregroundStyle(.orange, .primary)
-                        .accessibilityLabel("Notifications denied")
-                } else if appState.config.showMenuBarCountdown, !appState.menuBarTitle.isEmpty {
-                    Text("\(appState.menuBarTitle)")
-                        .accessibilityLabel("Next break in \(appState.menuBarTitle)")
-                } else {
-                    Image(systemName: appState.menuBarSymbolName)
-                        .accessibilityLabel("Stand Up Reminder")
-                }
-            }
-        }
-        .menuBarExtraStyle(.menu)
-
         Settings {
             SettingsView()
                 .environmentObject(appState)
@@ -70,6 +49,8 @@ struct StandUpReminderApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var observers: [Any] = []
     private var fallbackWindows: [String: NSWindow] = [:]
+    private var statusItem: NSStatusItem?
+    private var popover: NSPopover?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Task { @MainActor in
@@ -80,6 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
 
             NSApp.setActivationPolicy(.accessory)
+            installStatusItem()
 
             // Observers must exist before start() — it posts the onboarding
             // and sample-day notifications synchronously on first launch.
@@ -115,6 +97,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             #endif
 
             AppState.shared.start()
+            refreshStatusItem()
 
             #if DEBUG
             if DebugEnvironment.isDebugMode {
@@ -122,6 +105,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             #endif
         }
+    }
+
+    @MainActor
+    private func installStatusItem() {
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        item.button?.image = MenuBarMark.image()
+        item.button?.image?.isTemplate = true
+        item.button?.imagePosition = .imageOnly
+        item.button?.toolTip = "Stand Up Reminder"
+        item.button?.target = self
+        item.button?.action = #selector(togglePopover(_:))
+        statusItem = item
+
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.animates = false
+        popover.contentViewController = NSHostingController(
+            rootView: MenuBarView().environmentObject(AppState.shared)
+        )
+        self.popover = popover
+    }
+
+    @MainActor
+    private func refreshStatusItem() {
+        statusItem?.button?.image = MenuBarMark.image(
+            denied: AppState.shared.notificationsAuthorized == false
+        )
+        statusItem?.button?.image?.isTemplate = true
+        statusItem?.button?.imagePosition = .imageOnly
+    }
+
+    @MainActor
+    @objc
+    private func togglePopover(_ sender: Any?) {
+        guard let button = statusItem?.button, let popover else { return }
+        if popover.isShown {
+            popover.performClose(sender)
+            return
+        }
+        refreshStatusItem()
+        popover.contentViewController = NSHostingController(
+            rootView: MenuBarView().environmentObject(AppState.shared)
+        )
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        button.window?.makeKey()
     }
 
     private func observe(_ name: Notification.Name, handler: @escaping @MainActor () -> Void) {
@@ -132,13 +160,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         })
     }
 
-    /// The menu-style MenuBarExtra only mounts its view while the menu is
-    /// open, so SwiftUI's openWindow may have no caller when a notification
-    /// action or launch path needs a window. Front the SwiftUI-scene window
-    /// if one exists; otherwise host the same view in an AppKit window. This
-    /// is the single presentation choke point — everything (menu items,
-    /// notification actions, launch) opens windows by posting the
-    /// notifications above, so the dedup here always applies.
+    /// Status-item popover and notification actions have no SwiftUI window
+    /// scene, so openWindow may have no caller. Front the SwiftUI-scene
+    /// window if one exists; otherwise host the same view in an AppKit
+    /// window. This is the single presentation choke point.
     @MainActor
     private func present<Content: View>(id: String, title: String, @ViewBuilder content: () -> Content) {
         NSApp.activate(ignoringOtherApps: true)
