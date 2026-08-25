@@ -1,6 +1,6 @@
 # Standup Reminder
 
-macOS menu bar standup / wellness reminder app.
+macOS menu bar standup / wellness reminder app. The internal handbook is `docs/wiki/`.
 
 ## Who this applies to
 

@@ -1,0 +1,1 @@
+Stand Up Reminder internal wiki. Canonical living documents remain `README.md`, `CLAUDE.md`, `docs/ROADMAP.md`, and `docs/DECISIONS.md`. Snapshot of `origin/main` at `9f8d5c4` (2026-08-19). Not a second spec.
