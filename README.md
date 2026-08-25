@@ -3,6 +3,10 @@
 Movement-break companion: macOS menu bar app (macOS 14+), iPhone app, and
 Apple Watch companion on one shared scheduler core.
 
+The internal operator and agent handbook is [`docs/wiki/`](docs/wiki/README.md),
+also published on the GitHub [Wiki](https://github.com/thomasjustesq-dev/standup-reminder/wiki).
+It orients; it does not replace this README, `CLAUDE.md`, or `docs/DECISIONS.md`.
+
 ## Identity (single root)
 
 | Surface | Value |
