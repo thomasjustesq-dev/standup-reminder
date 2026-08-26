@@ -4,6 +4,16 @@ Append-only. `merge=union`.
 
 ---
 
+## 2026-08-15 — Menu bar display icon was blank
+
+- `MenuBarExtra` label used an `HStack` around the SF Symbol / countdown
+  `Text`. That view type is not a valid status-item label on macOS 14+, so
+  the extra rendered empty (Finder app icon was fine).
+- Status item is now a template `Image` of the stretching-figure app mark
+  (`MenuBarMark`). No HStack, no SF Symbol in the extra.
+
+---
+
 ## 2026-08-04 — Process package land
 
 - Installed scaled multi-agent coordination (claim-first, ASSIGNMENT, guard).
