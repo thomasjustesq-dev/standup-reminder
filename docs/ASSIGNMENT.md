@@ -19,15 +19,17 @@ Open a normal product branch/PR; leave this card empty. The claim package is
 
 ## Current assignments
 
-**Card date:** 2026-08-10 · **mode: solo / dormant claims**
+**Card date:** 2026-08-26 · **mode: solo / dormant claims**
+
+Pinned to `origin/main` `14aad14` (PR #21). LIVE_CLAIMS is empty.
 
 | Slot | Owner | Task ID | Claim on main? | Work PR | Notes |
 | --- | --- | --- | --- | --- | --- |
-| Continuous — Grok | | | | | dormant |
+| Continuous — Grok | | | | | dormant. Menubar icon #21 merged 2026-08-15; wiki #23 merged 2026-08-25. Do not revive claim-first. |
 | Continuous — Codex | | | | | dormant |
 | Continuous — Kimi | | | | | dormant |
 | On-demand — Claude | | | | | dormant |
-| Human — Thomas | | | n/a | n/a | Product PRs without claim tax |
+| Human — Thomas | | | n/a | n/a | Product PRs without claim tax. Wiki tab first page then `scripts/publish_wiki.sh`. |
 
 ## Standing maintenance menu
 
