@@ -38,6 +38,7 @@ Developer ID in CI secrets.
 | #18 / #19 cask sha | Notarized 4.2.2 zip |
 | #21 menu bar icon | Stretching-figure mark |
 | #23 wiki handbook | In git; Wiki tab not created |
+| #26 Aero-Kinetic Suite | VisionOS glass, dynamic progress arc, spatial chimes, Watch dial, global hotkeys |
 | Identity rename | `com.thomasjust.standupreminder` |
 
 Version: **4.2.2** · Full notes: `docs/DISTRIBUTION.md`
