@@ -129,8 +129,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @MainActor
     private func refreshStatusItem() {
+        let appState = AppState.shared
+        let progress: Double? = {
+            guard appState.config.showMenuBarCountdown,
+                  appState.config.enabled,
+                  !appState.isPaused,
+                  let next = appState.nextFireAt else { return nil }
+            let now = Date()
+            let remaining = max(0, next.timeIntervalSince(now))
+            let total = max(60.0, Double(appState.effectiveIntervalMinutes * 60))
+            let elapsed = max(0, total - remaining)
+            return min(1.0, elapsed / total)
+        }()
+
         statusItem?.button?.image = MenuBarMark.image(
-            denied: AppState.shared.notificationsAuthorized == false
+            denied: appState.notificationsAuthorized == false,
+            progress: progress
         )
         statusItem?.button?.image?.isTemplate = true
         statusItem?.button?.imagePosition = .imageOnly

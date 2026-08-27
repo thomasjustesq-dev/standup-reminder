@@ -1,6 +1,9 @@
 #if canImport(WidgetKit)
 import WidgetKit
 import SwiftUI
+#if canImport(AppIntents)
+import AppIntents
+#endif
 
 /// Notification Center / desktop widget.
 /// Embed this target with XcodeGen (`project.yml`) or Xcode, using App Group
@@ -116,10 +119,13 @@ struct WidgetSnapshotDTO: Codable {
 
 // MARK: - Aero-Kinetic Widget Styling Tokens
 private enum AeroWidgetColor {
+    static let void = Color(red: 0.04, green: 0.05, blue: 0.06)
+    static let slate = Color(red: 0.09, green: 0.10, blue: 0.13)
     static let volt = Color(red: 0.824, green: 1.000, blue: 0.227)
     static let ionBlue = Color(red: 0.039, green: 0.518, blue: 1.000)
     static let titaniumWhite = Color.white
     static let vaporGray = Color.white.opacity(0.60)
+    static let hairline = Color.white.opacity(0.12)
 }
 
 struct StandUpReminderWidgetView: View {
@@ -176,6 +182,75 @@ struct StandUpReminderWidgetView: View {
                     .font(.system(size: 9.5))
                     .foregroundStyle(AeroWidgetColor.vaporGray)
             }
+        case .systemMedium:
+            HStack(spacing: 16) {
+                // Left Column: Countdown telemetry
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "figure.stand")
+                            .foregroundStyle(AeroWidgetColor.volt)
+                        Text("STANDUP")
+                            .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                            .tracking(1.0)
+                            .foregroundStyle(AeroWidgetColor.vaporGray)
+                    }
+                    
+                    Spacer()
+                    
+                    countdownText
+                        .font(.system(size: 34, weight: .bold))
+                        .foregroundStyle(AeroWidgetColor.volt)
+                        .shadow(color: AeroWidgetColor.volt.opacity(0.35), radius: 8, x: 0, y: 0)
+                    
+                    Text(entry.nextText)
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(AeroWidgetColor.titaniumWhite)
+                }
+                
+                Divider()
+                    .overlay(AeroWidgetColor.hairline)
+                
+                // Right Column: Telemetry info card
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("PROFILE")
+                            .font(.system(size: 8.5, weight: .bold, design: .monospaced))
+                            .foregroundStyle(AeroWidgetColor.vaporGray)
+                        Spacer()
+                        Text(entry.profileName.uppercased())
+                            .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(AeroWidgetColor.titaniumWhite)
+                    }
+                    
+                    HStack {
+                        Text("THIS WEEK")
+                            .font(.system(size: 8.5, weight: .bold, design: .monospaced))
+                            .foregroundStyle(AeroWidgetColor.vaporGray)
+                        Spacer()
+                        Text("\(entry.weekDone) DONE")
+                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                            .foregroundStyle(AeroWidgetColor.volt)
+                    }
+                    
+                    Spacer()
+                    
+                    HStack {
+                        Circle()
+                            .fill(AeroWidgetColor.volt)
+                            .frame(width: 6, height: 6)
+                        Text(entry.status.uppercased())
+                            .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                            .tracking(0.6)
+                            .foregroundStyle(AeroWidgetColor.vaporGray)
+                            .lineLimit(1)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(AeroWidgetColor.slate)
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                }
+            }
+            .padding(16)
         default:
             VStack(alignment: .leading, spacing: 6) {
                 HStack {

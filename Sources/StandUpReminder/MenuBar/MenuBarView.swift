@@ -64,12 +64,13 @@ struct MenuBarView: View {
                     )
                 }
                 
-                // Hero Circular Countdown Gauge
+                // Hero Circular Countdown Gauge with kinetic desk phase
                 AeroCountdownGauge(
                     progress: countdownInfo.progress,
                     timeRemainingText: countdownInfo.text,
                     subtitle: countdownInfo.subtitle,
                     accentColor: appState.isPaused ? AeroColor.vaporGray : (appState.heldStatusLine != nil ? AeroColor.alertOrange : AeroColor.volt),
+                    deskPhase: appState.config.sitStandModeEnabled ? appState.deskPhase.rawValue : nil,
                     size: 116
                 )
                 .padding(.vertical, 4)
@@ -92,6 +93,15 @@ struct MenuBarView: View {
                             .font(.system(size: 9.5, weight: .regular))
                             .foregroundStyle(AeroColor.vaporGray.opacity(0.8))
                     }
+                }
+                
+                // Optional Posture Radar
+                if appState.config.features.webcamStillnessEnabled {
+                    AeroPostureRadar(
+                        facePresent: WebcamStillnessMonitor.shared.facePresent,
+                        isStillTooLong: WebcamStillnessMonitor.shared.isStillTooLong
+                    )
+                    .padding(.top, 2)
                 }
                 
                 // Primary Quick Actions

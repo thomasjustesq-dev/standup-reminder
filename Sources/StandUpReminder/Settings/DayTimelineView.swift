@@ -71,6 +71,12 @@ struct DayTimelineView: View {
                 .padding(12)
                 .aeroGlassCard(cornerRadius: 12)
 
+                // Posture / Stillness Radar
+                AeroPostureRadar(
+                    facePresent: WebcamStillnessMonitor.shared.facePresent,
+                    isStillTooLong: WebcamStillnessMonitor.shared.isStillTooLong
+                )
+
                 // Next Up Schedule
                 VStack(alignment: .leading, spacing: 8) {
                     Text("UPCOMING SCHEDULE")

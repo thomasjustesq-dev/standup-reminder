@@ -103,6 +103,7 @@ public struct AeroCountdownGauge: View {
     public let timeRemainingText: String
     public let subtitle: String
     public var accentColor: Color = AeroColor.volt
+    public var deskPhase: String? = nil
     public var size: CGFloat = 130
 
     public init(
@@ -110,12 +111,14 @@ public struct AeroCountdownGauge: View {
         timeRemainingText: String,
         subtitle: String = "UNTIL BREAK",
         accentColor: Color = AeroColor.volt,
+        deskPhase: String? = nil,
         size: CGFloat = 130
     ) {
         self.progress = max(0.0, min(1.0, progress))
         self.timeRemainingText = timeRemainingText
         self.subtitle = subtitle
         self.accentColor = accentColor
+        self.deskPhase = deskPhase
         self.size = size
     }
 
@@ -147,6 +150,19 @@ public struct AeroCountdownGauge: View {
 
             // Centered Telemetry Readout
             VStack(spacing: 2) {
+                if let phase = deskPhase {
+                    HStack(spacing: 3) {
+                        Image(systemName: phase.lowercased().contains("stand") ? "figure.stand" : "figure.seated.side")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(AeroColor.volt)
+                        Text(phase.uppercased())
+                            .font(.system(size: 8, weight: .bold, design: .monospaced))
+                            .tracking(1.0)
+                            .foregroundStyle(AeroColor.volt)
+                    }
+                    .padding(.bottom, 1)
+                }
+
                 Text(timeRemainingText)
                     .font(.system(size: 24, weight: .bold, design: .default))
                     .monospacedDigit()
@@ -196,6 +212,71 @@ public struct AeroTelemetryBadge: View {
                         .strokeBorder(AeroColor.hairline, lineWidth: 0.5)
                 }
         }
+    }
+}
+
+/// VisionOS Geometric Posture & Stillness Radar
+public struct AeroPostureRadar: View {
+    public var facePresent: Bool
+    public var isStillTooLong: Bool
+    public var alignmentScore: Int = 92 // Percentage (0-100)
+
+    public init(facePresent: Bool, isStillTooLong: Bool, alignmentScore: Int = 92) {
+        self.facePresent = facePresent
+        self.isStillTooLong = isStillTooLong
+        self.alignmentScore = alignmentScore
+    }
+
+    private var statusColor: Color {
+        if !facePresent { return AeroColor.vaporGray }
+        return isStillTooLong ? AeroColor.alertOrange : AeroColor.volt
+    }
+
+    private var statusText: String {
+        if !facePresent { return "OFF DESK" }
+        return isStillTooLong ? "STILL TOO LONG" : "NOMINAL"
+    }
+
+    public var body: some View {
+        HStack(spacing: 12) {
+            // Radar Icon Glyph
+            ZStack {
+                Circle()
+                    .stroke(statusColor.opacity(0.3), lineWidth: 1)
+                    .frame(width: 32, height: 32)
+                
+                Circle()
+                    .fill(statusColor.opacity(0.15))
+                    .frame(width: 24, height: 24)
+                
+                Image(systemName: facePresent ? (isStillTooLong ? "figure.stand.line.dotted.figure.stand" : "figure.walk") : "person.slash")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(statusColor)
+                    .aeroGlow(color: statusColor, radius: 4)
+            }
+            
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text("POSTURE RADAR")
+                        .font(.system(size: 8.5, weight: .bold, design: .monospaced))
+                        .tracking(1.0)
+                        .foregroundStyle(AeroColor.vaporGray)
+                    
+                    Text("· \(statusText)")
+                        .font(.system(size: 8.5, weight: .bold, design: .monospaced))
+                        .foregroundStyle(statusColor)
+                }
+                
+                Text(facePresent ? (isStillTooLong ? "Extended stillness detected — stretch advised" : "Micro-movements & posture active (\(alignmentScore)%)") : "No presence detected at camera")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(AeroColor.titaniumWhite)
+                    .lineLimit(1)
+            }
+            
+            Spacer()
+        }
+        .padding(10)
+        .aeroGlassCard(cornerRadius: 12, strokeColor: statusColor.opacity(0.3))
     }
 }
 
