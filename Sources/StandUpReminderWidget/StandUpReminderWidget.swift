@@ -118,14 +118,20 @@ struct WidgetSnapshotDTO: Codable {
 }
 
 // MARK: - Aero-Kinetic Widget Styling Tokens
+// Values come from the shared `AeroPalette` in StandUpReminderCore so the
+// widget can never drift from the Mac/iOS/Watch themes.
 private enum AeroWidgetColor {
-    static let void = Color(red: 0.04, green: 0.05, blue: 0.06)
-    static let slate = Color(red: 0.09, green: 0.10, blue: 0.13)
-    static let volt = Color(red: 0.824, green: 1.000, blue: 0.227)
-    static let ionBlue = Color(red: 0.039, green: 0.518, blue: 1.000)
+    private static func color(_ rgb: AeroPalette.RGB) -> Color {
+        Color(red: rgb.red, green: rgb.green, blue: rgb.blue)
+    }
+
+    static let void = color(AeroPalette.void)
+    static let slate = color(AeroPalette.slate)
+    static let volt = color(AeroPalette.volt)
+    static let ionBlue = color(AeroPalette.ionBlue)
     static let titaniumWhite = Color.white
-    static let vaporGray = Color.white.opacity(0.60)
-    static let hairline = Color.white.opacity(0.12)
+    static let vaporGray = Color.white.opacity(AeroPalette.vaporGrayOpacity)
+    static let hairline = Color.white.opacity(AeroPalette.hairlineOpacity)
 }
 
 struct StandUpReminderWidgetView: View {
@@ -139,9 +145,11 @@ struct StandUpReminderWidgetView: View {
         if let next = entry.nextFireAt, next > entry.date {
             Text(timerInterval: entry.date...next, countsDown: true)
                 .monospacedDigit()
+                .tracking(AeroPalette.timerTracking)
         } else if let countdown = entry.countdown {
             Text("\(countdown)m")
                 .monospacedDigit()
+                .tracking(AeroPalette.timerTracking)
         } else {
             Text("—")
         }
@@ -315,7 +323,7 @@ struct StandUpReminderWidget: Widget {
         StaticConfiguration(kind: kind, provider: StandUpWidgetProvider()) { entry in
             if #available(iOS 17.0, macOS 14.0, watchOS 10.0, *) {
                 StandUpReminderWidgetView(entry: entry)
-                    .containerBackground(Color(red: 0.07, green: 0.08, blue: 0.10), for: .widget)
+                    .containerBackground(AeroWidgetColor.slate, for: .widget)
             } else {
                 StandUpReminderWidgetView(entry: entry)
             }
@@ -354,6 +362,7 @@ struct BreakLiveActivityWidget: Widget {
                         Text(timerInterval: now...context.state.nextFireAt, countsDown: true)
                             .font(.system(size: 22, weight: .bold))
                             .monospacedDigit()
+                            .tracking(AeroPalette.timerTracking)
                             .foregroundStyle(AeroWidgetColor.titaniumWhite)
                     } else {
                         Text("Break time")
@@ -391,7 +400,7 @@ struct BreakLiveActivityWidget: Widget {
                 }
             }
             .padding(16)
-            .background(Color(red: 0.05, green: 0.06, blue: 0.08))
+            .background(AeroWidgetColor.slate)
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
@@ -449,6 +458,7 @@ struct BreakLiveActivityWidget: Widget {
                     Text(timerInterval: now...context.state.nextFireAt, countsDown: true)
                         .font(.system(size: 12, weight: .bold))
                         .monospacedDigit()
+                        .tracking(AeroPalette.timerTracking)
                         .foregroundStyle(AeroWidgetColor.volt)
                         .frame(maxWidth: 44)
                 }

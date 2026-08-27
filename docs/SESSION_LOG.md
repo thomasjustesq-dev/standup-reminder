@@ -4,6 +4,31 @@ Append-only. `merge=union`.
 
 ---
 
+## 2026-08-27 — Aero-Kinetic fidelity pass (implementation plan)
+
+- Popover hero now renders the stretching figure (new `AeroStretchFigure`
+  SwiftUI glyph matching `MenuBarMark` geometry) inside the Volt arc, in Volt
+  color with glow, via `AeroCountdownGauge(showsFigure:)`.
+- `AeroAcoustics` chimes are true stereo: 2-channel PCM, base tone panned
+  left / harmonic right, 6ms Haas delay on the right channel.
+- Design tokens normalized to spec: specular rim 0.14, 0.5pt borders, card
+  shadow .black 0.35 r24 y12, slate card fill 70%.
+- Countdown timers track -0.5pt across Mac/iOS/widget/Watch/Live Activity.
+- Watch dial arc now fills from the remaining-time fraction (iPhone pushes
+  `intervalMinutes` over WatchConnectivity); dial ticks via TimelineView.
+- Watch "Done" haptics are multi-tier (.notification then .success); snooze
+  gets a .directionUp + .click pair.
+- One shared token source: `StandUpReminderCore/AeroPalette.swift` (pure
+  values, core-purity safe) consumed by Mac/iOS `AeroColor`, widget
+  `AeroWidgetColor`, and the Watch view; project.yml adds the file to the
+  Watch app and iOS/watchOS widget targets.
+- Verified: `swift build` (macOS) clean, `check-core-purity.sh` OK,
+  `swiftc -parse` clean on iOS/watchOS/widget files. iOS/watchOS xcodebuild
+  not run — no Xcode on this machine (CLT only); `swift test` blocked by
+  missing XCTest for the same reason.
+
+---
+
 ## 2026-08-15 — Menu bar display icon was blank
 
 - `MenuBarExtra` label used an `HStack` around the SF Symbol / countdown

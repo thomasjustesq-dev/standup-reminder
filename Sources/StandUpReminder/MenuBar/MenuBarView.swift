@@ -71,6 +71,7 @@ struct MenuBarView: View {
                     subtitle: countdownInfo.subtitle,
                     accentColor: appState.isPaused ? AeroColor.vaporGray : (appState.heldStatusLine != nil ? AeroColor.alertOrange : AeroColor.volt),
                     deskPhase: appState.config.sitStandModeEnabled ? appState.deskPhase.rawValue : nil,
+                    showsFigure: true,
                     size: 116
                 )
                 .padding(.vertical, 4)

@@ -63,7 +63,7 @@ public struct SettingsView: View {
                                     .fill(AeroColor.slate)
                                     .overlay {
                                         RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                            .strokeBorder(AeroColor.specularRim, lineWidth: 0.75)
+                                            .strokeBorder(AeroColor.specularRim, lineWidth: AeroPalette.specularBorderWidth)
                                     }
                                     .shadow(color: Color.black.opacity(0.4), radius: 6, y: 2)
                             }

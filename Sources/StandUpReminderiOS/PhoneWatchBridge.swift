@@ -27,6 +27,7 @@ final class PhoneWatchBridge: NSObject, ObservableObject {
         let model = PhoneModel.shared
         var payload: [String: Any] = ["status": model.statusText]
         payload["weekDone"] = model.stats.weekSummary().done
+        payload["intervalMinutes"] = model.cloudEffectiveIntervalMinutes ?? model.config.intervalMinutes
         if let next = model.nextFireAt {
             payload["nextFire"] = next.timeIntervalSince1970
             payload["countdown"] = max(0, Int(next.timeIntervalSinceNow / 60))

@@ -22,6 +22,8 @@ final class WatchModel: NSObject, ObservableObject, WCSessionDelegate {
     @Published var status = "Waiting for iPhone…"
     @Published var nextFireAt: Date?
     @Published var lastTitle = "Stand Up"
+    /// Schedule interval pushed by the iPhone; drives the dial arc fraction.
+    @Published var intervalMinutes = 45
 
     override init() {
         super.init()
@@ -41,9 +43,16 @@ final class WatchModel: NSObject, ObservableObject, WCSessionDelegate {
         }
         
         if action == "done" {
-            WKInterfaceDevice.current().play(.success)
+            // Multi-tier: alert tap first, then the success flourish.
+            WKInterfaceDevice.current().play(.notification)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                WKInterfaceDevice.current().play(.success)
+            }
         } else if action == "snooze" {
             WKInterfaceDevice.current().play(.directionUp)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                WKInterfaceDevice.current().play(.click)
+            }
         } else {
             WKInterfaceDevice.current().play(.click)
         }
@@ -54,6 +63,7 @@ final class WatchModel: NSObject, ObservableObject, WCSessionDelegate {
     private func apply(_ payload: [String: Any]) {
         if let status = payload["status"] as? String { self.status = status }
         if let done = payload["weekDone"] as? Int { self.weekDone = done }
+        if let interval = payload["intervalMinutes"] as? Int, interval > 0 { self.intervalMinutes = interval }
         if let epoch = payload["nextFire"] as? TimeInterval {
             self.nextFireAt = Date(timeIntervalSince1970: epoch)
         } else if payload["status"] != nil {
@@ -117,9 +127,9 @@ final class WatchModel: NSObject, ObservableObject, WCSessionDelegate {
 struct WatchRootView: View {
     @EnvironmentObject private var model: WatchModel
 
-    private let volt = Color(red: 0.824, green: 1.000, blue: 0.227)
-    private let slate = Color(red: 0.09, green: 0.10, blue: 0.13)
-    private let vaporGray = Color.white.opacity(0.60)
+    private let volt = Color(red: AeroPalette.volt.red, green: AeroPalette.volt.green, blue: AeroPalette.volt.blue)
+    private let slate = Color(red: AeroPalette.slate.red, green: AeroPalette.slate.green, blue: AeroPalette.slate.blue)
+    private let vaporGray = Color.white.opacity(AeroPalette.vaporGrayOpacity)
 
     var body: some View {
         ScrollView {
@@ -135,43 +145,49 @@ struct WatchRootView: View {
                         .foregroundStyle(volt)
                 }
 
-                // Hero Circular Dial
-                ZStack {
-                    Circle()
-                        .stroke(Color.white.opacity(0.12), lineWidth: 6)
-                        .frame(width: 110, height: 110)
-
-                    let now = Date()
-                    if let nextFire = model.nextFireAt, nextFire > now {
+                // Hero Circular Dial — the arc fills as the break approaches.
+                TimelineView(.periodic(from: .now, by: 15)) { context in
+                    let now = context.date
+                    ZStack {
                         Circle()
-                            .trim(from: 0.0, to: 0.75)
-                            .stroke(
-                                LinearGradient(colors: [volt.opacity(0.6), volt], startPoint: .leading, endPoint: .trailing),
-                                style: StrokeStyle(lineWidth: 6, lineCap: .round)
-                            )
-                            .rotationEffect(.degrees(-90))
+                            .stroke(Color.white.opacity(0.12), lineWidth: 6)
                             .frame(width: 110, height: 110)
-                            .shadow(color: volt.opacity(0.4), radius: 6)
-                        
-                        VStack(spacing: 1) {
-                            Text(timerInterval: now...nextFire, countsDown: true)
-                                .font(.system(size: 20, weight: .bold, design: .default))
-                                .monospacedDigit()
-                                .foregroundStyle(Color.white)
-                            Text("UNTIL BREAK")
-                                .font(.system(size: 7.5, weight: .semibold, design: .monospaced))
-                                .tracking(0.8)
-                                .foregroundStyle(vaporGray)
-                        }
-                    } else {
-                        VStack(spacing: 1) {
-                            Text("DONE")
-                                .font(.system(size: 16, weight: .bold, design: .monospaced))
-                                .foregroundStyle(volt)
-                            Text(model.status)
-                                .font(.system(size: 8))
-                                .foregroundStyle(vaporGray)
-                                .lineLimit(1)
+
+                        if let nextFire = model.nextFireAt, nextFire > now {
+                            let total = max(60.0, Double(model.intervalMinutes) * 60.0)
+                            let progress = min(1.0, max(0.01, 1.0 - nextFire.timeIntervalSince(now) / total))
+                            Circle()
+                                .trim(from: 0.0, to: progress)
+                                .stroke(
+                                    LinearGradient(colors: [volt.opacity(0.6), volt], startPoint: .leading, endPoint: .trailing),
+                                    style: StrokeStyle(lineWidth: 6, lineCap: .round)
+                                )
+                                .rotationEffect(.degrees(-90))
+                                .frame(width: 110, height: 110)
+                                .shadow(color: volt.opacity(0.4), radius: 6)
+                                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: progress)
+
+                            VStack(spacing: 1) {
+                                Text(timerInterval: now...nextFire, countsDown: true)
+                                    .font(.system(size: 20, weight: .bold, design: .default))
+                                    .monospacedDigit()
+                                    .tracking(AeroPalette.timerTracking)
+                                    .foregroundStyle(Color.white)
+                                Text("UNTIL BREAK")
+                                    .font(.system(size: 7.5, weight: .semibold, design: .monospaced))
+                                    .tracking(0.8)
+                                    .foregroundStyle(vaporGray)
+                            }
+                        } else {
+                            VStack(spacing: 1) {
+                                Text("DONE")
+                                    .font(.system(size: 16, weight: .bold, design: .monospaced))
+                                    .foregroundStyle(volt)
+                                Text(model.status)
+                                    .font(.system(size: 8))
+                                    .foregroundStyle(vaporGray)
+                                    .lineLimit(1)
+                            }
                         }
                     }
                 }
