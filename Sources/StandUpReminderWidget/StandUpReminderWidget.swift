@@ -181,7 +181,7 @@ struct StandUpReminderWidgetView: View {
                         .foregroundStyle(AeroWidgetColor.volt)
                     Text("STANDUP")
                         .font(.system(size: 10, weight: .bold, design: .monospaced))
-                        .tracking(0.8)
+                        .tracking(AeroPalette.telemetryTracking)
                         .foregroundStyle(AeroWidgetColor.volt)
                 }
                 countdownText
@@ -355,7 +355,7 @@ struct BreakLiveActivityWidget: Widget {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(context.state.title.uppercased())
                         .font(.system(size: 10, weight: .bold, design: .monospaced))
-                        .tracking(0.8)
+                        .tracking(AeroPalette.telemetryTracking)
                         .foregroundStyle(AeroWidgetColor.vaporGray)
                     
                     if context.state.nextFireAt > now {

@@ -30,13 +30,13 @@ struct ContentView: View {
                                         .aeroGlow(color: AeroColor.volt, radius: 4)
                                     Text("AUTHORITY: \(auth.displayName.uppercased())")
                                         .font(.system(size: 9.5, weight: .bold, design: .monospaced))
-                                        .tracking(0.8)
+                                        .tracking(AeroPalette.telemetryTracking)
                                         .foregroundStyle(AeroColor.titaniumWhite)
                                 }
                             } else {
                                 Text("LOCAL CADENCE")
                                     .font(.system(size: 9.5, weight: .bold, design: .monospaced))
-                                    .tracking(0.8)
+                                    .tracking(AeroPalette.telemetryTracking)
                                     .foregroundStyle(AeroColor.vaporGray)
                             }
                             

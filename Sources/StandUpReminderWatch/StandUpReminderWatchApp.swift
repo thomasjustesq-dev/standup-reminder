@@ -175,7 +175,7 @@ struct WatchRootView: View {
                                     .foregroundStyle(Color.white)
                                 Text("UNTIL BREAK")
                                     .font(.system(size: 7.5, weight: .semibold, design: .monospaced))
-                                    .tracking(0.8)
+                                    .tracking(AeroPalette.telemetryTracking)
                                     .foregroundStyle(vaporGray)
                             }
                         } else {

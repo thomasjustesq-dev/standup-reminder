@@ -1,6 +1,8 @@
 # Stand Up Reminder — Antigravity Landing Implementation Plan
 
-Status: AUDIT — 2026-08-27. This review changed no code.
+Status: IMPLEMENTED — 2026-08-27. All seven fidelity gaps are addressed on
+`kimi/aero-kinetic-fidelity`; hosted macOS/iOS/watchOS verification remains the
+merge gate.
 Source of truth: `docs/design/` + Obsidian `Stand Up Reminder Aero-Kinetic Design System.md` (winning: **Aero-Kinetic**).
 
 ## Landing state
@@ -11,7 +13,7 @@ Landed on `main` (ff-merged `e5856be` mega-feature, then `177b542`, `5e15a84`, `
 
 Obsidian `#0A0B0E` floor, Frosted Slate `#161922` @70%, Kinetic Volt `#D2FF3A`, Ion Blue `#0A84FF`, Kinetic Orange `#FF9F0A`; 0.5pt specular rims; shadow `.black .35 r24 y12`; SF Pro timers (−0.5pt) + SF Mono telemetry (+0.8pt); menu bar (Volt arc **around the stretching figure** + posture radar), Settings, Dynamic Island/Live Activity, Watch circular dial, AeroAcoustics 528/1056 Hz chimes.
 
-## Gaps
+## Addressed gaps
 
 ### Design fidelity
 1. **Menu bar popover misses the signature "Volt arc around the stretching figure"** — hero is a text countdown gauge (`AeroCountdownGauge`); the figure+ring exists only in the 22pt status item, and it's `isTemplate=true` monochrome (no Volt glow).
@@ -22,7 +24,7 @@ Obsidian `#0A0B0E` floor, Frosted Slate `#161922` @70%, Kinetic Volt `#D2FF3A`, 
 6. Watch haptics not "multi-tier" — single `WKInterfaceDevice.play` per action.
 7. **Three parallel token definitions** (Mac `AeroColor`, iOS `AeroColor`, widget `AeroWidgetColor`) + Watch inline hardcoded volt/slate — drift risk.
 
-## Implementation plan (ordered)
+## Implementation plan (completed in order)
 
 1. **Menu bar hero**: render the stretching figure *inside* the Volt progression arc in the popover (reuse the status-item glyph, add Volt color/glow — drop `isTemplate` for the popover instance).
 2. **Spatial chimes**: switch `AeroAcoustics` to a 2-channel (stereo) source or AVAudioEngine; or relabel the feature to "harmonic glass chimes" (do not overstate).
@@ -30,7 +32,7 @@ Obsidian `#0A0B0E` floor, Frosted Slate `#161922` @70%, Kinetic Volt `#D2FF3A`, 
 4. Add `-0.5pt` tracking on countdown timers; add `+0.8pt`/uppercase on telemetry readouts.
 5. **Watch dial**: drive `.trim(to:)` from remaining-time fraction, not a constant.
 6. **Multi-tier haptics**: sequence (e.g., `.notification` then `.success`) for Done.
-7. **Unify tokens**: one shared `AeroColor` in `StandUpReminderCore`, consumed by Mac/iOS/widget/Watch.
+7. **Unify tokens**: one pure shared `AeroPalette` in `StandUpReminderCore`, consumed by Mac/iOS/widget/Watch without introducing SwiftUI into the core target.
 
 ## Verification
 

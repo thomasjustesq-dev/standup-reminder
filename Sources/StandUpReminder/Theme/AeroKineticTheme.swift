@@ -213,7 +213,7 @@ public struct AeroTelemetryBadge: View {
             
             Text(text.uppercased())
                 .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                .tracking(0.8)
+                .tracking(AeroPalette.telemetryTracking)
                 .foregroundStyle(AeroColor.titaniumWhite)
         }
         .padding(.horizontal, 7)
