@@ -30,83 +30,161 @@ struct DayTimelineView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Image(systemName: appState.presence.symbolName)
-                    .font(.title2)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(appState.presence.displayName)
-                        .font(.title3.weight(.semibold))
-                    Text(appState.isCadenceAuthority
-                         ? "Cadence authority · quiet rules on this Mac"
-                         : "Follower · quiet rules on \(appState.remoteAuthorityName ?? "another device")")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Button("Close") { fallbackClose?() ?? dismiss() }
-            }
-
-            GroupBox("Why this state") {
-                Text(appState.statusMessage)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            GroupBox("Next up") {
-                if upcoming.isEmpty {
-                    Text("Nothing scheduled (outside hours or paused).")
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(Array(upcoming.prefix(6).enumerated()), id: \.offset) { _, next in
-                        HStack {
-                            Text(label(next.kind))
-                            Spacer()
-                            Text(next.date, style: .time)
-                                .monospacedDigit()
-                                .foregroundStyle(.secondary)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                // Header
+                HStack {
+                    HStack(spacing: 8) {
+                        Image(systemName: appState.presence.symbolName)
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(AeroColor.volt)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(appState.presence.displayName)
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundStyle(AeroColor.titaniumWhite)
+                            Text(appState.isCadenceAuthority
+                                 ? "Cadence authority · local Mac rules"
+                                 : "Follower · quiet rules on \(appState.remoteAuthorityName ?? "another device")")
+                                .font(.system(size: 10.5))
+                                .foregroundStyle(AeroColor.vaporGray)
                         }
-                        .font(.callout)
+                    }
+                    Spacer()
+                    Button("Close") { fallbackClose?() ?? dismiss() }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(AeroColor.vaporGray)
+                }
+                .padding(.bottom, 2)
+
+                // Current State
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("CURRENT STATUS")
+                        .font(.system(size: 8.5, weight: .bold, design: .monospaced))
+                        .tracking(1.0)
+                        .foregroundStyle(AeroColor.vaporGray)
+                    Text(appState.statusMessage)
+                        .font(.system(size: 12.5, weight: .medium))
+                        .foregroundStyle(AeroColor.titaniumWhite)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(12)
+                .aeroGlassCard(cornerRadius: 12)
+
+                // Next Up Schedule
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("UPCOMING SCHEDULE")
+                        .font(.system(size: 8.5, weight: .bold, design: .monospaced))
+                        .tracking(1.0)
+                        .foregroundStyle(AeroColor.vaporGray)
+                    
+                    if upcoming.isEmpty {
+                        Text("Nothing scheduled (outside hours or paused).")
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(AeroColor.vaporGray)
+                    } else {
+                        ForEach(Array(upcoming.prefix(5).enumerated()), id: \.offset) { index, next in
+                            HStack {
+                                HStack(spacing: 6) {
+                                    Circle()
+                                        .fill(index == 0 ? AeroColor.volt : AeroColor.ionBlue)
+                                        .frame(width: 5, height: 5)
+                                    Text(label(next.kind))
+                                        .font(.system(size: 12, weight: index == 0 ? .semibold : .regular))
+                                        .foregroundStyle(AeroColor.titaniumWhite)
+                                }
+                                Spacer()
+                                Text(next.date, style: .time)
+                                    .font(.system(size: 11.5, weight: .medium, design: .monospaced))
+                                    .monospacedDigit()
+                                    .foregroundStyle(index == 0 ? AeroColor.volt : AeroColor.vaporGray)
+                            }
+                            if index < min(upcoming.count - 1, 4) {
+                                Divider().overlay(AeroColor.hairline)
+                            }
+                        }
                     }
                 }
-            }
+                .padding(12)
+                .aeroGlassCard(cornerRadius: 12)
 
-            if let suggestion = appState.adaptiveSuggestion {
-                GroupBox("Adaptive coach") {
-                    Text("Suggested interval: \(suggestion.recommendedMinutes)m")
-                        .font(.headline)
-                    Text(suggestion.explanation)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Button("Apply suggestion") { appState.applyAdaptiveSuggestion() }
+                // Adaptive Coach
+                if let suggestion = appState.adaptiveSuggestion {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("ADAPTIVE COACH")
+                                .font(.system(size: 8.5, weight: .bold, design: .monospaced))
+                                .tracking(1.0)
+                                .foregroundStyle(AeroColor.volt)
+                            Spacer()
+                            Text("Suggested: \(suggestion.recommendedMinutes)m")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(AeroColor.volt)
+                        }
+                        Text(suggestion.explanation)
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(AeroColor.vaporGray)
+                        
+                        AeroGlassButton(title: "Apply Suggestion", isProminent: true) {
+                            appState.applyAdaptiveSuggestion()
+                        }
+                        .padding(.top, 2)
+                    }
+                    .padding(12)
+                    .aeroGlassCard(cornerRadius: 12, glowColor: AeroColor.volt)
                 }
-            }
 
-            GroupBox("Evidence") {
-                Text(appState.evidenceStats.summaryLine())
-                    .font(.caption)
-            }
+                // Evidence Stats
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("EVIDENCE TELEMETRY")
+                        .font(.system(size: 8.5, weight: .bold, design: .monospaced))
+                        .tracking(1.0)
+                        .foregroundStyle(AeroColor.vaporGray)
+                    Text(appState.evidenceStats.summaryLine())
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(AeroColor.titaniumWhite)
+                }
+                .padding(12)
+                .aeroGlassCard(cornerRadius: 12)
 
-            GroupBox("Simulated day (illustrative)") {
-                Text(DaySimulation.describe(simulated, calendar: appState.config.scheduleCalendar))
-                    .font(.system(.caption, design: .monospaced))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
+                // Simulated Day
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("SIMULATED DAY TIMELINE")
+                        .font(.system(size: 8.5, weight: .bold, design: .monospaced))
+                        .tracking(1.0)
+                        .foregroundStyle(AeroColor.vaporGray)
+                    Text(DaySimulation.describe(simulated, calendar: appState.config.scheduleCalendar))
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(AeroColor.vaporGray)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(12)
+                .aeroGlassCard(cornerRadius: 12)
 
-            HStack {
-                Button("Done — log break") { appState.acknowledgeDone() }
+                // Bottom Action Row
+                HStack(spacing: 10) {
+                    AeroGlassButton(title: "Log Break Done", systemImage: "checkmark", isProminent: true) {
+                        appState.acknowledgeDone()
+                    }
                     .keyboardShortcut(.defaultAction)
-                Button("Snooze 10m") { appState.snooze(minutes: 10) }
+                    
+                    AeroGlassButton(title: "Snooze 10m", systemImage: "clock.arrow.circlepath") {
+                        appState.snooze(minutes: 10)
+                    }
+                }
+                .padding(.top, 4)
             }
+            .padding(18)
         }
-        .padding(20)
-        .frame(width: 420, height: 560)
+        .frame(width: 440, height: 580)
+        .background(AeroColor.void)
     }
 
     private func label(_ kind: Scheduler.Kind) -> String {
         switch kind {
         case .breakPrompt: return "Movement break"
-        case .sitStand: return "Sit/stand"
-        case .lunch: return "Lunch"
+        case .sitStand: return "Sit/stand transition"
+        case .lunch: return "Lunch break"
         case .windDown: return "Wind-down"
         }
     }
