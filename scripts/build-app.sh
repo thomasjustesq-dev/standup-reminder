@@ -15,7 +15,7 @@ cd "${ROOT_DIR}"
 
 # Prefer XcodeGen bundle (includes widget) when available.
 # -allowProvisioningUpdates lets automatic signing create/refresh Mac profiles.
-if command -v xcodegen >/dev/null 2>&1 && [[ -f project.yml ]]; then
+if command -v xcodegen >/dev/null 2>&1 && command -v xcodebuild >/dev/null 2>&1 && xcodebuild -version >/dev/null 2>&1 && [[ -f project.yml ]]; then
   echo "→ xcodegen generate + xcodebuild (app + widget)"
   xcodegen generate
   xcodebuild \

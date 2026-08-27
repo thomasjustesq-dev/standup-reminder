@@ -12,69 +12,104 @@ struct SampleDayTourView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let beats: [(time: String, title: String, detail: String, symbol: String)] = [
-        ("9:00", "Workday starts", "Reminders arm for your schedule.", "sun.max"),
-        ("9:30", "First stand cue", "A gentle nudge after you settle in.", "figure.stand"),
-        ("12:00", "Lunch", "Step away and eat.", "fork.knife"),
-        ("2:30", "Meeting catch-up", "If a call ran long, you get one break after.", "phone.down"),
-        ("5:00", "Wind-down", "Stretch, tidy, log off.", "sunset.fill")
+        ("9:00 AM", "Workday starts", "Reminders arm automatically according to your profile schedule.", "sun.max.fill"),
+        ("9:30 AM", "First stand cue", "A gentle, unobtrusive reminder after you settle in to focus.", "figure.stand"),
+        ("12:00 PM", "Lunch break", "Step away, nourish, and move freely.", "fork.knife"),
+        ("2:30 PM", "Meeting catch-up", "If a call ran long, you receive one clean break catch-up after.", "phone.down.fill"),
+        ("5:00 PM", "Wind-down", "Stretch, decompress, log off, and rest.", "sunset.fill")
     ]
 
     @State private var index = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("A sample workday")
-                .font(.largeTitle.weight(.bold))
-                .accessibilityAddTraits(.isHeader)
+            // Header
+            VStack(alignment: .leading, spacing: 3) {
+                Text("A Sample Workday")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(AeroColor.titaniumWhite)
+                    .accessibilityAddTraits(.isHeader)
 
-            Text("Here’s how Stand Up Reminder behaves from 9 to 5 — no waiting required.")
-                .foregroundStyle(.secondary)
+                Text("How Stand Up Reminder works quietly in the background from 9 to 5.")
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(AeroColor.vaporGray)
+            }
 
+            // Interactive Beat Card
             HStack(spacing: 16) {
-                Image(systemName: beats[index].symbol)
-                    .font(.system(size: 44))
-                    .opacity(reduceMotion || appState.config.features.reduceMotionOverrides ? 1 : 0.95)
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(beats[index].time)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(AeroColor.volt.opacity(0.12))
+                        .frame(width: 60, height: 60)
+                    Image(systemName: beats[index].symbol)
+                        .font(.system(size: 28, weight: .semibold))
+                        .foregroundStyle(AeroColor.volt)
+                        .aeroGlow(color: AeroColor.volt, radius: 6)
+                        .accessibilityHidden(true)
+                }
+                
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(beats[index].time.uppercased())
+                        .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                        .tracking(1.0)
+                        .foregroundStyle(AeroColor.volt)
                     Text(beats[index].title)
-                        .font(.title2.weight(.semibold))
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(AeroColor.titaniumWhite)
                     Text(beats[index].detail)
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(AeroColor.vaporGray)
                 }
             }
-            .padding()
+            .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.quaternary.opacity(0.45))
-            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .aeroGlassCard(cornerRadius: 16)
             .accessibilityElement(children: .combine)
             .accessibilityLabel("\(beats[index].time), \(beats[index].title). \(beats[index].detail)")
 
-            ProgressView(value: Double(index + 1), total: Double(beats.count))
-                .accessibilityLabel("Tour progress")
+            // Step Progress
+            HStack(spacing: 6) {
+                ForEach(0..<beats.count, id: \.self) { i in
+                    Capsule()
+                        .fill(i <= index ? AeroColor.volt : Color.white.opacity(0.15))
+                        .frame(height: 4)
+                        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: index)
+                }
+            }
+            .accessibilityLabel("Tour step \(index + 1) of \(beats.count)")
 
-            HStack {
+            // Navigation Buttons
+            HStack(spacing: 12) {
                 Button("Back") { index = max(0, index - 1) }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(index == 0 ? AeroColor.vaporGray.opacity(0.4) : AeroColor.vaporGray)
                     .disabled(index == 0)
+                
                 Spacer()
+                
                 if index < beats.count - 1 {
-                    Button("Next") { index += 1 }
-                        .keyboardShortcut(.defaultAction)
+                    AeroGlassButton(title: "Next Step", systemImage: "arrow.right", isProminent: true) {
+                        index += 1
+                    }
+                    .frame(width: 120)
+                    .keyboardShortcut(.defaultAction)
                 } else {
-                    Button("Start using it") {
+                    AeroGlassButton(title: "Start Using Now", systemImage: "checkmark", isProminent: true) {
                         appState.showSampleDayTour = false
                         var c = appState.config
                         c.features.showSampleDayTour = false
                         appState.config = c
                         closeWindow()
                     }
+                    .frame(width: 150)
                     .keyboardShortcut(.defaultAction)
                 }
             }
+            .padding(.top, 4)
         }
-        .padding(28)
-        .frame(width: 520)
+        .padding(24)
+        .frame(width: 500)
+        .background(AeroColor.void)
     }
 }

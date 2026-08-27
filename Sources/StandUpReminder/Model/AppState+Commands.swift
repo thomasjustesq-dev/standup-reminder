@@ -47,6 +47,7 @@ extension AppState {
         snoozeUntil = Date().addingTimeInterval(TimeInterval(minutes * 60))
         stats.recordSnooze(on: StatsSnapshot.dayKey(calendar: config.scheduleCalendar))
         statusMessage = "Snoozed \(minutes)m"
+        AeroAcoustics.play(.snooze)
         refreshNextFire()
         syncRuntimeToCloud()
     }
@@ -69,6 +70,7 @@ extension AppState {
         shownAwaitingAck = false
         recordEvidence(selfLogged ? .selfLogged : .bannerAck)
         stats.recordDone(on: StatsSnapshot.dayKey(calendar: config.scheduleCalendar), selfLogged: selfLogged)
+        AeroAcoustics.play(.breakDone)
         if config.sitStandModeEnabled {
             toggleDeskPhase()
         }

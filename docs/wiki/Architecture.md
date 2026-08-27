@@ -64,6 +64,16 @@ Team quiet hours are a JSON feed (`docs/team-quiet-hours.example.json`), refresh
 
 One marketing / build pair: `AppVersion` in `Sources/StandUpReminderCore/AppIdentity.swift`, `Resources/Info.plist`, `project.yml`, Formula, and Cask. Bump with `scripts/bump-version.sh`. `scripts/check-version-agree.sh` is CI. A git tag that disagrees with Info.plist fails the release workflow.
 
+## Aero-Kinetic design system and presentation
+
+Starting with the Aero-Kinetic upgrade, the presentation layer across macOS, iOS, Apple Watch, and WidgetKit follows VisionOS and Apple Human Interface principles:
+
+- **Theme Tokens (`AeroKineticTheme` / `AeroColor`):** Dark obsidian floor (`#0A0B0E`), frosted translucent slate (`#161922`), high-contrast Kinetic Volt (`#D2FF3A`), and Ion Blue (`#0A84FF`). Multi-layer `.aeroGlassCard()` with 0.5pt specular rim gradient lighting.
+- **Acoustic Engine (`AeroAcoustics`):** Synthesizes pure 528 Hz / 1056 Hz harmonic glass chimes with smooth exponential decay curves for break reminders, completions (880 Hz), and snoozes (440 Hz), eliminating jarring default system beeps.
+- **Telemetry HUDs & Radar (`AeroPostureRadar`):** Real-time posture and camera stillness telemetry HUD integrated into the menu bar and Day Timeline views.
+- **Global Hotkeys (`GlobalHotkeyManager`):** Carbon-based global shortcuts (`⌥⇧S` to toggle popover HUD, `⌥⇧D` to log break complete).
+- **Interactive Widgets & Dynamic Island:** Deep links and interactive controls on Lock Screen Live Activities and Dynamic Island expanded regions.
+
 ## What is out of this architecture
 
 CloudKit schema, Mac pedometer, Focus Filters entitlements — deferred. Sparkle is optional in distribution builds; SPM/debug uses the GitHub Releases checker. `legacy/` is the old shell + launchd reminder. Notebooks and Python do not exist here.

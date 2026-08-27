@@ -321,10 +321,12 @@ extension AppState {
         // stays silent on screen but chimes and talks over a hearing.
         let bannerSuppressed = FocusMonitor.isFocused()
         if !bannerSuppressed {
-            if let sound = NSSound(named: NSSound.Name(config.soundName)) {
+            if config.soundName.isEmpty || config.soundName.lowercased() == "aero" {
+                AeroAcoustics.play(.breakAlert)
+            } else if let sound = NSSound(named: NSSound.Name(config.soundName)) {
                 sound.play()
             } else {
-                NSSound.beep()
+                AeroAcoustics.play(.breakAlert)
             }
             if config.features.voiceAnnouncementsEnabled {
                 VoiceAnnouncer.speak(

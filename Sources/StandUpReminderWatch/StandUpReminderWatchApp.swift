@@ -39,7 +39,14 @@ final class WatchModel: NSObject, ObservableObject, WCSessionDelegate {
         } else {
             WCSession.default.transferUserInfo(payload)
         }
-        WKInterfaceDevice.current().play(.click)
+        
+        if action == "done" {
+            WKInterfaceDevice.current().play(.success)
+        } else if action == "snooze" {
+            WKInterfaceDevice.current().play(.directionUp)
+        } else {
+            WKInterfaceDevice.current().play(.click)
+        }
     }
 
     private var weekDone = 0
@@ -82,8 +89,6 @@ final class WatchModel: NSObject, ObservableObject, WCSessionDelegate {
         activationDidCompleteWith activationState: WCSessionActivationState,
         error: Error?
     ) {
-        // The phone's last context is available immediately on activation —
-        // without reading it the UI sat on its placeholder until the next push.
         let context = session.receivedApplicationContext
         Task { @MainActor in
             if !context.isEmpty { self.apply(context) }
@@ -108,30 +113,120 @@ final class WatchModel: NSObject, ObservableObject, WCSessionDelegate {
     }
 }
 
+// MARK: - Aero-Kinetic Watch View
 struct WatchRootView: View {
     @EnvironmentObject private var model: WatchModel
 
+    private let volt = Color(red: 0.824, green: 1.000, blue: 0.227)
+    private let slate = Color(red: 0.09, green: 0.10, blue: 0.13)
+    private let vaporGray = Color.white.opacity(0.60)
+
     var body: some View {
         ScrollView {
-            VStack(spacing: 10) {
-                Text(model.lastTitle).font(.headline)
-                // A live timer interval, not a static minute count that froze
-                // at whatever the phone last pushed. One clock read: a second
-                // Date() past nextFire would build an invalid range and crash.
-                let now = Date()
-                if let nextFire = model.nextFireAt, nextFire > now {
-                    Text(timerInterval: now...nextFire, countsDown: true)
-                        .font(.largeTitle.monospacedDigit())
-                        .multilineTextAlignment(.center)
+            VStack(spacing: 8) {
+                // Header badge
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(volt)
+                        .frame(width: 5, height: 5)
+                    Text("STANDUP")
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .tracking(1.0)
+                        .foregroundStyle(volt)
                 }
-                Text(model.status)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Button("Done") { model.send(action: "done") }
-                Button("Snooze 10m") { model.send(action: "snooze", minutes: 10) }
-                Button("Skip today") { model.send(action: "skipToday") }
+
+                // Hero Circular Dial
+                ZStack {
+                    Circle()
+                        .stroke(Color.white.opacity(0.12), lineWidth: 6)
+                        .frame(width: 110, height: 110)
+
+                    let now = Date()
+                    if let nextFire = model.nextFireAt, nextFire > now {
+                        Circle()
+                            .trim(from: 0.0, to: 0.75)
+                            .stroke(
+                                LinearGradient(colors: [volt.opacity(0.6), volt], startPoint: .leading, endPoint: .trailing),
+                                style: StrokeStyle(lineWidth: 6, lineCap: .round)
+                            )
+                            .rotationEffect(.degrees(-90))
+                            .frame(width: 110, height: 110)
+                            .shadow(color: volt.opacity(0.4), radius: 6)
+                        
+                        VStack(spacing: 1) {
+                            Text(timerInterval: now...nextFire, countsDown: true)
+                                .font(.system(size: 20, weight: .bold, design: .default))
+                                .monospacedDigit()
+                                .foregroundStyle(Color.white)
+                            Text("UNTIL BREAK")
+                                .font(.system(size: 7.5, weight: .semibold, design: .monospaced))
+                                .tracking(0.8)
+                                .foregroundStyle(vaporGray)
+                        }
+                    } else {
+                        VStack(spacing: 1) {
+                            Text("DONE")
+                                .font(.system(size: 16, weight: .bold, design: .monospaced))
+                                .foregroundStyle(volt)
+                            Text(model.status)
+                                .font(.system(size: 8))
+                                .foregroundStyle(vaporGray)
+                                .lineLimit(1)
+                        }
+                    }
+                }
+                .padding(.vertical, 2)
+
+                // Action Buttons
+                VStack(spacing: 6) {
+                    Button {
+                        model.send(action: "done")
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 12, weight: .bold))
+                            Text("Done Break")
+                                .font(.system(size: 13, weight: .bold))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .foregroundStyle(Color.black)
+                        .background(volt)
+                        .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+
+                    HStack(spacing: 6) {
+                        Button {
+                            model.send(action: "snooze", minutes: 10)
+                        } label: {
+                            Text("Snooze")
+                                .font(.system(size: 11, weight: .medium))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 6)
+                                .foregroundStyle(Color.white)
+                                .background(slate)
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+
+                        Button {
+                            model.send(action: "skipToday")
+                        } label: {
+                            Text("Skip")
+                                .font(.system(size: 11, weight: .medium))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 6)
+                                .foregroundStyle(vaporGray)
+                                .background(slate)
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.top, 4)
             }
-            .padding()
+            .padding(.horizontal, 6)
         }
     }
 }

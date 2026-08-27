@@ -1,12 +1,12 @@
 import AppKit
 
-/// Template status-item mark: the stretching figure from the app icon.
+/// Template status-item mark: the stretching figure from the app icon with optional kinetic progress ring.
 enum MenuBarMark {
-    static func image(denied: Bool = false) -> NSImage {
+    static func image(denied: Bool = false, progress: Double? = nil) -> NSImage {
         let points: CGFloat = 22
         let image = NSImage(size: NSSize(width: points, height: points))
-        image.addRepresentation(draw(points: points, scale: 1, denied: denied))
-        image.addRepresentation(draw(points: points, scale: 2, denied: denied))
+        image.addRepresentation(draw(points: points, scale: 1, denied: denied, progress: progress))
+        image.addRepresentation(draw(points: points, scale: 2, denied: denied, progress: progress))
         image.isTemplate = true
         image.accessibilityDescription = denied
             ? "Stand Up Reminder — notifications denied"
@@ -14,7 +14,7 @@ enum MenuBarMark {
         return image
     }
 
-    private static func draw(points: CGFloat, scale: CGFloat, denied: Bool) -> NSBitmapImageRep {
+    private static func draw(points: CGFloat, scale: CGFloat, denied: Bool, progress: Double?) -> NSBitmapImageRep {
         let px = Int((points * scale).rounded())
         let rep = NSBitmapImageRep(
             bitmapDataPlanes: nil, pixelsWide: px, pixelsHigh: px,
@@ -26,9 +26,32 @@ enum MenuBarMark {
         NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
         let ctx = NSGraphicsContext.current!.cgContext
         ctx.clear(CGRect(x: 0, y: 0, width: points, height: points))
+        
         // Design space is the 1024 app-icon canvas (y-up), matching make-icon.swift.
         let s = points / 1024
         ctx.scaleBy(x: s, y: s)
+
+        // Draw optional kinetic progress arc around the figure
+        if let progress = progress, progress > 0.0 {
+            let clamped = max(0.01, min(1.0, progress))
+            let center = CGPoint(x: 512, y: 512)
+            let radius: CGFloat = 460
+            
+            // Outer subtle track
+            ctx.setStrokeColor(NSColor.black.withAlphaComponent(0.2).cgColor)
+            ctx.setLineWidth(44)
+            ctx.addArc(center: center, radius: radius, startAngle: 0, endAngle: CGFloat.pi * 2, clockwise: false)
+            ctx.strokePath()
+
+            // Active progress arc
+            ctx.setStrokeColor(NSColor.black.cgColor)
+            ctx.setLineWidth(56)
+            ctx.setLineCap(.round)
+            let startAngle = CGFloat.pi / 2
+            let endAngle = startAngle - (CGFloat.pi * 2 * CGFloat(clamped))
+            ctx.addArc(center: center, radius: radius, startAngle: startAngle, endAngle: endAngle, clockwise: true)
+            ctx.strokePath()
+        }
 
         ctx.setFillColor(NSColor.black.cgColor)
         ctx.setStrokeColor(NSColor.black.cgColor)
