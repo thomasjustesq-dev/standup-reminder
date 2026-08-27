@@ -6,137 +6,256 @@ struct ContentView: View {
     @EnvironmentObject private var model: PhoneModel
     @State private var showSettings = false
 
+    private var countdownProgress: Double {
+        guard let minutes = model.countdownMinutes else { return 0.0 }
+        let total = max(10, model.config.intervalMinutes)
+        let elapsed = max(0, total - minutes)
+        return min(1.0, Double(elapsed) / Double(total))
+    }
+
     var body: some View {
         NavigationStack {
-            List {
-                Section {
-                    VStack(alignment: .center, spacing: 6) {
-                        if let minutes = model.countdownMinutes {
-                            Text("\(minutes)m")
-                                .font(.system(size: 54, weight: .semibold, design: .rounded).monospacedDigit())
-                            Text("until your next break")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        } else {
+            ScrollView {
+                VStack(spacing: 16) {
+                    
+                    // MARK: - Hero Aero-Kinetic Telemetry Card
+                    VStack(spacing: 12) {
+                        // Authority status badge row
+                        HStack {
+                            if model.honorsAuthority, let auth = model.authorityPresence {
+                                HStack(spacing: 5) {
+                                    Circle()
+                                        .fill(AeroColor.volt)
+                                        .frame(width: 6, height: 6)
+                                        .aeroGlow(color: AeroColor.volt, radius: 4)
+                                    Text("AUTHORITY: \(auth.displayName.uppercased())")
+                                        .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                                        .tracking(0.8)
+                                        .foregroundStyle(AeroColor.titaniumWhite)
+                                }
+                            } else {
+                                Text("LOCAL CADENCE")
+                                    .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                                    .tracking(0.8)
+                                    .foregroundStyle(AeroColor.vaporGray)
+                            }
+                            
+                            Spacer()
+                            
+                            if let lease = model.authorityLeaseLine {
+                                Text(lease)
+                                    .font(.system(size: 9, design: .monospaced))
+                                    .foregroundStyle(AeroColor.vaporGray)
+                            }
+                        }
+                        
+                        // Hero Gauge
+                        AeroCountdownGauge(
+                            progress: countdownProgress,
+                            timeRemainingText: model.countdownMinutes.map { "\($0)m" } ?? "--",
+                            subtitle: model.countdownMinutes != nil ? "UNTIL BREAK" : model.statusText,
+                            accentColor: model.isPaused ? AeroColor.vaporGray : AeroColor.volt,
+                            size: 160
+                        )
+                        .padding(.vertical, 6)
+                        
+                        // Status info & warnings
+                        VStack(spacing: 4) {
                             Text(model.statusText)
-                                .font(.title2)
-                        }
-                        Text(model.statusText)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        if model.honorsAuthority, let auth = model.authorityPresence {
-                            Text("Authority: \(auth.displayName)\(model.authorityName.map { " · \($0)" } ?? "")")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                        if model.honorsAuthority, let gate = model.authorityNextFireAt, gate > Date() {
-                            Text("Mac next fire \(gate, style: .time)")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                        if let lease = model.authorityLeaseLine {
-                            Text(lease)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                        if let badge = model.degradationBadge {
-                            Text(badge)
-                                .font(.caption2)
-                                .foregroundStyle(.orange)
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(AeroColor.vaporGray)
                                 .multilineTextAlignment(.center)
+                            
+                            if let badge = model.degradationBadge {
+                                Text(badge)
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(AeroColor.alertOrange)
+                                    .multilineTextAlignment(.center)
+                            }
+                            if let empty = model.emptyQueueLine {
+                                Text(empty)
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(AeroColor.alertOrange)
+                                    .multilineTextAlignment(.center)
+                            }
                         }
-                        if let empty = model.emptyQueueLine {
-                            Text(empty)
-                                .font(.caption2)
-                                .foregroundStyle(.orange)
-                                .multilineTextAlignment(.center)
+                        
+                        // Primary Actions
+                        VStack(spacing: 8) {
+                            Button(action: { model.acknowledgeDone() }) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 16, weight: .semibold))
+                                    Text("Done — I took a break")
+                                        .font(.system(size: 15, weight: .bold))
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .foregroundStyle(AeroColor.void)
+                                .background(AeroColor.volt)
+                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .aeroGlow(color: AeroColor.volt, radius: 8)
+                            }
+                            .buttonStyle(.plain)
+                            
+                            HStack(spacing: 10) {
+                                Button(action: { model.snooze(minutes: 10) }) {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "clock.arrow.circlepath")
+                                        Text("Snooze 10m")
+                                    }
+                                    .font(.system(size: 13, weight: .medium))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 10)
+                                    .foregroundStyle(AeroColor.titaniumWhite)
+                                    .background(AeroColor.slate.opacity(0.8))
+                                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                    .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(AeroColor.hairline, lineWidth: 0.5))
+                                }
+                                .buttonStyle(.plain)
+                                
+                                Button(action: {
+                                    if model.isPaused { model.resume() } else { model.pause() }
+                                }) {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: model.isPaused ? "play.fill" : "pause.fill")
+                                        Text(model.isPaused ? "Resume" : "Pause")
+                                    }
+                                    .font(.system(size: 13, weight: .medium))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 10)
+                                    .foregroundStyle(AeroColor.titaniumWhite)
+                                    .background(AeroColor.slate.opacity(0.8))
+                                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                    .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(AeroColor.hairline, lineWidth: 0.5))
+                                }
+                                .buttonStyle(.plain)
+                            }
                         }
+                        .padding(.top, 6)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                }
-
-                if model.syncHealth.shouldShowSeedBanner {
-                    Section {
-                        Label(
-                            "iCloud is empty for this app — push settings from the Mac once to seed multi-device sync (new container after identity rename).",
-                            systemImage: "icloud.and.arrow.up"
-                        )
-                        .font(.footnote)
-                        .foregroundStyle(.orange)
-                        Button("Push this phone’s settings now") {
-                            _ = model.pushToiCloud()
-                        }
-                        Button("Dismiss") { model.dismissSeedBanner() }
-                            .font(.footnote)
-                    }
-                }
-
-                Section {
-                    Button("Done — I took a break") { model.acknowledgeDone() }
-                    Button("Snooze 10 minutes") { model.snooze(minutes: 10) }
-                    Button("Skip rest of today", role: .destructive) { model.skipToday() }
-                    if model.isPaused {
-                        Button("Resume reminders") { model.resume() }
-                    } else {
-                        Button("Pause reminders") { model.pause() }
-                    }
-                }
-
-                if !model.upcoming.isEmpty {
-                    Section("Coming up") {
-                        ForEach(Array(model.upcoming.prefix(5).enumerated()), id: \.offset) { _, next in
-                            HStack {
-                                Text(label(for: next.kind))
+                    .padding(18)
+                    .aeroGlassCard(cornerRadius: 18)
+                    
+                    // MARK: - iCloud Seed Banner
+                    if model.syncHealth.shouldShowSeedBanner {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "icloud.and.arrow.up")
+                                    .font(.system(size: 16))
+                                    .foregroundStyle(AeroColor.alertOrange)
+                                Text("iCloud is empty for this app")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(AeroColor.alertOrange)
+                            }
+                            Text("Push settings from the Mac once to seed multi-device sync.")
+                                .font(.system(size: 12))
+                                .foregroundStyle(AeroColor.vaporGray)
+                            
+                            HStack(spacing: 12) {
+                                Button("Push Phone Settings") { _ = model.pushToiCloud() }
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundStyle(AeroColor.alertOrange)
                                 Spacer()
-                                Text(next.date, style: .time)
-                                    .foregroundStyle(.secondary)
+                                Button("Dismiss") { model.dismissSeedBanner() }
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(AeroColor.vaporGray)
                             }
                         }
+                        .padding(14)
+                        .aeroGlassCard(cornerRadius: 14, strokeColor: AeroColor.alertOrange.opacity(0.4))
                     }
-                }
-
-                Section("This week") {
-                    Text(model.weekStatsText())
-                        .font(.footnote)
-                    if let h = model.stats.weekHighlights(calendar: model.config.scheduleCalendar) {
-                        Text("Best \(h.bestDay ?? "—") (\(h.bestDone) done) · quietest \(h.worstDay ?? "—")")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                Section {
-                    Label(
-                        "Role: Follower — schedules local notifications from shared anchors. Mac is cadence authority (presence / quiet rules). iCloud sync publishes authority presence + next fire.",
-                        systemImage: "info.circle"
-                    )
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                }
-
-                if !model.notificationsAuthorized {
-                    Section {
-                        Label(
-                            "Notifications are off — reminders can't be delivered.",
-                            systemImage: "bell.slash"
-                        )
-                        .font(.footnote)
-                        .foregroundStyle(.orange)
-                        Button("Open Notification Settings") {
-                            if let url = URL(string: UIApplication.openSettingsURLString) {
-                                UIApplication.shared.open(url)
+                    
+                    // MARK: - Coming Up Schedule
+                    if !model.upcoming.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("COMING UP")
+                                .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                                .tracking(1.0)
+                                .foregroundStyle(AeroColor.vaporGray)
+                            
+                            ForEach(Array(model.upcoming.prefix(4).enumerated()), id: \.offset) { index, next in
+                                HStack {
+                                    HStack(spacing: 8) {
+                                        Circle()
+                                            .fill(index == 0 ? AeroColor.volt : AeroColor.ionBlue)
+                                            .frame(width: 6, height: 6)
+                                        Text(label(for: next.kind))
+                                            .font(.system(size: 14, weight: index == 0 ? .semibold : .regular))
+                                            .foregroundStyle(AeroColor.titaniumWhite)
+                                    }
+                                    Spacer()
+                                    Text(next.date, style: .time)
+                                        .font(.system(size: 13, weight: .medium, design: .monospaced))
+                                        .foregroundStyle(index == 0 ? AeroColor.volt : AeroColor.vaporGray)
+                                }
+                                if index < min(model.upcoming.count - 1, 3) {
+                                    Divider().overlay(AeroColor.hairline)
+                                }
                             }
                         }
+                        .padding(16)
+                        .aeroGlassCard(cornerRadius: 16)
+                    }
+                    
+                    // MARK: - This Week Metrics
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("THIS WEEK")
+                            .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                            .tracking(1.0)
+                            .foregroundStyle(AeroColor.vaporGray)
+                        
+                        Text(model.weekStatsText())
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(AeroColor.titaniumWhite)
+                        
+                        if let h = model.stats.weekHighlights(calendar: model.config.scheduleCalendar) {
+                            Text("Best \(h.bestDay ?? "—") (\(h.bestDone) done) · quietest \(h.worstDay ?? "—")")
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundStyle(AeroColor.vaporGray)
+                        }
+                    }
+                    .padding(16)
+                    .aeroGlassCard(cornerRadius: 16)
+                    
+                    // Notifications Disabled Alert
+                    if !model.notificationsAuthorized {
+                        HStack(spacing: 10) {
+                            Image(systemName: "bell.slash.fill")
+                                .foregroundStyle(AeroColor.alertOrange)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Notifications Disabled")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(AeroColor.alertOrange)
+                                Text("Reminders cannot be delivered.")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(AeroColor.vaporGray)
+                            }
+                            Spacer()
+                            Button("Enable") {
+                                if let url = URL(string: UIApplication.openSettingsURLString) {
+                                    UIApplication.shared.open(url)
+                                }
+                            }
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(AeroColor.alertOrange)
+                        }
+                        .padding(14)
+                        .aeroGlassCard(cornerRadius: 14, strokeColor: AeroColor.alertOrange.opacity(0.4))
                     }
                 }
+                .padding(16)
             }
+            .background(AeroColor.void.ignoresSafeArea())
             .navigationTitle("Stand Up")
             .toolbar {
-                Button {
-                    showSettings = true
-                } label: {
-                    Image(systemName: "gearshape")
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                            .foregroundStyle(AeroColor.titaniumWhite)
+                    }
                 }
             }
             .sheet(isPresented: $showSettings) {
@@ -147,6 +266,7 @@ struct ContentView: View {
                 GuidedBreakSheet(payload: item.payload)
             }
         }
+        .preferredColorScheme(.dark)
     }
 
     private func label(for kind: Scheduler.Kind) -> String {
@@ -176,8 +296,6 @@ struct SettingsSheet: View {
                 Section("Work hours (all workdays)") {
                     Stepper("Start: \(workStart):00", value: workStartBinding, in: 4...12)
                     Stepper("End: \(workEnd):00", value: workEndBinding, in: 13...23)
-                    // The flag alone did nothing when the schedule map had no
-                    // weekend entries; add/remove them so the toggle is real.
                     Toggle("Weekdays only", isOn: Binding(
                         get: { model.config.weekdaysOnly },
                         set: { on in
@@ -287,9 +405,6 @@ struct SettingsSheet: View {
     }
 }
 
-/// iOS counterpart of the Mac's guided-break window; backs the "Guided
-/// break" notification action, which used to foreground the app and show
-/// nothing.
 struct GuidedBreakSheet: View {
     @EnvironmentObject private var model: PhoneModel
     @Environment(\.dismiss) private var dismiss
