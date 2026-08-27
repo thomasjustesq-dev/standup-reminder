@@ -1,73 +1,43 @@
-# Next — ship 4.2.2
+# Next — after v4.2.2
 
-**Status as of 2026-08-10 evening:** Product code on `main` (#10, #11). Preflight
-green. Local Development build **installed and running** (`~/Applications`, 4.2.2
-build 8). **Notarized GitHub release still blocked** on Developer ID + CI p12.
+**Status as of 2026-08-26:** Product on `main` `14aad14`. GitHub release
+**v4.2.2** exists (2026-08-11). Cask `sha256` is real (#18/#19). Menu bar
+stretching-figure icon is on `main` (#21). Wiki handbook is in git (#23).
+Canonical checkout: `/Volumes/Crucial X8/GitHub/standup-reminder` (not
+`GitHub/Projects/`). Do not treat the 2026-08-10 “do not push tag v4.2.2”
+checklist as live.
 
-## Live status (this machine)
+## Live status
 
 | Check | Result |
 | --- | --- |
-| `./scripts/check-release-readiness.sh` | Code OK; local notary env vars unset |
-| Installed app | `~/Applications/StandUpReminder.app` · running |
+| Tag / GitHub release `v4.2.2` | **Shipped** 2026-08-11 |
+| Cask `Casks/standup-reminder.rb` | version `4.2.2` with sha256; url is the GitHub zip |
+| Menu bar icon | #21 on `main` (not the blank `MenuBarExtra`+`HStack` extra) |
 | Identity | `com.thomasjust.standupreminder` · group + iCloud new IDs |
-| Dev profile iCloud | **Has** `iCloud.com.thomasjust.standupreminder` (+ legacy) |
-| Dev profile App Groups | Profile listed legacy `group.com.user.*` + `BBTNHBK7VX.*`; binary **signed with** `group.com.thomasjust.standupreminder` — confirm group exists on portal |
-| Developer ID Application | **Missing** on keychain. CSR+key already at `~/.standup-release/` (team `BBTNHBK7VX`) |
-| GH secrets present | ASC key trio, `SPARKLE_ED_PRIVATE_KEY`, `REPO_PAT` |
-| GH secrets **missing** | `APPLE_CERTIFICATES_P12`, `APPLE_CERTIFICATES_PASSWORD` |
-| Tag `v4.2.2` | **Do not push** until p12 is in secrets (release.yml will fail at sign step) |
+| Wiki in git | #23. GitHub Wiki remote still needs a logged-in first page |
 
-## You must do (cannot fully automate)
+## Remaining operator work
 
-### 1. Finish Developer ID (blocks notarized ship)
+1. Wiki tab **Create the first page**, then `scripts/publish_wiki.sh`.
+2. iPhone smoke: presence/schedule; Mac offline >15m → “Mac offline · local schedule.”
+3. Do not invent bundle IDs. Do not `codesign --deep` the installed bundle.
+4. Do not run `xcodebuild` or the iOS simulator on the iMac.
 
-CSR is ready: `~/.standup-release/developer-id.csr` (CN=Thomas Just, OU=BBTNHBK7VX).
-
-1. developer.apple.com → Certificates → **Developer ID Application** → upload CSR
-2. Download `.cer` → double-click into login keychain (pairs with existing `.key`)
-3. Export identity as `.p12` (set a password)
-4. Repo secrets:
-   ```bash
-   base64 -i DeveloperID.p12 | pbcopy   # → APPLE_CERTIFICATES_P12
-   # APPLE_CERTIFICATES_PASSWORD = the p12 password
-   ```
-5. Optional local notary path instead of CI:
-   ```bash
-   export APPLE_ID=… APPLE_TEAM_ID=BBTNHBK7VX APPLE_APP_PASSWORD=…
-   ./scripts/build-app.sh && ./scripts/notarize.sh
-   ```
-
-### 2. Portal confirm (quick)
-
-For App ID `com.thomasjust.standupreminder` (Mac + iOS):
-
-- [x] iCloud container `iCloud.com.thomasjust.standupreminder` (seen on live profile)
-- [ ] App Group **`group.com.thomasjust.standupreminder`** exists and is checked on App IDs
-      (widget + iPhone need the same group)
-
-### 3. Ship (after 1–2)
-
-```bash
-cd "/Volumes/Crucial X8/GitHub/Projects/standup-reminder"
-./scripts/check-release-readiness.sh
-git tag v4.2.2 && git push origin v4.2.2   # Path A: Actions release.yml
-# OR local: ./scripts/build-app.sh && ./scripts/notarize.sh
-```
-
-After the zip exists:
-
-- [ ] Put real `sha256` in `Casks/standup-reminder.rb` (drop `:no_check`)
-- [ ] Smoke: `brew install --cask ./Casks/standup-reminder.rb`
-- [ ] iPhone: presence/schedule; Mac offline >15m → “Mac offline · local schedule”
+The 2026-08-10 Developer ID / p12 / portal App Group checklist was the ship
+blocker for the *first* notarized zip. That zip is published. Do not re-run
+it as if 4.2.2 were still blocked. Future releases still need a valid
+Developer ID in CI secrets.
 
 ## Already done
 
 | Item | Notes |
 | --- | --- |
 | #10 / #11 product | Authority lease, daily UX, on main |
-| Local 4.2.2 install | Development-signed, widget embedded |
-| Legacy iCloud migrate | Live: “Migrated 4 file(s) from legacy iCloud container” |
-| `build-app.sh` | `-allowProvisioningUpdates`; no longer ad-hoc clobber of Xcode signature |
+| #15 local signing / version | Ship prep |
+| #18 / #19 cask sha | Notarized 4.2.2 zip |
+| #21 menu bar icon | Stretching-figure mark |
+| #23 wiki handbook | In git; Wiki tab not created |
+| Identity rename | `com.thomasjust.standupreminder` |
 
-Version: **4.2.2 (build 8)** · Full notes: `docs/DISTRIBUTION.md`
+Version: **4.2.2** · Full notes: `docs/DISTRIBUTION.md`
