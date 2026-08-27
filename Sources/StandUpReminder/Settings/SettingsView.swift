@@ -2,100 +2,355 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-struct SettingsView: View {
-    @EnvironmentObject private var appState: AppState
+// MARK: - Aero-Kinetic Settings Window
 
-    var body: some View {
-        TabView {
-            GeneralSettingsTab().environmentObject(appState)
-                .tabItem { Label("General", systemImage: "gearshape") }
-            ScheduleSettingsTab().environmentObject(appState)
-                .tabItem { Label("Schedule", systemImage: "calendar") }
-            ModesSettingsTab().environmentObject(appState)
-                .tabItem { Label("Modes", systemImage: "figure.stand") }
-            QuietSettingsTab().environmentObject(appState)
-                .tabItem { Label("Quiet", systemImage: "moon.zzz") }
-            PromptsSettingsTab().environmentObject(appState)
-                .tabItem { Label("Prompts", systemImage: "text.bubble") }
-            ProfilesSettingsTab().environmentObject(appState)
-                .tabItem { Label("Profiles", systemImage: "person.2") }
-            SyncPrivacySettingsTab().environmentObject(appState)
-                .tabItem { Label("Sync & Privacy", systemImage: "icloud") }
-            StatsSettingsTab().environmentObject(appState)
-                .tabItem { Label("Stats", systemImage: "chart.bar") }
+enum SettingsTab: String, CaseIterable, Identifiable {
+    case general = "General"
+    case schedule = "Schedule"
+    case modes = "Modes"
+    case quiet = "Quiet"
+    case prompts = "Prompts"
+    case profiles = "Profiles"
+    case sync = "Sync & Privacy"
+    case stats = "Stats"
+
+    var id: String { rawValue }
+
+    var systemImage: String {
+        switch self {
+        case .general: return "gearshape.fill"
+        case .schedule: return "calendar"
+        case .modes: return "figure.stand"
+        case .quiet: return "moon.zzz.fill"
+        case .prompts: return "text.bubble.fill"
+        case .profiles: return "person.2.fill"
+        case .sync: return "icloud.fill"
+        case .stats: return "chart.bar.fill"
         }
-        .frame(width: 600, height: 500)
     }
 }
+
+public struct SettingsView: View {
+    @EnvironmentObject private var appState: AppState
+    @State private var selectedTab: SettingsTab = .general
+
+    public init() {}
+
+    public var body: some View {
+        VStack(spacing: 0) {
+            // MARK: - Aero-Kinetic Tab Navigation Bar
+            HStack(spacing: 4) {
+                ForEach(SettingsTab.allCases) { tab in
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                            selectedTab = tab
+                        }
+                    } label: {
+                        VStack(spacing: 4) {
+                            Image(systemName: tab.systemImage)
+                                .font(.system(size: 13, weight: selectedTab == tab ? .bold : .medium))
+                                .foregroundStyle(selectedTab == tab ? AeroColor.volt : AeroColor.vaporGray)
+                            
+                            Text(tab.rawValue)
+                                .font(.system(size: 10, weight: selectedTab == tab ? .bold : .medium))
+                                .foregroundStyle(selectedTab == tab ? AeroColor.titaniumWhite : AeroColor.vaporGray)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background {
+                            if selectedTab == tab {
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(AeroColor.slate)
+                                    .overlay {
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .strokeBorder(AeroColor.specularRim, lineWidth: 0.75)
+                                    }
+                                    .shadow(color: Color.black.opacity(0.4), radius: 6, y: 2)
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(AeroColor.obsidian)
+            .overlay(alignment: .bottom) {
+                Divider().overlay(AeroColor.hairline)
+            }
+
+            // MARK: - Active Tab Content Canvas
+            ScrollView(.vertical, showsIndicators: true) {
+                VStack(spacing: 16) {
+                    switch selectedTab {
+                    case .general:
+                        GeneralSettingsTab().environmentObject(appState)
+                    case .schedule:
+                        ScheduleSettingsTab().environmentObject(appState)
+                    case .modes:
+                        ModesSettingsTab().environmentObject(appState)
+                    case .quiet:
+                        QuietSettingsTab().environmentObject(appState)
+                    case .prompts:
+                        PromptsSettingsTab().environmentObject(appState)
+                    case .profiles:
+                        ProfilesSettingsTab().environmentObject(appState)
+                    case .sync:
+                        SyncPrivacySettingsTab().environmentObject(appState)
+                    case .stats:
+                        StatsSettingsTab().environmentObject(appState)
+                    }
+                }
+                .padding(20)
+            }
+            .background(AeroColor.void)
+        }
+        .frame(width: 680, height: 560)
+        .preferredColorScheme(.dark)
+    }
+}
+
+// MARK: - Custom Aero UI Helpers
+
+private struct AeroSectionCard<Content: View>: View {
+    let title: String
+    var subtitle: String? = nil
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 6) {
+                Text(title.uppercased())
+                    .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                    .tracking(1.2)
+                    .foregroundStyle(AeroColor.vaporGray)
+                
+                if let subtitle = subtitle {
+                    Text("· \(subtitle)")
+                        .font(.system(size: 9.5, weight: .medium, design: .monospaced))
+                        .foregroundStyle(AeroColor.vaporGray.opacity(0.8))
+                }
+                Spacer()
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                content()
+            }
+        }
+        .padding(14)
+        .aeroGlassCard(cornerRadius: 14)
+    }
+}
+
+private struct AeroRow<Content: View>: View {
+    let label: String
+    var caption: String? = nil
+    @ViewBuilder let control: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack {
+                Text(label)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(AeroColor.titaniumWhite)
+                Spacer()
+                control()
+            }
+            if let caption = caption {
+                Text(caption)
+                    .font(.system(size: 10, weight: .regular))
+                    .foregroundStyle(AeroColor.vaporGray)
+            }
+        }
+    }
+}
+
+private struct AeroStepper: View {
+    let title: String
+    let valueText: String
+    let onDecrement: () -> Void
+    let onIncrement: () -> Void
+
+    var body: some View {
+        HStack {
+            Text(title)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(AeroColor.titaniumWhite)
+            Spacer()
+            HStack(spacing: 8) {
+                Text(valueText)
+                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                    .monospacedDigit()
+                    .foregroundStyle(AeroColor.volt)
+                
+                HStack(spacing: 2) {
+                    Button(action: onDecrement) {
+                        Image(systemName: "minus")
+                            .font(.system(size: 10, weight: .bold))
+                            .frame(width: 22, height: 22)
+                            .background(AeroColor.obsidian)
+                            .clipShape(RoundedRectangle(cornerRadius: 5))
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Button(action: onIncrement) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 10, weight: .bold))
+                            .frame(width: 22, height: 22)
+                            .background(AeroColor.obsidian)
+                            .clipShape(RoundedRectangle(cornerRadius: 5))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Tab 1: General
 
 private struct GeneralSettingsTab: View {
     @EnvironmentObject private var appState: AppState
     @AppStorage("settings.generalAdvanced") private var showSystemIntegrations = false
 
     var body: some View {
-        Form {
-            Section("Presence") {
-                Stepper("Idle skip after \(appState.config.idleSkipMinutes) min",
-                        value: intBinding(\.idleSkipMinutes), in: 0...120)
-                Stepper("Require \(appState.config.minActiveMinutes) min active before reminding",
-                        value: intBinding(\.minActiveMinutes), in: 0...120)
+        VStack(spacing: 16) {
+            AeroSectionCard(title: "Presence Telemetry") {
+                AeroStepper(
+                    title: "Idle skip threshold",
+                    valueText: "\(appState.config.idleSkipMinutes) min",
+                    onDecrement: { updateConfig { $0.idleSkipMinutes = max(0, $0.idleSkipMinutes - 5) } },
+                    onIncrement: { updateConfig { $0.idleSkipMinutes = min(120, $0.idleSkipMinutes + 5) } }
+                )
+                
+                Divider().overlay(AeroColor.hairline)
+
+                AeroStepper(
+                    title: "Active work required before reminding",
+                    valueText: "\(appState.config.minActiveMinutes) min",
+                    onDecrement: { updateConfig { $0.minActiveMinutes = max(0, $0.minActiveMinutes - 5) } },
+                    onIncrement: { updateConfig { $0.minActiveMinutes = min(120, $0.minActiveMinutes + 5) } }
+                )
             }
-            Section("Breaks & schedule UI") {
-                Toggle("Show menu bar countdown", isOn: boolBinding(\.showMenuBarCountdown))
-                Toggle("Guided break available", isOn: boolBinding(\.guidedBreakEnabled))
-                if appState.config.guidedBreakEnabled {
-                    Picker("Auto-open guided window", selection: Binding(
-                        get: { appState.config.guidedBreakOpenMode },
-                        set: { v in var c = appState.config; c.guidedBreakOpenMode = v; appState.config = c }
-                    )) {
-                        ForEach(GuidedBreakOpenMode.allCases) { mode in
-                            Text(mode.displayName).tag(mode)
-                        }
-                    }
-                    Stepper("Guided break length \(appState.config.guidedBreakSeconds)s",
-                            value: intBinding(\.guidedBreakSeconds), in: 20...180, step: 5)
+
+            AeroSectionCard(title: "Breaks & Schedule Interface") {
+                AeroRow(label: "Show menu bar countdown", caption: "Renders live circular progress ring and countdown") {
+                    Toggle("", isOn: boolBinding(\.showMenuBarCountdown))
+                        .toggleStyle(.switch)
+                        .tint(AeroColor.volt)
                 }
-                TextField("Alert sound name", text: stringBinding(\.soundName))
+
+                Divider().overlay(AeroColor.hairline)
+
+                AeroRow(label: "Guided break overlay available") {
+                    Toggle("", isOn: boolBinding(\.guidedBreakEnabled))
+                        .toggleStyle(.switch)
+                        .tint(AeroColor.volt)
+                }
+
+                if appState.config.guidedBreakEnabled {
+                    Divider().overlay(AeroColor.hairline)
+                    
+                    AeroRow(label: "Auto-open guided window") {
+                        Picker("", selection: Binding(
+                            get: { appState.config.guidedBreakOpenMode },
+                            set: { v in var c = appState.config; c.guidedBreakOpenMode = v; appState.config = c }
+                        )) {
+                            ForEach(GuidedBreakOpenMode.allCases) { mode in
+                                Text(mode.displayName).tag(mode)
+                            }
+                        }
+                        .labelsHidden()
+                    }
+
+                    Divider().overlay(AeroColor.hairline)
+
+                    AeroStepper(
+                        title: "Guided break length",
+                        valueText: "\(appState.config.guidedBreakSeconds)s",
+                        onDecrement: { updateConfig { $0.guidedBreakSeconds = max(20, $0.guidedBreakSeconds - 5) } },
+                        onIncrement: { updateConfig { $0.guidedBreakSeconds = min(180, $0.guidedBreakSeconds + 5) } }
+                    )
+                }
+
+                Divider().overlay(AeroColor.hairline)
+
+                AeroRow(label: "Acoustic chime profile") {
+                    TextField("Default (Aero 528Hz)", text: stringBinding(\.soundName))
+                        .textFieldStyle(.plain)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(AeroColor.obsidian)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .frame(width: 140)
+                }
             }
-            Section {
-                Toggle("Show system integrations", isOn: $showSystemIntegrations)
-            }
-            if showSystemIntegrations {
-                Section("Health") {
-                    Toggle("Write mindful minutes to Apple Health on Done", isOn: boolBinding(\.healthLoggingEnabled))
-                    Text("Mac writes only (mindful minutes). iOS reads recent workouts so a gym session counts as a break — never writes.")
-                        .font(.caption).foregroundStyle(.secondary)
-                    Stepper("Minutes per Done: \(String(format: "%.0f", appState.config.healthMindfulMinutes))",
-                            value: Binding(
-                                get: { Int(appState.config.healthMindfulMinutes) },
-                                set: {
-                                    var c = appState.config
-                                    c.healthMindfulMinutes = Double($0)
-                                    appState.config = c
-                                }
-                            ),
-                            in: 1...15)
-                    Button("Request Health access…") {
+
+            AeroSectionCard(title: "System Integrations") {
+                AeroRow(label: "Show advanced integrations") {
+                    Toggle("", isOn: $showSystemIntegrations)
+                        .toggleStyle(.switch)
+                        .tint(AeroColor.volt)
+                }
+
+                if showSystemIntegrations {
+                    Divider().overlay(AeroColor.hairline)
+
+                    AeroRow(label: "Write mindful minutes to Apple Health on Done", caption: "Mac logs mindful minutes directly to HealthKit") {
+                        Toggle("", isOn: boolBinding(\.healthLoggingEnabled))
+                            .toggleStyle(.switch)
+                            .tint(AeroColor.volt)
+                    }
+
+                    AeroStepper(
+                        title: "Mindful minutes per Done",
+                        valueText: "\(Int(appState.config.healthMindfulMinutes)) min",
+                        onDecrement: { updateConfig { $0.healthMindfulMinutes = max(1, $0.healthMindfulMinutes - 1) } },
+                        onIncrement: { updateConfig { $0.healthMindfulMinutes = min(15, $0.healthMindfulMinutes + 1) } }
+                    )
+
+                    AeroGlassButton(title: "Request HealthKit Access…", systemImage: "heart.fill") {
                         HealthLogger.requestAuthorization { _ in }
                     }
-                }
-                Section("Updates") {
-                    Toggle("Check for updates", isOn: boolBinding(\.updateCheckEnabled))
-                    TextField("GitHub Releases API URL", text: stringBinding(\.githubReleasesURL))
-                    Text("Example: https://api.github.com/repos/you/standup-reminder/releases/latest")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Button("Check now") {
-                        Task { await appState.maybeCheckForUpdates(force: true) }
+                    .padding(.top, 4)
+
+                    Divider().overlay(AeroColor.hairline)
+
+                    AeroRow(label: "Check for updates automatically") {
+                        Toggle("", isOn: boolBinding(\.updateCheckEnabled))
+                            .toggleStyle(.switch)
+                            .tint(AeroColor.volt)
                     }
-                }
-                Section("Backup") {
-                    Button("Export settings…") { exportSettings() }
-                    Button("Import settings…") { importSettings() }
+
+                    AeroRow(label: "GitHub Releases API URL") {
+                        TextField("https://api.github.com/...", text: stringBinding(\.githubReleasesURL))
+                            .textFieldStyle(.plain)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(AeroColor.obsidian)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .frame(width: 220)
+                    }
+
+                    HStack(spacing: 8) {
+                        AeroGlassButton(title: "Export Settings…", systemImage: "square.and.arrow.up") {
+                            exportSettings()
+                        }
+                        AeroGlassButton(title: "Import Settings…", systemImage: "square.and.arrow.down") {
+                            importSettings()
+                        }
+                    }
+                    .padding(.top, 4)
                 }
             }
         }
-        .padding()
+    }
+
+    private func updateConfig(_ mutate: (inout AppConfig) -> Void) {
+        var c = appState.config
+        mutate(&c)
+        appState.config = c
+        appState.refreshNextFire()
     }
 
     private func exportSettings() {
@@ -131,13 +386,6 @@ private struct GeneralSettingsTab: View {
         )
     }
 
-    private func intBinding(_ keyPath: WritableKeyPath<AppConfig, Int>) -> Binding<Int> {
-        Binding(
-            get: { appState.config[keyPath: keyPath] },
-            set: { var c = appState.config; c[keyPath: keyPath] = $0; appState.config = c; appState.refreshNextFire() }
-        )
-    }
-
     private func stringBinding(_ keyPath: WritableKeyPath<AppConfig, String>) -> Binding<String> {
         Binding(
             get: { appState.config[keyPath: keyPath] },
@@ -146,55 +394,96 @@ private struct GeneralSettingsTab: View {
     }
 }
 
+// MARK: - Tab 2: Schedule
+
 private struct ScheduleSettingsTab: View {
     @EnvironmentObject private var appState: AppState
     private let dayNames = [("1","Monday"),("2","Tuesday"),("3","Wednesday"),("4","Thursday"),("5","Friday"),("6","Saturday"),("7","Sunday")]
 
     var body: some View {
-        Form {
-            Section("Cadence") {
-                Stepper("Base every \(appState.config.intervalMinutes) minutes",
-                        value: Binding(
-                            get: { appState.config.intervalMinutes },
-                            set: { var c = appState.config; c.intervalMinutes = $0; appState.config = c; appState.refreshNextFire() }
-                        ), in: 5...120, step: 5)
-                Toggle("Adaptive interval", isOn: Binding(
-                    get: { appState.config.adaptiveIntervalEnabled },
-                    set: { var c = appState.config; c.adaptiveIntervalEnabled = $0; appState.config = c; appState.refreshNextFire() }
-                ))
-                Stepper("Adaptive min \(appState.config.adaptiveMinMinutes)m",
-                        value: intBinding(\.adaptiveMinMinutes), in: 10...60)
-                Stepper("Adaptive max \(appState.config.adaptiveMaxMinutes)m",
-                        value: intBinding(\.adaptiveMaxMinutes), in: 15...90)
-                Text("Effective now: \(appState.effectiveIntervalMinutes)m")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Toggle("Skip weekends (overrides Sat/Sun hours)", isOn: boolBinding(\.weekdaysOnly))
+        VStack(spacing: 16) {
+            AeroSectionCard(title: "Base Cadence & Adaptive Engine") {
+                AeroStepper(
+                    title: "Base Reminder Cadence",
+                    valueText: "Every \(appState.config.intervalMinutes)m",
+                    onDecrement: { updateConfig { $0.intervalMinutes = max(5, $0.intervalMinutes - 5) } },
+                    onIncrement: { updateConfig { $0.intervalMinutes = min(120, $0.intervalMinutes + 5) } }
+                )
+
+                Divider().overlay(AeroColor.hairline)
+
+                AeroRow(label: "Adaptive Interval Engine", caption: "Adjusts cadence based on meetings, focus, and posture") {
+                    Toggle("", isOn: Binding(
+                        get: { appState.config.adaptiveIntervalEnabled },
+                        set: { var c = appState.config; c.adaptiveIntervalEnabled = $0; appState.config = c; appState.refreshNextFire() }
+                    ))
+                    .toggleStyle(.switch)
+                    .tint(AeroColor.volt)
+                }
+
+                if appState.config.adaptiveIntervalEnabled {
+                    AeroStepper(
+                        title: "Adaptive Range (Min / Max)",
+                        valueText: "\(appState.config.adaptiveMinMinutes)m – \(appState.config.adaptiveMaxMinutes)m",
+                        onDecrement: { updateConfig { $0.adaptiveMinMinutes = max(10, $0.adaptiveMinMinutes - 5) } },
+                        onIncrement: { updateConfig { $0.adaptiveMaxMinutes = min(90, $0.adaptiveMaxMinutes + 5) } }
+                    )
+                    
+                    HStack {
+                        Text("Current effective cadence:")
+                            .font(.system(size: 11))
+                            .foregroundStyle(AeroColor.vaporGray)
+                        Spacer()
+                        Text("\(appState.effectiveIntervalMinutes) min")
+                            .font(.system(size: 11, weight: .bold, design: .monospaced))
+                            .foregroundStyle(AeroColor.volt)
+                    }
+                }
+
+                Divider().overlay(AeroColor.hairline)
+
+                AeroRow(label: "Skip Weekends (Saturday & Sunday)") {
+                    Toggle("", isOn: boolBinding(\.weekdaysOnly))
+                        .toggleStyle(.switch)
+                        .tint(AeroColor.volt)
+                }
             }
-            Section("Time zone") {
-                TextField("Olson ID (empty = automatic)", text: Binding(
-                    get: { appState.config.scheduleTimeZoneIdentifier },
-                    set: { var c = appState.config; c.scheduleTimeZoneIdentifier = $0; appState.config = c; appState.refreshNextFire() }
-                ))
-                Text("Current: \(appState.config.scheduleTimeZone.identifier)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+
+            AeroSectionCard(title: "Daily Social Anchors") {
+                AeroRow(label: "Lunch Reminder Anchor") {
+                    Toggle("", isOn: lunchBool(\.enabled))
+                        .toggleStyle(.switch)
+                        .tint(AeroColor.volt)
+                }
+
+                if appState.config.lunch.enabled {
+                    AeroStepper(
+                        title: "Lunch Anchor Time",
+                        valueText: String(format: "%02d:%02d", appState.config.lunch.hour, appState.config.lunch.minute),
+                        onDecrement: { updateConfig { $0.lunch.hour = max(0, $0.lunch.hour - 1) } },
+                        onIncrement: { updateConfig { $0.lunch.hour = min(23, $0.lunch.hour + 1) } }
+                    )
+                }
+
+                Divider().overlay(AeroColor.hairline)
+
+                AeroRow(label: "End of Day Wind-Down") {
+                    Toggle("", isOn: windBool(\.enabled))
+                        .toggleStyle(.switch)
+                        .tint(AeroColor.volt)
+                }
+
+                if appState.config.windDown.enabled {
+                    AeroStepper(
+                        title: "Wind-Down Time",
+                        valueText: String(format: "%02d:%02d", appState.config.windDown.hour, appState.config.windDown.minute),
+                        onDecrement: { updateConfig { $0.windDown.hour = max(0, $0.windDown.hour - 1) } },
+                        onIncrement: { updateConfig { $0.windDown.hour = min(23, $0.windDown.hour + 1) } }
+                    )
+                }
             }
-            Section("Lunch") {
-                Toggle("Lunch reminder", isOn: lunchBool(\.enabled))
-                Stepper("Hour \(appState.config.lunch.hour)", value: lunchInt(\.hour), in: 0...23)
-                Stepper("Minute \(appState.config.lunch.minute)", value: lunchInt(\.minute), in: 0...59)
-                TextField("Title", text: lunchString(\.title))
-                TextField("Message", text: lunchString(\.body))
-            }
-            Section("End of day") {
-                Toggle("Wind-down reminder", isOn: windBool(\.enabled))
-                Stepper("Hour \(appState.config.windDown.hour)", value: windInt(\.hour), in: 0...23)
-                Stepper("Minute \(appState.config.windDown.minute)", value: windInt(\.minute), in: 0...59)
-                TextField("Title", text: windString(\.title))
-                TextField("Message", text: windString(\.body))
-            }
-            Section("Hours by day") {
+
+            AeroSectionCard(title: "Active Schedule Matrix by Day") {
                 ForEach(dayNames, id: \.0) { key, name in
                     HStack {
                         Toggle(name, isOn: Binding(
@@ -203,9 +492,6 @@ private struct ScheduleSettingsTab: View {
                                 var c = appState.config
                                 if enabled {
                                     c.scheduleByWeekday[key] = c.scheduleByWeekday[key] ?? .standard
-                                    // Turning on a weekend day must actually take
-                                    // effect — the skip-weekends preference would
-                                    // silently discard it otherwise.
                                     if key == "6" || key == "7" { c.weekdaysOnly = false }
                                 } else {
                                     c.scheduleByWeekday[key] = nil
@@ -214,70 +500,86 @@ private struct ScheduleSettingsTab: View {
                                 appState.refreshNextFire()
                             }
                         ))
-                        if appState.config.scheduleByWeekday[key] != nil {
-                            Stepper("\(appState.config.scheduleByWeekday[key]!.startHour):00", value: Binding(
-                                get: { appState.config.scheduleByWeekday[key]?.startHour ?? 9 },
-                                set: { v in var c = appState.config; c.scheduleByWeekday[key]?.startHour = v; appState.config = c; appState.refreshNextFire() }
-                            ), in: 0...23)
-                            Text("–")
-                            Stepper("\(appState.config.scheduleByWeekday[key]!.endHour):00", value: Binding(
-                                get: { appState.config.scheduleByWeekday[key]?.endHour ?? 17 },
-                                set: { v in var c = appState.config; c.scheduleByWeekday[key]?.endHour = v; appState.config = c; appState.refreshNextFire() }
-                            ), in: 1...24)
+                        .toggleStyle(.switch)
+                        .tint(AeroColor.volt)
+                        
+                        Spacer()
+
+                        if let schedule = appState.config.scheduleByWeekday[key] {
+                            Text(String(format: "%02d:00 – %02d:00", schedule.startHour, schedule.endHour))
+                                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                                .foregroundStyle(AeroColor.volt)
+                        } else {
+                            Text("OFF")
+                                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                                .foregroundStyle(AeroColor.vaporGray)
                         }
+                    }
+                    if key != "7" {
+                        Divider().overlay(AeroColor.hairline)
                     }
                 }
             }
         }
-        .padding()
+    }
+
+    private func updateConfig(_ mutate: (inout AppConfig) -> Void) {
+        var c = appState.config
+        mutate(&c)
+        appState.config = c
+        appState.refreshNextFire()
     }
 
     private func boolBinding(_ keyPath: WritableKeyPath<AppConfig, Bool>) -> Binding<Bool> {
         Binding(get: { appState.config[keyPath: keyPath] }, set: { v in var c = appState.config; c[keyPath: keyPath] = v; appState.config = c; appState.refreshNextFire() })
     }
-    private func intBinding(_ keyPath: WritableKeyPath<AppConfig, Int>) -> Binding<Int> {
-        Binding(get: { appState.config[keyPath: keyPath] }, set: { v in var c = appState.config; c[keyPath: keyPath] = v; appState.config = c; appState.refreshNextFire() })
-    }
     private func lunchBool(_ k: WritableKeyPath<LunchConfig, Bool>) -> Binding<Bool> {
         Binding(get: { appState.config.lunch[keyPath: k] }, set: { v in var c = appState.config; c.lunch[keyPath: k] = v; appState.config = c; appState.refreshNextFire() })
-    }
-    private func lunchInt(_ k: WritableKeyPath<LunchConfig, Int>) -> Binding<Int> {
-        Binding(get: { appState.config.lunch[keyPath: k] }, set: { v in var c = appState.config; c.lunch[keyPath: k] = v; appState.config = c; appState.refreshNextFire() })
-    }
-    private func lunchString(_ k: WritableKeyPath<LunchConfig, String>) -> Binding<String> {
-        Binding(get: { appState.config.lunch[keyPath: k] }, set: { v in var c = appState.config; c.lunch[keyPath: k] = v; appState.config = c })
     }
     private func windBool(_ k: WritableKeyPath<WindDownConfig, Bool>) -> Binding<Bool> {
         Binding(get: { appState.config.windDown[keyPath: k] }, set: { v in var c = appState.config; c.windDown[keyPath: k] = v; appState.config = c; appState.refreshNextFire() })
     }
-    private func windInt(_ k: WritableKeyPath<WindDownConfig, Int>) -> Binding<Int> {
-        Binding(get: { appState.config.windDown[keyPath: k] }, set: { v in var c = appState.config; c.windDown[keyPath: k] = v; appState.config = c; appState.refreshNextFire() })
-    }
-    private func windString(_ k: WritableKeyPath<WindDownConfig, String>) -> Binding<String> {
-        Binding(get: { appState.config.windDown[keyPath: k] }, set: { v in var c = appState.config; c.windDown[keyPath: k] = v; appState.config = c })
-    }
 }
+
+// MARK: - Tab 3: Modes
 
 private struct ModesSettingsTab: View {
     @EnvironmentObject private var appState: AppState
 
     var body: some View {
-        Form {
-            Section("Sit / stand desk") {
-                Toggle("Alternate sit & stand cues", isOn: Binding(
-                    get: { appState.config.sitStandModeEnabled },
-                    set: { v in var c = appState.config; c.sitStandModeEnabled = v; appState.config = c }
-                ))
-                Stepper("Phase length \(appState.config.sitStandPhaseMinutes) min",
-                        value: Binding(
-                            get: { appState.config.sitStandPhaseMinutes },
-                            set: { v in var c = appState.config; c.sitStandPhaseMinutes = v; appState.config = c }
-                        ), in: 15...90, step: 5)
-                Text("Current phase: \(appState.deskPhase.rawValue). Tapping Done flips the phase.")
-                    .font(.caption).foregroundStyle(.secondary)
+        VStack(spacing: 16) {
+            AeroSectionCard(title: "Smart Standing Desk Kinetics") {
+                AeroRow(label: "Alternate Sit & Stand Cues", caption: "Alternates reminders between standing and sitting phases") {
+                    Toggle("", isOn: Binding(
+                        get: { appState.config.sitStandModeEnabled },
+                        set: { v in var c = appState.config; c.sitStandModeEnabled = v; appState.config = c }
+                    ))
+                    .toggleStyle(.switch)
+                    .tint(AeroColor.volt)
+                }
+
+                if appState.config.sitStandModeEnabled {
+                    Divider().overlay(AeroColor.hairline)
+
+                    AeroStepper(
+                        title: "Desk Phase Duration",
+                        valueText: "\(appState.config.sitStandPhaseMinutes) min",
+                        onDecrement: { updateConfig { $0.sitStandPhaseMinutes = max(15, $0.sitStandPhaseMinutes - 5) } },
+                        onIncrement: { updateConfig { $0.sitStandPhaseMinutes = min(90, $0.sitStandPhaseMinutes + 5) } }
+                    )
+
+                    HStack {
+                        Text("Active Desk Phase:")
+                            .font(.system(size: 11))
+                            .foregroundStyle(AeroColor.vaporGray)
+                        Spacer()
+                        AeroTelemetryBadge(text: appState.deskPhase.rawValue, statusColor: AeroColor.volt)
+                    }
+                }
             }
-            Section("Reminder pack") {
-                Picker("Pack", selection: Binding(
+
+            AeroSectionCard(title: "Reminder Prompt Pack") {
+                Picker("Active Pack", selection: Binding(
                     get: { appState.config.reminderPack },
                     set: { appState.applyReminderPack($0) }
                 )) {
@@ -286,103 +588,177 @@ private struct ModesSettingsTab: View {
                     }
                 }
             }
-            Section("Meeting catch-up") {
-                Toggle("Remind once after a meeting ends", isOn: Binding(
-                    get: { appState.config.meetingCatchUpEnabled },
-                    set: { v in var c = appState.config; c.meetingCatchUpEnabled = v; appState.config = c }
-                ))
+
+            AeroSectionCard(title: "Meeting Catch-Up") {
+                AeroRow(label: "Remind Once After Meeting Ends", caption: "Fires a delayed break as soon as your calendar meeting clears") {
+                    Toggle("", isOn: Binding(
+                        get: { appState.config.meetingCatchUpEnabled },
+                        set: { v in var c = appState.config; c.meetingCatchUpEnabled = v; appState.config = c }
+                    ))
+                    .toggleStyle(.switch)
+                    .tint(AeroColor.volt)
+                }
             }
         }
-        .padding()
+    }
+
+    private func updateConfig(_ mutate: (inout AppConfig) -> Void) {
+        var c = appState.config
+        mutate(&c)
+        appState.config = c
+        appState.refreshNextFire()
     }
 }
+
+// MARK: - Tab 4: Quiet Rules
 
 private struct QuietSettingsTab: View {
     @EnvironmentObject private var appState: AppState
     @State private var denylistText: String = ""
 
     var body: some View {
-        Form {
-            Section("Skip when") {
-                Toggle("Screen locked", isOn: b(\.skipWhenLocked))
-                Toggle("Display asleep", isOn: b(\.skipWhenDisplayAsleep))
-                Toggle("Focus / Do Not Disturb", isOn: b(\.skipWhenFocused))
-                Toggle("Calendar meeting", isOn: b(\.skipWhenInMeeting))
-                Toggle("PTO / OOO calendar day", isOn: b(\.skipOnPTO))
+        VStack(spacing: 16) {
+            AeroSectionCard(title: "Intelligent Quiet Gating") {
+                AeroRow(label: "Skip when screen is locked") {
+                    Toggle("", isOn: b(\.skipWhenLocked)).toggleStyle(.switch).tint(AeroColor.volt)
+                }
+                Divider().overlay(AeroColor.hairline)
+                AeroRow(label: "Skip when display is asleep") {
+                    Toggle("", isOn: b(\.skipWhenDisplayAsleep)).toggleStyle(.switch).tint(AeroColor.volt)
+                }
+                Divider().overlay(AeroColor.hairline)
+                AeroRow(label: "Skip during Focus / Do Not Disturb") {
+                    Toggle("", isOn: b(\.skipWhenFocused)).toggleStyle(.switch).tint(AeroColor.volt)
+                }
+                Divider().overlay(AeroColor.hairline)
+                AeroRow(label: "Skip during calendar meetings") {
+                    Toggle("", isOn: b(\.skipWhenInMeeting)).toggleStyle(.switch).tint(AeroColor.volt)
+                }
+                Divider().overlay(AeroColor.hairline)
+                AeroRow(label: "Skip on PTO / Out of Office calendar days") {
+                    Toggle("", isOn: b(\.skipOnPTO)).toggleStyle(.switch).tint(AeroColor.volt)
+                }
             }
-            Section("Deep work (on-device)") {
-                Toggle("Quiet during deep work", isOn: b(\.deepWorkEnabled))
-                Stepper("Same app for \(appState.config.deepWorkQuietMinutes) min",
-                        value: Binding(
-                            get: { appState.config.deepWorkQuietMinutes },
-                            set: { v in var c = appState.config; c.deepWorkQuietMinutes = v; appState.config = c }
-                        ), in: 10...120)
-                Toggle("Require fullscreen", isOn: b(\.deepWorkRequireFullscreen))
+
+            AeroSectionCard(title: "On-Device Deep Work Gating") {
+                AeroRow(label: "Quiet during unbroken deep work", caption: "Suppresses interruptions while deep in the flow state") {
+                    Toggle("", isOn: b(\.deepWorkEnabled)).toggleStyle(.switch).tint(AeroColor.volt)
+                }
+
+                if appState.config.deepWorkEnabled {
+                    Divider().overlay(AeroColor.hairline)
+                    AeroStepper(
+                        title: "Frontmost App Lock Duration",
+                        valueText: "\(appState.config.deepWorkQuietMinutes)m",
+                        onDecrement: { updateConfig { $0.deepWorkQuietMinutes = max(10, $0.deepWorkQuietMinutes - 5) } },
+                        onIncrement: { updateConfig { $0.deepWorkQuietMinutes = min(120, $0.deepWorkQuietMinutes + 5) } }
+                    )
+                    Divider().overlay(AeroColor.hairline)
+                    AeroRow(label: "Require fullscreen mode") {
+                        Toggle("", isOn: b(\.deepWorkRequireFullscreen)).toggleStyle(.switch).tint(AeroColor.volt)
+                    }
+                }
             }
-            Section("App denylist (bundle IDs)") {
+
+            AeroSectionCard(title: "App Denylist (Bundle Identifiers)") {
                 TextEditor(text: $denylistText)
-                    .font(.system(.caption, design: .monospaced))
-                    .frame(minHeight: 100)
-                Button("Save denylist") {
-                    var c = appState.config
-                    c.denylistBundleIds = denylistText
-                        .split(whereSeparator: { $0 == "\n" || $0 == "," })
-                        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                        .filter { !$0.isEmpty }
-                    appState.config = c
+                    .font(.system(size: 11, design: .monospaced))
+                    .frame(minHeight: 90)
+                    .padding(6)
+                    .background(AeroColor.obsidian)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+
+                HStack(spacing: 8) {
+                    AeroGlassButton(title: "Save Denylist", isProminent: true) {
+                        var c = appState.config
+                        c.denylistBundleIds = denylistText
+                            .split(whereSeparator: { $0 == "\n" || $0 == "," })
+                            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                            .filter { !$0.isEmpty }
+                        appState.config = c
+                    }
+                    AeroGlassButton(title: "Reset Defaults") {
+                        var c = appState.config
+                        c.denylistBundleIds = AppConfig.defaultDenylist
+                        appState.config = c
+                        denylistText = c.denylistBundleIds.joined(separator: "\n")
+                    }
                 }
-                Button("Reset denylist defaults") {
-                    var c = appState.config
-                    c.denylistBundleIds = AppConfig.defaultDenylist
-                    appState.config = c
-                    denylistText = c.denylistBundleIds.joined(separator: "\n")
-                }
+                .padding(.top, 4)
             }
         }
-        .padding()
         .onAppear { denylistText = appState.config.denylistBundleIds.joined(separator: "\n") }
     }
 
     private func b(_ keyPath: WritableKeyPath<AppConfig, Bool>) -> Binding<Bool> {
         Binding(get: { appState.config[keyPath: keyPath] }, set: { v in var c = appState.config; c[keyPath: keyPath] = v; appState.config = c })
     }
+
+    private func updateConfig(_ mutate: (inout AppConfig) -> Void) {
+        var c = appState.config
+        mutate(&c)
+        appState.config = c
+        appState.refreshNextFire()
+    }
 }
+
+// MARK: - Tab 5: Prompts
 
 private struct PromptsSettingsTab: View {
     @EnvironmentObject private var appState: AppState
 
     var body: some View {
-        Form {
-            Section("Rotating prompts") {
+        VStack(spacing: 16) {
+            AeroSectionCard(title: "Rotating Break Telemetry Prompts") {
                 ForEach(Array(appState.config.prompts.indices), id: \.self) { index in
-                    VStack(alignment: .leading) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("PROMPT #\(index + 1)")
+                                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                .foregroundStyle(AeroColor.volt)
+                            Spacer()
+                        }
                         TextField("Title", text: Binding(
                             get: { appState.config.prompts[index].title },
                             set: { v in var c = appState.config; c.prompts[index].title = v; appState.config = c }
                         ))
+                        .textFieldStyle(.plain)
+                        .padding(6)
+                        .background(AeroColor.obsidian)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+
                         TextField("Body", text: Binding(
                             get: { appState.config.prompts[index].body },
                             set: { v in var c = appState.config; c.prompts[index].body = v; appState.config = c }
                         ))
+                        .textFieldStyle(.plain)
+                        .padding(6)
+                        .background(AeroColor.obsidian)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
                     }
-                    .padding(.vertical, 4)
+                    if index < appState.config.prompts.count - 1 {
+                        Divider().overlay(AeroColor.hairline)
+                    }
                 }
-                Button("Reset pack defaults") {
+
+                AeroGlassButton(title: "Reset Pack Defaults", systemImage: "arrow.counterclockwise") {
                     appState.applyReminderPack(appState.config.reminderPack)
                 }
+                .padding(.top, 6)
             }
         }
-        .padding()
     }
 }
+
+// MARK: - Tab 6: Profiles
 
 private struct ProfilesSettingsTab: View {
     @EnvironmentObject private var appState: AppState
     @State private var newName = ""
 
     var body: some View {
-        Form {
-            Section("Active profile") {
+        VStack(spacing: 16) {
+            AeroSectionCard(title: "Active Schedule Profile") {
                 Picker("Profile", selection: Binding(
                     get: { appState.profiles.activeProfileId },
                     set: { appState.switchProfile(id: $0) }
@@ -392,9 +768,19 @@ private struct ProfilesSettingsTab: View {
                     }
                 }
             }
-            Section("Manage") {
-                TextField("New profile name", text: $newName)
-                Button("Duplicate current as new profile") {
+
+            AeroSectionCard(title: "Create & Duplicate Profiles") {
+                AeroRow(label: "New Profile Name") {
+                    TextField("E.g. Travel MacBook", text: $newName)
+                        .textFieldStyle(.plain)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(AeroColor.obsidian)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .frame(width: 180)
+                }
+
+                AeroGlassButton(title: "Duplicate Current as New Profile", systemImage: "plus.square.fill", isProminent: true) {
                     let name = newName.isEmpty ? "New profile" : newName
                     var docs = appState.profiles
                     let id = UUID().uuidString
@@ -403,22 +789,21 @@ private struct ProfilesSettingsTab: View {
                     appState.profiles = docs
                     newName = ""
                 }
+                .padding(.top, 4)
             }
-            Text("Profiles store separate schedules (Office Mac vs Laptop, etc.).")
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
-        .padding()
     }
 }
+
+// MARK: - Tab 7: Sync & Privacy
 
 private struct SyncPrivacySettingsTab: View {
     @EnvironmentObject private var appState: AppState
     @AppStorage("settings.showAdvanced") private var showAdvanced = false
 
     var body: some View {
-        Form {
-            Section("Cadence role") {
+        VStack(spacing: 16) {
+            AeroSectionCard(title: "Multi-Device Cadence Authority") {
                 Picker("Role", selection: Binding(
                     get: { appState.config.features.cadenceRole },
                     set: { v in var c = appState.config; c.features.cadenceRole = v; appState.config = c }
@@ -427,109 +812,59 @@ private struct SyncPrivacySettingsTab: View {
                         Text(role.displayName).tag(role)
                     }
                 }
-                Text("Authority evaluates presence (meetings, Focus, idle). Followers only follow shared cadence.")
-                    .font(.caption).foregroundStyle(.secondary)
-                Text("Resolved: \(appState.resolvedCadenceRole.displayName)")
-                    .font(.caption2)
-            }
-            Section("iCloud") {
-                Toggle("Sync settings & cadence via iCloud Drive", isOn: featureBool(\.iCloudSyncEnabled))
-                Text(appState.syncHealth.summary(iCloudEnabled: appState.config.features.iCloudSyncEnabled))
-                    .font(.caption)
-                    .foregroundStyle(appState.syncHealth.lastPullWasStale ? .orange : .secondary)
-                Button("Push to iCloud now") { _ = appState.pushToiCloud() }
-                Button("Pull from iCloud now") { _ = appState.pullFromiCloud() }
-                if appState.syncHealth.lastPullWasStale {
-                    Button("Force pull (overwrite newer local)") { _ = appState.pullFromiCloud(force: true) }
-                }
-                Button("Migrate legacy iCloud container…") { appState.migrateLegacyiCloudIfNeeded() }
-                Text("Mac is the primary quiet-rule suppressor; phone/watch follow cadence via iCloud.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            Section("Everyday options") {
-                Toggle("Speak reminders", isOn: featureBool(\.voiceAnnouncementsEnabled))
-                Toggle("Weather-aware outdoor walk tips", isOn: featureBool(\.weatherBreaksEnabled))
-                Toggle("Prefer reduced motion in UI", isOn: featureBool(\.reduceMotionOverrides))
-                Toggle("Show advanced settings", isOn: $showAdvanced)
-            }
-            if showAdvanced {
-                Section("Team / office quiet hours") {
-                    Toggle("Respect team quiet windows", isOn: Binding(
-                        get: { appState.config.features.teamQuiet.enabled },
-                        set: { v in var c = appState.config; c.features.teamQuiet.enabled = v; appState.config = c }
-                    ))
-                    TextField("Quiet-hours JSON feed URL", text: Binding(
-                        get: { appState.config.features.teamQuiet.feedURL },
-                        set: { v in var c = appState.config; c.features.teamQuiet.feedURL = v; appState.config = c }
-                    ))
-                    Button("Refresh feed") { Task { await appState.refreshTeamQuietHours() } }
-                    Text("\(appState.config.features.teamQuiet.windows.count) window(s) loaded")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                Section("Voice & Watch") {
-                    Toggle("Speak only with headphones/external audio", isOn: featureBool(\.speakOnlyWithHeadphones))
-                    Toggle("Apple Watch companion bridge", isOn: featureBool(\.watchCompanionEnabled))
-                    Text("Watch reachable: \(WatchBridge.shared.isWatchReachable ? "yes" : "no")")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                Section("Learning & sensors (on-device)") {
-                    Toggle("Auto Meeting-heavy pack on busy calendar days", isOn: featureBool(\.autoProfileFromCalendar))
-                    Text("Applies once per day when ≥4 meeting-like events are on today's calendar.")
-                        .font(.caption).foregroundStyle(.secondary)
-                    Toggle("Credit Apple Stand hour as a break", isOn: featureBool(\.creditStandHourAsBreak))
-                    Toggle("Record quiet-rule block reasons", isOn: featureBool(\.recordBlockReasons))
-                    Toggle("Guided break may steal focus", isOn: featureBool(\.guidedBreakStealFocus))
-                    Text("Off (default): won't activate over Zoom/Teams/fullscreen.")
-                        .font(.caption).foregroundStyle(.secondary)
-                    Toggle("Learn my schedule from activity", isOn: featureBool(\.learnedScheduleEnabled))
-                    if let suggestion = appState.learnedSuggestion {
-                        Text("Suggested hours: \(suggestion.startHour):00–\(suggestion.endHour):00")
-                        Button("Apply learned schedule to weekdays") { appState.applyLearnedSchedule() }
-                    } else {
-                        Text("Need ~5 active days before a suggestion appears.")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                    Toggle("Webcam stillness (local face boxes only)", isOn: featureBool(\.webcamStillnessEnabled))
-                    Stepper(
-                        "Stillness threshold \(appState.config.features.webcamStillnessMinutes)m",
-                        value: Binding(
-                            get: { appState.config.features.webcamStillnessMinutes },
-                            set: { v in
-                                var c = appState.config
-                                c.features.webcamStillnessMinutes = v
-                                appState.config = c
-                                WebcamStillnessMonitor.shared.configure(enabled: c.features.webcamStillnessEnabled, thresholdMinutes: v)
-                            }
-                        ),
-                        in: 15...120,
-                        step: 5
+
+                HStack {
+                    Text("Resolved Role Status:")
+                        .font(.system(size: 11))
+                        .foregroundStyle(AeroColor.vaporGray)
+                    Spacer()
+                    AeroTelemetryBadge(
+                        text: appState.resolvedCadenceRole.displayName,
+                        statusColor: appState.isCadenceAuthority ? AeroColor.volt : AeroColor.ionBlue
                     )
-                    Text("Camera: \(WebcamStillnessMonitor.shared.status)")
-                        .font(.caption).foregroundStyle(.secondary)
-                    Button("Refresh weather") { Task { await appState.refreshWeather() } }
-                    if let weather = appState.weather {
-                        Text(String(format: "%.0f°C · %@", weather.temperatureC, weather.summary))
-                            .font(.caption)
+                }
+            }
+
+            AeroSectionCard(title: "iCloud Drive Document Sync") {
+                AeroRow(label: "Sync Settings & Cadence via iCloud", caption: "Keeps Mac, iPhone, and Apple Watch in sync") {
+                    Toggle("", isOn: featureBool(\.iCloudSyncEnabled)).toggleStyle(.switch).tint(AeroColor.volt)
+                }
+
+                HStack {
+                    Text("Cloud Sync Health:")
+                        .font(.system(size: 11))
+                        .foregroundStyle(AeroColor.vaporGray)
+                    Spacer()
+                    Text(appState.syncHealth.summary(iCloudEnabled: appState.config.features.iCloudSyncEnabled))
+                        .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                        .foregroundStyle(AeroColor.titaniumWhite)
+                }
+
+                HStack(spacing: 8) {
+                    AeroGlassButton(title: "Push to iCloud", systemImage: "arrow.up.icloud") {
+                        _ = appState.pushToiCloud()
+                    }
+                    AeroGlassButton(title: "Pull from iCloud", systemImage: "arrow.down.icloud") {
+                        _ = appState.pullFromiCloud()
                     }
                 }
-                Section("Updates & diagnostics") {
-                    TextField("Sparkle appcast URL (empty = GitHub Releases checker)", text: featureString(\.sparkleFeedURL))
-                    Toggle("Prefer Sparkle when linked", isOn: featureBool(\.preferSparkleUpdates))
-                    Text("Sparkle is wired only in distribution builds with a signed appcast; otherwise the app uses the GitHub Releases API.")
-                        .font(.caption).foregroundStyle(.secondary)
-                    Toggle("Opt-in diagnostics breadcrumbs", isOn: featureBool(\.diagnosticsEnabled))
-                    TextField("Diagnostics endpoint (https only)", text: featureString(\.diagnosticsEndpoint))
-                    Text("HTTPS required; localhost and private IPs are rejected.")
-                        .font(.caption).foregroundStyle(.secondary)
+                .padding(.top, 4)
+            }
+
+            AeroSectionCard(title: "Sensors & Audio Preferences") {
+                AeroRow(label: "Synthesized Voice Announcements") {
+                    Toggle("", isOn: featureBool(\.voiceAnnouncementsEnabled)).toggleStyle(.switch).tint(AeroColor.volt)
                 }
-                Section("Accessibility") {
-                    Toggle("Break demo symbols", isOn: featureBool(\.breakDemoSymbolsEnabled))
-                    Toggle("Offer sample-day tour", isOn: featureBool(\.showSampleDayTour))
-                    Button("Replay sample-day tour") { appState.showSampleDayTour = true }
+                Divider().overlay(AeroColor.hairline)
+                AeroRow(label: "Webcam Stillness Monitor", caption: "On-device Vision face burst tracking") {
+                    Toggle("", isOn: featureBool(\.webcamStillnessEnabled)).toggleStyle(.switch).tint(AeroColor.volt)
+                }
+                Divider().overlay(AeroColor.hairline)
+                AeroRow(label: "Apple Watch Companion Bridge") {
+                    Toggle("", isOn: featureBool(\.watchCompanionEnabled)).toggleStyle(.switch).tint(AeroColor.volt)
                 }
             }
         }
-        .padding()
         .onChange(of: appState.config.features.webcamStillnessEnabled) { _, enabled in
             WebcamStillnessMonitor.shared.configure(
                 enabled: enabled,
@@ -547,53 +882,101 @@ private struct SyncPrivacySettingsTab: View {
             set: { v in var c = appState.config; c.features[keyPath: keyPath] = v; appState.config = c }
         )
     }
-
-    private func featureString(_ keyPath: WritableKeyPath<FeatureFlags, String>) -> Binding<String> {
-        Binding(
-            get: { appState.config.features[keyPath: keyPath] },
-            set: { v in var c = appState.config; c.features[keyPath: keyPath] = v; appState.config = c }
-        )
-    }
 }
+
+// MARK: - Tab 8: Stats
 
 private struct StatsSettingsTab: View {
     @EnvironmentObject private var appState: AppState
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Weekly review").font(.headline)
-            Text(appState.weekStatsText())
-            let week = appState.stats.weekSummary(calendar: appState.config.scheduleCalendar)
-            if week.shown > 0 {
-                let rate = Int((Double(week.done) / Double(max(week.shown, 1))) * 100)
-                LabeledContent("Completion rate", value: "\(rate)% (\(week.done)/\(week.shown))")
-                LabeledContent("Snooze rate", value: "\(week.snoozed) snoozes · \(week.skipped) skips")
-                if week.selfLogged > 0 {
-                    LabeledContent("Self-logged", value: "\(week.selfLogged) (no banner first)")
+        VStack(spacing: 16) {
+            AeroSectionCard(title: "Weekly Telemetry Review") {
+                let week = appState.stats.weekSummary(calendar: appState.config.scheduleCalendar)
+                let rate = week.shown > 0 ? Int((Double(week.done) / Double(max(week.shown, 1))) * 100) : 0
+
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(rate)%")
+                            .font(.system(size: 28, weight: .bold, design: .default))
+                            .monospacedDigit()
+                            .foregroundStyle(AeroColor.volt)
+                        Text("COMPLETION RATE")
+                            .font(.system(size: 8.5, weight: .bold, design: .monospaced))
+                            .foregroundStyle(AeroColor.vaporGray)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Divider().overlay(AeroColor.hairline)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(week.done)")
+                            .font(.system(size: 28, weight: .bold, design: .default))
+                            .monospacedDigit()
+                            .foregroundStyle(AeroColor.titaniumWhite)
+                        Text("DONE THIS WEEK")
+                            .font(.system(size: 8.5, weight: .bold, design: .monospaced))
+                            .foregroundStyle(AeroColor.vaporGray)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(.vertical, 4)
+
+                Divider().overlay(AeroColor.hairline)
+
+                HStack {
+                    Text("Snoozes & Skips:")
+                        .font(.system(size: 11))
+                        .foregroundStyle(AeroColor.vaporGray)
+                    Spacer()
+                    Text("\(week.snoozed) snoozed · \(week.skipped) skipped")
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(AeroColor.titaniumWhite)
+                }
+
+                if let h = appState.stats.weekHighlights(calendar: appState.config.scheduleCalendar) {
+                    Divider().overlay(AeroColor.hairline)
+                    HStack {
+                        Text("Best Day:")
+                            .font(.system(size: 11))
+                            .foregroundStyle(AeroColor.vaporGray)
+                        Spacer()
+                        Text("\(h.bestDay ?? "—") (\(h.bestDone) done)")
+                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(AeroColor.volt)
+                    }
                 }
             }
-            if appState.config.features.recordBlockReasons, !appState.blockStats.byReason.isEmpty {
-                Text(appState.blockStats.report())
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+
+            AeroSectionCard(title: "All-Time Records") {
+                let s = appState.stats
+                HStack {
+                    Text("Total Breaks Completed:")
+                        .font(.system(size: 11))
+                        .foregroundStyle(AeroColor.vaporGray)
+                    Spacer()
+                    Text("\(s.acknowledgedTotal)")
+                        .font(.system(size: 12, weight: .bold, design: .monospaced))
+                        .foregroundStyle(AeroColor.volt)
+                }
+
+                Divider().overlay(AeroColor.hairline)
+
+                HStack {
+                    Text("Total Reminders Shown:")
+                        .font(.system(size: 11))
+                        .foregroundStyle(AeroColor.vaporGray)
+                    Spacer()
+                    Text("\(s.shownTotal)")
+                        .font(.system(size: 12, weight: .bold, design: .monospaced))
+                        .foregroundStyle(AeroColor.titaniumWhite)
+                }
+
+                AeroGlassButton(title: "Reset All Telemetry Records", systemImage: "trash.fill") {
+                    appState.stats = StatsSnapshot()
+                }
+                .padding(.top, 4)
             }
-            if let h = appState.stats.weekHighlights(calendar: appState.config.scheduleCalendar) {
-                LabeledContent("Best day", value: "\(h.bestDay ?? "—") · \(h.bestDone) done")
-                LabeledContent("Quietest day", value: "\(h.worstDay ?? "—") · \(h.worstDone) done")
-            }
-            Divider()
-            Text("All-time").font(.headline)
-            let s = appState.stats
-            LabeledContent("Shown", value: "\(s.shownTotal)")
-            LabeledContent("Done", value: "\(s.acknowledgedTotal)")
-            LabeledContent("Snoozed", value: "\(s.snoozedTotal)")
-            LabeledContent("Skipped", value: "\(s.skippedTotal)")
-            Text("Widget snapshot: \(WidgetSnapshot.fileURL.path)")
-                .font(.caption2).foregroundStyle(.secondary)
-            Button("Reset stats") { appState.stats = StatsSnapshot() }
-            Spacer()
         }
-        .padding()
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }
