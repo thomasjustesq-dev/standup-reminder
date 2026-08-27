@@ -361,7 +361,34 @@ struct BreakLiveActivityWidget: Widget {
                             .foregroundStyle(AeroWidgetColor.volt)
                     }
                 }
+                
                 Spacer()
+                
+                // Interactive quick actions on Lock Screen
+                HStack(spacing: 8) {
+                    Link(destination: URL(string: "standup://done")!) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark")
+                            Text("Done")
+                        }
+                        .font(.system(size: 11, weight: .bold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .foregroundStyle(AeroWidgetColor.void)
+                        .background(AeroWidgetColor.volt)
+                        .clipShape(Capsule())
+                    }
+                    
+                    Link(destination: URL(string: "standup://snooze")!) {
+                        Text("Snooze")
+                            .font(.system(size: 11, weight: .medium))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .foregroundStyle(AeroWidgetColor.titaniumWhite)
+                            .background(AeroWidgetColor.slate)
+                            .clipShape(Capsule())
+                    }
+                }
             }
             .padding(16)
             .background(Color(red: 0.05, green: 0.06, blue: 0.08))
@@ -385,6 +412,33 @@ struct BreakLiveActivityWidget: Widget {
                             .foregroundStyle(AeroWidgetColor.volt)
                             .frame(maxWidth: 60)
                     }
+                }
+                DynamicIslandExpandedRegion(.bottom) {
+                    HStack(spacing: 12) {
+                        Link(destination: URL(string: "standup://done")!) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "checkmark")
+                                Text("Done Break")
+                            }
+                            .font(.system(size: 12, weight: .bold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 6)
+                            .foregroundStyle(AeroWidgetColor.void)
+                            .background(AeroWidgetColor.volt)
+                            .clipShape(Capsule())
+                        }
+                        
+                        Link(destination: URL(string: "standup://snooze")!) {
+                            Text("Snooze 10m")
+                                .font(.system(size: 12, weight: .medium))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 6)
+                                .foregroundStyle(AeroWidgetColor.titaniumWhite)
+                                .background(AeroWidgetColor.slate)
+                                .clipShape(Capsule())
+                        }
+                    }
+                    .padding(.top, 4)
                 }
             } compactLeading: {
                 Image(systemName: "figure.stand")

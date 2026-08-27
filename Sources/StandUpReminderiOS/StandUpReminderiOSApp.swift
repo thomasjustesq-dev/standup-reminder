@@ -36,6 +36,13 @@ struct StandUpReminderiOSApp: App {
             ContentView()
                 .environmentObject(model)
         }
+        .onOpenURL { url in
+            if url.host == "done" || url.path.contains("done") {
+                PhoneModel.shared.acknowledgeDone()
+            } else if url.host == "snooze" || url.path.contains("snooze") {
+                PhoneModel.shared.snooze(minutes: 10)
+            }
+        }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active:

@@ -33,6 +33,7 @@ iCloud container `iCloud.com.thomasjust.standupreminder` is on the Mac Developme
 
 | Item | Notes |
 | --- | --- |
+| Aero-Kinetic Theme | VisionOS spatial glass, acoustic 528 Hz synthesis, dynamic menu bar arc, watch dial, global hotkeys (`feature/aero-kinetic-theme`) |
 | Merge #21 | Stretching-figure `NSStatusItem`; no `HStack` around the extra |
 | App Group on portal | Binary is signed with `group.com.thomasjust.standupreminder`; confirm the group exists and is attached to Mac + iOS + widget App IDs |
 | Live multi-device confirm | One iCloud push re-seeds peers; Mac offline >15m → phone “Mac offline · local schedule” |
