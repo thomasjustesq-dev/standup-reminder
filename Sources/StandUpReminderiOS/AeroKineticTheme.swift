@@ -4,17 +4,21 @@ import SwiftUI
 // MARK: - Aero-Kinetic iOS Theme & Telemetry Design Tokens
 
 public enum AeroColor {
-    public static let void = Color(red: 0.039, green: 0.043, blue: 0.055)
-    public static let obsidian = Color(red: 0.071, green: 0.075, blue: 0.094)
-    public static let slate = Color(red: 0.086, green: 0.098, blue: 0.133)
-    public static let volt = Color(red: 0.824, green: 1.000, blue: 0.227)
-    public static let voltGlow = Color(red: 0.824, green: 1.000, blue: 0.227).opacity(0.35)
-    public static let ionBlue = Color(red: 0.039, green: 0.518, blue: 1.000)
+    private static func color(_ rgb: AeroPalette.RGB) -> Color {
+        Color(red: rgb.red, green: rgb.green, blue: rgb.blue)
+    }
+
+    public static let void = color(AeroPalette.void)
+    public static let obsidian = color(AeroPalette.obsidian)
+    public static let slate = color(AeroPalette.slate)
+    public static let volt = color(AeroPalette.volt)
+    public static let voltGlow = color(AeroPalette.volt).opacity(AeroPalette.voltGlowOpacity)
+    public static let ionBlue = color(AeroPalette.ionBlue)
     public static let titaniumWhite = Color.white
-    public static let vaporGray = Color.white.opacity(0.55)
-    public static let hairline = Color.white.opacity(0.12)
-    public static let specularRim = Color.white.opacity(0.20)
-    public static let alertOrange = Color(red: 1.000, green: 0.624, blue: 0.039)
+    public static let vaporGray = Color.white.opacity(AeroPalette.vaporGrayOpacity)
+    public static let hairline = Color.white.opacity(AeroPalette.hairlineOpacity)
+    public static let specularRim = Color.white.opacity(AeroPalette.specularRimOpacity)
+    public static let alertOrange = color(AeroPalette.alertOrange)
 }
 
 public struct AeroGlassCardModifier: ViewModifier {
@@ -33,7 +37,7 @@ public struct AeroGlassCardModifier: ViewModifier {
             .background {
                 ZStack {
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(AeroColor.slate.opacity(0.75))
+                        .fill(AeroColor.slate.opacity(AeroPalette.slateCardOpacity))
                         .background(.ultraThinMaterial)
                     
                     if let glow = glowColor {
@@ -56,10 +60,10 @@ public struct AeroGlassCardModifier: ViewModifier {
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         ),
-                        lineWidth: 0.75
+                        lineWidth: AeroPalette.specularBorderWidth
                     )
             }
-            .shadow(color: Color.black.opacity(0.3), radius: 20, x: 0, y: 10)
+            .shadow(color: Color.black.opacity(AeroPalette.cardShadowOpacity), radius: AeroPalette.cardShadowRadius, x: 0, y: AeroPalette.cardShadowY)
     }
 }
 
@@ -125,6 +129,7 @@ public struct AeroCountdownGauge: View {
                 Text(timeRemainingText)
                     .font(.system(size: 38, weight: .bold, design: .default))
                     .monospacedDigit()
+                    .tracking(AeroPalette.timerTracking)
                     .foregroundStyle(AeroColor.titaniumWhite)
                 
                 Text(subtitle.uppercased())

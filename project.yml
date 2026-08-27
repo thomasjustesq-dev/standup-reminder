@@ -84,6 +84,7 @@ targets:
       - Sources/StandUpReminderWidget/StandUpReminderWidget.swift
       - Sources/StandUpReminderCore/BreakActivity.swift
       - Sources/StandUpReminderCore/AppIdentity.swift
+      - Sources/StandUpReminderCore/AeroPalette.swift
     info:
       path: Resources/iOSWidget-Info.plist
       properties:
@@ -102,6 +103,7 @@ targets:
     platform: watchOS
     sources:
       - Sources/StandUpReminderWatch
+      - Sources/StandUpReminderCore/AeroPalette.swift
     info:
       path: Resources/Watch-Info.plist
       properties:
@@ -124,6 +126,7 @@ targets:
     sources:
       - Sources/StandUpReminderWidget/StandUpReminderWidget.swift
       - Sources/StandUpReminderCore/AppIdentity.swift
+      - Sources/StandUpReminderCore/AeroPalette.swift
     info:
       path: Resources/WatchWidget-Info.plist
       properties:

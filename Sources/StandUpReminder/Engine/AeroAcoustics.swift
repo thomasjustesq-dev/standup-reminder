@@ -3,8 +3,9 @@ import AudioToolbox
 import AVFoundation
 
 /// Synthesized spatial acoustic engine for Aero-Kinetic audio cues.
-/// Produces harmonic glass chimes at pure solfeggio frequencies (528Hz base / 1056Hz harmonic)
-/// with smooth exponential decay curves.
+/// Produces stereo harmonic glass chimes at pure solfeggio frequencies (528Hz base /
+/// 1056Hz harmonic) with smooth exponential decay curves; the base tone sits left,
+/// the harmonic right, with a short Haas delay for spatial width.
 public enum AeroAcoustics {
     public enum Cue {
         case breakAlert
@@ -30,7 +31,8 @@ public enum AeroAcoustics {
         }()
 
         let numSamples = Int(sampleRate * duration)
-        var pcmData = [Float](repeating: 0, count: numSamples)
+        // Interleaved stereo (L,R) — the chime is spatial, not mono.
+        var pcmData = [Float](repeating: 0, count: numSamples * 2)
 
         let baseFreq: Double = {
             switch cue {
@@ -48,21 +50,36 @@ public enum AeroAcoustics {
             }
         }()
 
+        // Stereo image: base tone sits slightly left, harmonic slightly right,
+        // with a short Haas-style delay on the right channel for width.
+        let haasDelaySeconds = 0.006
+        let basePan: (left: Double, right: Double) = (1.0, 0.72)
+        let harmonicPan: (left: Double, right: Double) = (0.70, 1.0)
+
         for i in 0..<numSamples {
             let t = Double(i) / sampleRate
+            let tR = max(0.0, t - haasDelaySeconds)
             let decay = exp(-t * (cue == .breakDone ? 4.5 : 3.0)) // Exponential glass decay
-            
-            let sample1 = sin(2.0 * .pi * baseFreq * t) * 0.65
-            let sample2 = sin(2.0 * .pi * secondFreq * t) * 0.35
-            
+            let decayR = exp(-tR * (cue == .breakDone ? 4.5 : 3.0))
+
             let envelope: Double
             if t < 0.008 {
                 envelope = t / 0.008 // Soft 8ms attack to avoid speaker pop
             } else {
                 envelope = decay
             }
-            
-            pcmData[i] = Float((sample1 + sample2) * envelope * 0.7)
+            let envelopeR = t < 0.008 ? envelope : decayR
+
+            let baseL = sin(2.0 * .pi * baseFreq * t) * 0.65
+            let harmonicL = sin(2.0 * .pi * secondFreq * t) * 0.35
+            let baseR = sin(2.0 * .pi * baseFreq * tR) * 0.65
+            let harmonicR = sin(2.0 * .pi * secondFreq * tR) * 0.35
+
+            let left = (baseL * basePan.left + harmonicL * harmonicPan.left) * envelope * 0.7
+            let right = (baseR * basePan.right + harmonicR * harmonicPan.right) * envelopeR * 0.7
+
+            pcmData[i * 2] = Float(left)
+            pcmData[i * 2 + 1] = Float(right)
         }
 
         // Convert PCM float to AudioBuffer and play via AudioToolbox / CoreAudio
@@ -74,10 +91,10 @@ public enum AeroAcoustics {
             mSampleRate: sampleRate,
             mFormatID: kAudioFormatLinearPCM,
             mFormatFlags: kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked,
-            mBytesPerPacket: 4,
+            mBytesPerPacket: 8,
             mFramesPerPacket: 1,
-            mBytesPerFrame: 4,
-            mChannelsPerFrame: 1,
+            mBytesPerFrame: 8,
+            mChannelsPerFrame: 2,
             mBitsPerChannel: 32,
             mReserved: 0
         )
@@ -96,8 +113,8 @@ public enum AeroAcoustics {
             AudioQueueEnqueueBuffer(queue, buffer, 0, nil)
             AudioQueueStart(queue, nil)
 
-            // Auto-dispose after playback
-            let sleepSeconds = Double(pcmData.count) / sampleRate + 0.1
+            // Auto-dispose after playback (2 interleaved samples per frame)
+            let sleepSeconds = Double(pcmData.count) / 2.0 / sampleRate + 0.1
             Thread.sleep(forTimeInterval: sleepSeconds)
             AudioQueueStop(queue, false)
             AudioQueueDispose(queue, true)

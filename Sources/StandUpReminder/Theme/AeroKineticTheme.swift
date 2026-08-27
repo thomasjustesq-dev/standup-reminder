@@ -3,38 +3,42 @@ import SwiftUI
 // MARK: - Aero-Kinetic Color Palette
 
 public enum AeroColor {
+    private static func color(_ rgb: AeroPalette.RGB) -> Color {
+        Color(red: rgb.red, green: rgb.green, blue: rgb.blue)
+    }
+
     /// Deep OLED Obsidian Base Floor (#0A0B0E)
-    public static let void = Color(red: 0.039, green: 0.043, blue: 0.055)
-    
+    public static let void = color(AeroPalette.void)
+
     /// Elevated Obsidian Layer (#121318)
-    public static let obsidian = Color(red: 0.071, green: 0.075, blue: 0.094)
-    
+    public static let obsidian = color(AeroPalette.obsidian)
+
     /// Frosted Translucent Slate Plate (#161922)
-    public static let slate = Color(red: 0.086, green: 0.098, blue: 0.133)
-    
+    public static let slate = color(AeroPalette.slate)
+
     /// Kinetic Volt Lime - Primary Action & Telemetry Accent (#D2FF3A)
-    public static let volt = Color(red: 0.824, green: 1.000, blue: 0.227)
-    
+    public static let volt = color(AeroPalette.volt)
+
     /// Volt Optical Glow
-    public static let voltGlow = Color(red: 0.824, green: 1.000, blue: 0.227).opacity(0.35)
-    
+    public static let voltGlow = color(AeroPalette.volt).opacity(AeroPalette.voltGlowOpacity)
+
     /// Ion Blue - Alignment & Secondary Telemetry Accent (#0A84FF)
-    public static let ionBlue = Color(red: 0.039, green: 0.518, blue: 1.000)
-    
+    public static let ionBlue = color(AeroPalette.ionBlue)
+
     /// Titanium Pure White (#FFFFFF)
     public static let titaniumWhite = Color.white
-    
+
     /// Vapor Gray - Micro Metadata Text
-    public static let vaporGray = Color.white.opacity(0.55)
-    
+    public static let vaporGray = Color.white.opacity(AeroPalette.vaporGrayOpacity)
+
     /// Micro Hairline Divider
-    public static let hairline = Color.white.opacity(0.12)
-    
+    public static let hairline = Color.white.opacity(AeroPalette.hairlineOpacity)
+
     /// Specular Rim Refraction Highlight
-    public static let specularRim = Color.white.opacity(0.20)
-    
+    public static let specularRim = Color.white.opacity(AeroPalette.specularRimOpacity)
+
     /// Alert Orange - Warnings and Overdue Reminders (#FF9F0A)
-    public static let alertOrange = Color(red: 1.000, green: 0.624, blue: 0.039)
+    public static let alertOrange = color(AeroPalette.alertOrange)
 }
 
 // MARK: - Aero-Kinetic View Modifiers
@@ -55,7 +59,7 @@ public struct AeroGlassCardModifier: ViewModifier {
             .background {
                 ZStack {
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(AeroColor.slate.opacity(0.75))
+                        .fill(AeroColor.slate.opacity(AeroPalette.slateCardOpacity))
                         .background(.ultraThinMaterial)
                     
                     if let glow = glowColor {
@@ -78,10 +82,10 @@ public struct AeroGlassCardModifier: ViewModifier {
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         ),
-                        lineWidth: 0.75
+                        lineWidth: AeroPalette.specularBorderWidth
                     )
             }
-            .shadow(color: Color.black.opacity(0.4), radius: 16, x: 0, y: 8)
+            .shadow(color: Color.black.opacity(AeroPalette.cardShadowOpacity), radius: AeroPalette.cardShadowRadius, x: 0, y: AeroPalette.cardShadowY)
     }
 }
 
@@ -104,6 +108,7 @@ public struct AeroCountdownGauge: View {
     public let subtitle: String
     public var accentColor: Color = AeroColor.volt
     public var deskPhase: String? = nil
+    public var showsFigure: Bool = false
     public var size: CGFloat = 130
 
     public init(
@@ -112,6 +117,7 @@ public struct AeroCountdownGauge: View {
         subtitle: String = "UNTIL BREAK",
         accentColor: Color = AeroColor.volt,
         deskPhase: String? = nil,
+        showsFigure: Bool = false,
         size: CGFloat = 130
     ) {
         self.progress = max(0.0, min(1.0, progress))
@@ -119,6 +125,7 @@ public struct AeroCountdownGauge: View {
         self.subtitle = subtitle
         self.accentColor = accentColor
         self.deskPhase = deskPhase
+        self.showsFigure = showsFigure
         self.size = size
     }
 
@@ -163,9 +170,16 @@ public struct AeroCountdownGauge: View {
                     .padding(.bottom, 1)
                 }
 
+                if showsFigure {
+                    AeroStretchFigure(color: accentColor)
+                        .frame(width: size * 0.34, height: size * 0.34)
+                        .aeroGlow(color: accentColor, radius: 6)
+                }
+
                 Text(timeRemainingText)
-                    .font(.system(size: 24, weight: .bold, design: .default))
+                    .font(.system(size: showsFigure ? 20 : 24, weight: .bold, design: .default))
                     .monospacedDigit()
+                    .tracking(AeroPalette.timerTracking)
                     .foregroundStyle(AeroColor.titaniumWhite)
                 
                 Text(subtitle.uppercased())
@@ -199,7 +213,7 @@ public struct AeroTelemetryBadge: View {
             
             Text(text.uppercased())
                 .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                .tracking(0.8)
+                .tracking(AeroPalette.telemetryTracking)
                 .foregroundStyle(AeroColor.titaniumWhite)
         }
         .padding(.horizontal, 7)
@@ -332,5 +346,48 @@ public struct AeroGlassButton: View {
             }
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Stretching Figure Glyph
+
+/// The signature stretching figure from the app icon / status item, rendered
+/// in SwiftUI so it can take Volt color and glow inside the popover's Volt arc.
+/// Geometry matches `MenuBarMark` / `make-icon.swift` (1024 design canvas,
+/// y flipped for SwiftUI's top-left origin).
+public struct AeroStretchFigure: View {
+    public var color: Color
+
+    public init(color: Color = AeroColor.volt) {
+        self.color = color
+    }
+
+    public var body: some View {
+        Canvas { ctx, size in
+            let scale = min(size.width, size.height) / 1024
+            let xOff = (size.width - 1024 * scale) / 2
+            let yOff = (size.height - 1024 * scale) / 2
+            func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+                CGPoint(x: x * scale + xOff, y: y * scale + yOff)
+            }
+            func stroke(_ ax: CGFloat, _ ay: CGFloat, _ bx: CGFloat, _ by: CGFloat, _ w: CGFloat) {
+                var path = Path()
+                path.move(to: pt(ax, ay))
+                path.addLine(to: pt(bx, by))
+                ctx.stroke(path, with: .color(color), style: StrokeStyle(lineWidth: w * scale, lineCap: .round))
+            }
+
+            // Head
+            let head = CGRect(x: pt(512 - 88, 268 - 88).x, y: pt(512 - 88, 268 - 88).y,
+                              width: 176 * scale, height: 176 * scale)
+            ctx.fill(Path(ellipseIn: head), with: .color(color))
+
+            // Torso, arms, legs (y-up icon space mapped to y-down: y' = 1024 - y)
+            stroke(512, 384, 512, 634, 112) // torso
+            stroke(512, 434, 330, 224, 78)  // left arm raised
+            stroke(512, 434, 694, 224, 78)  // right arm raised
+            stroke(512, 624, 404, 874, 84)  // left leg
+            stroke(512, 624, 620, 874, 84)  // right leg
+        }
     }
 }
