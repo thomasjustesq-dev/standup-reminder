@@ -85,6 +85,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     OnboardingView().environmentObject(AppState.shared)
                 }
             }
+            observe(.toggleMenuBarPopover) { [weak self] in
+                self?.togglePopover(nil)
+            }
+
+            GlobalHotkeyManager.shared.setup()
 
             #if DEBUG
             if DebugEnvironment.isDebugMode {

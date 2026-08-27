@@ -183,6 +183,18 @@ struct MenuBarView: View {
                     }
                 }
                 
+                if appState.config.features.fightingShapeEnabled, let score = FightingShapeMonitor.shared.lastRecoveryScore {
+                    HStack {
+                        Text("RECOVERY")
+                            .font(.system(size: 8.5, weight: .bold, design: .monospaced))
+                            .foregroundStyle(AeroColor.vaporGray)
+                        Spacer()
+                        Text("\(Int(score))% · \(FightingShapeMonitor.shared.lowRecovery ? "Tightened" : "Nominal")")
+                            .font(.system(size: 9.5, weight: .semibold))
+                            .foregroundStyle(FightingShapeMonitor.shared.lowRecovery ? AeroColor.alertOrange : AeroColor.volt)
+                    }
+                }
+                
                 HStack {
                     Text("THIS WEEK")
                         .font(.system(size: 8.5, weight: .bold, design: .monospaced))
