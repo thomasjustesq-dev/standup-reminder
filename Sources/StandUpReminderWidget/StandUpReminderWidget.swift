@@ -114,6 +114,14 @@ struct WidgetSnapshotDTO: Codable {
     var updatedAt: Date
 }
 
+// MARK: - Aero-Kinetic Widget Styling Tokens
+private enum AeroWidgetColor {
+    static let volt = Color(red: 0.824, green: 1.000, blue: 0.227)
+    static let ionBlue = Color(red: 0.039, green: 0.518, blue: 1.000)
+    static let titaniumWhite = Color.white
+    static let vaporGray = Color.white.opacity(0.60)
+}
+
 struct StandUpReminderWidgetView: View {
     @Environment(\.widgetFamily) private var family
     var entry: StandUpWidgetEntry
@@ -127,6 +135,7 @@ struct StandUpReminderWidgetView: View {
                 .monospacedDigit()
         } else if let countdown = entry.countdown {
             Text("\(countdown)m")
+                .monospacedDigit()
         } else {
             Text("—")
         }
@@ -135,14 +144,19 @@ struct StandUpReminderWidgetView: View {
     var body: some View {
         switch family {
         case .accessoryCircular:
-            VStack(spacing: 0) {
-                Image(systemName: "figure.stand")
-                countdownText
-                    .font(.caption2.weight(.semibold))
-                    .multilineTextAlignment(.center)
+            ZStack {
+                AccessoryWidgetBackground()
+                VStack(spacing: 1) {
+                    Image(systemName: "figure.stand")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(AeroWidgetColor.volt)
+                    countdownText
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .multilineTextAlignment(.center)
+                }
             }
         case .accessoryInline:
-            HStack {
+            HStack(spacing: 4) {
                 Image(systemName: "figure.stand")
                 countdownText
             }
@@ -150,28 +164,51 @@ struct StandUpReminderWidgetView: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
                     Image(systemName: "figure.stand")
-                    Text("Next break")
-                        .font(.headline)
+                        .foregroundStyle(AeroWidgetColor.volt)
+                    Text("STANDUP")
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .tracking(0.8)
+                        .foregroundStyle(AeroWidgetColor.volt)
                 }
                 countdownText
-                    .font(.title3.weight(.semibold))
+                    .font(.system(size: 20, weight: .bold))
                 Text("\(entry.weekDone) done this week")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(AeroWidgetColor.vaporGray)
             }
         default:
             VStack(alignment: .leading, spacing: 6) {
-                Text("Stand Up")
-                    .font(.headline)
+                HStack {
+                    Image(systemName: "figure.stand")
+                        .foregroundStyle(AeroWidgetColor.volt)
+                    Text("STANDUP")
+                        .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                        .tracking(1.0)
+                        .foregroundStyle(AeroWidgetColor.vaporGray)
+                    Spacer()
+                    Text(entry.profileName.uppercased())
+                        .font(.system(size: 8, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(AeroWidgetColor.vaporGray.opacity(0.8))
+                }
+                
+                Spacer()
+                
                 countdownText
-                    .font(.system(.largeTitle, design: .rounded).weight(.bold))
+                    .font(.system(size: 32, weight: .bold, design: .default))
+                    .foregroundStyle(AeroWidgetColor.volt)
+                    .shadow(color: AeroWidgetColor.volt.opacity(0.3), radius: 8, x: 0, y: 0)
+                
                 Text(entry.nextText)
-                    .font(.caption)
-                Text("\(entry.weekDone) done this week · \(entry.profileName)")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(AeroWidgetColor.titaniumWhite)
+                
+                HStack {
+                    Text("\(entry.weekDone) completed this week")
+                        .font(.system(size: 10, weight: .regular))
+                        .foregroundStyle(AeroWidgetColor.vaporGray)
+                }
             }
-            .padding()
+            .padding(14)
         }
     }
 }
@@ -203,7 +240,7 @@ struct StandUpReminderWidget: Widget {
         StaticConfiguration(kind: kind, provider: StandUpWidgetProvider()) { entry in
             if #available(iOS 17.0, macOS 14.0, watchOS 10.0, *) {
                 StandUpReminderWidgetView(entry: entry)
-                    .containerBackground(.fill.tertiary, for: .widget)
+                    .containerBackground(Color(red: 0.07, green: 0.08, blue: 0.10), for: .widget)
             } else {
                 StandUpReminderWidgetView(entry: entry)
             }
@@ -221,55 +258,74 @@ struct StandUpReminderWidget: Widget {
 struct BreakLiveActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: BreakActivityAttributes.self) { context in
-            // One clock read per builder: a second Date() past nextFireAt
-            // would build an invalid range and crash.
             let now = Date()
-            HStack {
-                Image(systemName: "figure.stand")
-                VStack(alignment: .leading) {
-                    Text(context.state.title)
-                        .font(.headline)
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(AeroWidgetColor.volt.opacity(0.15))
+                        .frame(width: 40, height: 40)
+                    Image(systemName: "figure.stand")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(AeroWidgetColor.volt)
+                }
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(context.state.title.uppercased())
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .tracking(0.8)
+                        .foregroundStyle(AeroWidgetColor.vaporGray)
+                    
                     if context.state.nextFireAt > now {
                         Text(timerInterval: now...context.state.nextFireAt, countsDown: true)
-                            .font(.title2.weight(.semibold))
+                            .font(.system(size: 22, weight: .bold))
                             .monospacedDigit()
+                            .foregroundStyle(AeroWidgetColor.titaniumWhite)
                     } else {
                         Text("Break time")
-                            .font(.title3.weight(.semibold))
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundStyle(AeroWidgetColor.volt)
                     }
                 }
                 Spacer()
             }
-            .padding()
+            .padding(16)
+            .background(Color(red: 0.05, green: 0.06, blue: 0.08))
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     Image(systemName: "figure.stand")
                         .font(.title2)
+                        .foregroundStyle(AeroWidgetColor.volt)
                 }
                 DynamicIslandExpandedRegion(.center) {
                     Text(context.state.title)
-                        .font(.headline)
+                        .font(.system(size: 14, weight: .semibold))
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     let now = Date()
                     if context.state.nextFireAt > now {
                         Text(timerInterval: now...context.state.nextFireAt, countsDown: true)
+                            .font(.system(size: 14, weight: .bold))
                             .monospacedDigit()
+                            .foregroundStyle(AeroWidgetColor.volt)
                             .frame(maxWidth: 60)
                     }
                 }
             } compactLeading: {
                 Image(systemName: "figure.stand")
+                    .foregroundStyle(AeroWidgetColor.volt)
             } compactTrailing: {
                 let now = Date()
                 if context.state.nextFireAt > now {
                     Text(timerInterval: now...context.state.nextFireAt, countsDown: true)
+                        .font(.system(size: 12, weight: .bold))
                         .monospacedDigit()
+                        .foregroundStyle(AeroWidgetColor.volt)
                         .frame(maxWidth: 44)
                 }
             } minimal: {
                 Image(systemName: "figure.stand")
+                    .foregroundStyle(AeroWidgetColor.volt)
             }
         }
     }
