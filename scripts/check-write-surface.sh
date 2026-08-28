@@ -105,6 +105,35 @@ if [ -z "$surfaces" ]; then
   exit 1
 fi
 
+# Globs are not supported. covered() below matches by literal path prefix, so a
+# surface written as `apps/web/**` is compared literally, covers nothing, and
+# silently excludes every file it was meant to include. A claim that reads as
+# correct while matching zero files is the worst failure mode this script has,
+# so reject the glob loudly rather than teaching covered() to expand it —
+# expanding it would retroactively change what every existing claim covers.
+glob_surface=""
+while IFS= read -r surface || [ -n "$surface" ]; do
+  [ -z "$surface" ] && continue
+  case "$surface" in
+    *"*"* | *"?"* | *"["*)
+      glob_surface="$surface"
+      break
+      ;;
+  esac
+done <<< "$surfaces"
+
+if [ -n "$glob_surface" ]; then
+  echo "::error::$claim declares write surface '$glob_surface', which contains a glob."
+  echo
+  echo "Write surfaces match by literal path prefix, not by glob. Declare the"
+  echo "bare prefix instead — a directory already covers everything beneath it:"
+  echo
+  echo "  apps/web              covers apps/web and every file under it"
+  echo "  docs/DESIGN.md        covers exactly that file"
+  echo
+  exit 1
+fi
+
 # A read-only claim writes nothing but its own bookkeeping.
 readonly_claim=false
 if [ "$(printf '%s\n' "$surfaces" | tr -d '[:space:]')" = "none" ]; then
