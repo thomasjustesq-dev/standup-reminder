@@ -57,8 +57,8 @@ targets:
       path: Resources/iOS-Info.plist
       properties:
         CFBundleDisplayName: Stand Up
-        CFBundleShortVersionString: "4.2.2"
-        CFBundleVersion: "8"
+        CFBundleShortVersionString: "4.2.3"
+        CFBundleVersion: "9"
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         ITSAppUsesNonExemptEncryption: false
@@ -90,8 +90,8 @@ targets:
       path: Resources/iOSWidget-Info.plist
       properties:
         CFBundleDisplayName: Stand Up
-        CFBundleShortVersionString: "4.2.2"
-        CFBundleVersion: "8"
+        CFBundleShortVersionString: "4.2.3"
+        CFBundleVersion: "9"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:
@@ -109,8 +109,8 @@ targets:
       path: Resources/Watch-Info.plist
       properties:
         CFBundleDisplayName: Stand Up
-        CFBundleShortVersionString: "4.2.2"
-        CFBundleVersion: "8"
+        CFBundleShortVersionString: "4.2.3"
+        CFBundleVersion: "9"
         WKApplication: true
         WKCompanionAppBundleIdentifier: com.thomasjust.standupreminder
     settings:
@@ -132,8 +132,8 @@ targets:
       path: Resources/WatchWidget-Info.plist
       properties:
         CFBundleDisplayName: Stand Up
-        CFBundleShortVersionString: "4.2.2"
-        CFBundleVersion: "8"
+        CFBundleShortVersionString: "4.2.3"
+        CFBundleVersion: "9"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:

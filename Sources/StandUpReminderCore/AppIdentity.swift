@@ -25,6 +25,6 @@ enum AppIdentity {
 
 /// Single marketing / build version for Info.plist, project.yml, Formula, Cask.
 enum AppVersion {
-    static let marketing = "4.2.2"
-    static let build = "8"
+    static let marketing = "4.2.3"
+    static let build = "9"
 }

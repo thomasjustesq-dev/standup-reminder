@@ -1,4 +1,4 @@
-# Stand Up Reminder · v4.2.2
+# Stand Up Reminder · v4.2.3
 
 Movement-break companion: macOS menu bar app (macOS 14+), iPhone app, and
 Apple Watch companion on one shared scheduler core.
