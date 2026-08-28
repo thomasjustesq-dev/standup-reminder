@@ -6,19 +6,38 @@ enum HealthLogger {
 
     static var isAvailable: Bool { HKHealthStore.isHealthDataAvailable() }
 
-    static func requestAuthorization(completion: @escaping (Bool) -> Void) {
+    static func authorizationStatus() -> HealthAccessStatus {
         guard isAvailable,
               let mindful = HKObjectType.categoryType(forIdentifier: .mindfulSession) else {
-            completion(false)
+            return .unavailable
+        }
+        switch store.authorizationStatus(for: mindful) {
+        case .notDetermined: return .notDetermined
+        case .sharingAuthorized: return .authorized
+        case .sharingDenied: return .denied
+        @unknown default: return .notDetermined
+        }
+    }
+
+    static func requestAuthorization(completion: @escaping (HealthAccessStatus) -> Void) {
+        guard isAvailable,
+              let mindful = HKObjectType.categoryType(forIdentifier: .mindfulSession) else {
+            completion(.unavailable)
             return
         }
         var read: Set<HKObjectType> = []
         if let stand = HKObjectType.categoryType(forIdentifier: .appleStandHour) {
             read.insert(stand)
         }
-        store.requestAuthorization(toShare: [mindful], read: read) { granted, error in
-            if let error { AppLog.write("Health auth error: \(error.localizedDescription)") }
-            DispatchQueue.main.async { completion(granted) }
+        store.requestAuthorization(toShare: [mindful], read: read) { _, error in
+            let status: HealthAccessStatus
+            if let error {
+                AppLog.write("Health auth error: \(error.localizedDescription)")
+                status = .failed(error.localizedDescription)
+            } else {
+                status = authorizationStatus()
+            }
+            DispatchQueue.main.async { completion(status) }
         }
     }
 

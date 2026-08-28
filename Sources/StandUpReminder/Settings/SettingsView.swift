@@ -296,8 +296,17 @@ private struct GeneralSettingsTab: View {
                 if showSystemIntegrations {
                     Divider().overlay(AeroColor.hairline)
 
-                    AeroRow(label: "Write mindful minutes to Apple Health on Done", caption: "Mac logs mindful minutes directly to HealthKit") {
-                        Toggle("", isOn: boolBinding(\.healthLoggingEnabled))
+                    AeroRow(
+                        label: "Apple Health",
+                        caption: healthCaption
+                    ) {
+                        Toggle("", isOn: Binding(
+                            get: { appState.config.healthLoggingEnabled },
+                            set: { enabled in
+                                updateConfig { $0.healthLoggingEnabled = enabled }
+                                if enabled { appState.requestHealthAccess() }
+                            }
+                        ))
                             .toggleStyle(.switch)
                             .tint(AeroColor.volt)
                     }
@@ -309,10 +318,13 @@ private struct GeneralSettingsTab: View {
                         onIncrement: { updateConfig { $0.healthMindfulMinutes = min(15, $0.healthMindfulMinutes + 1) } }
                     )
 
-                    AeroGlassButton(title: "Request HealthKit Access…", systemImage: "heart.fill") {
-                        HealthLogger.requestAuthorization { _ in }
+                    if appState.healthAccessStatus != .authorized,
+                       appState.healthAccessStatus != .unavailable {
+                        AeroGlassButton(title: "Connect Apple Health…", systemImage: "heart.fill") {
+                            appState.requestHealthAccess()
+                        }
+                        .padding(.top, 4)
                     }
-                    .padding(.top, 4)
 
                     Divider().overlay(AeroColor.hairline)
 
@@ -376,6 +388,21 @@ private struct GeneralSettingsTab: View {
             try appState.importSettings(data)
         } catch {
             AppLog.write("Import failed: \(error.localizedDescription)")
+        }
+    }
+
+    private var healthCaption: String {
+        switch appState.healthAccessStatus {
+        case .unavailable:
+            return "Unavailable on this Mac. Connect Apple Health in the iPhone app; the setting syncs across devices."
+        case .authorized:
+            return "Connected. Done writes \(Int(appState.config.healthMindfulMinutes)) mindful minute(s)."
+        case .notDetermined:
+            return "Not connected. Grant access to write mindful minutes on Done."
+        case .denied:
+            return "Access denied. Re-enable Health access in System Settings."
+        case .failed(let message):
+            return "HealthKit error: \(message)"
         }
     }
 
@@ -614,7 +641,7 @@ private struct ModesSettingsTab: View {
 
 private struct QuietSettingsTab: View {
     @EnvironmentObject private var appState: AppState
-    @State private var denylistText: String = ""
+    @State private var newBundleIdentifier = ""
 
     var body: some View {
         VStack(spacing: 16) {
@@ -660,34 +687,89 @@ private struct QuietSettingsTab: View {
                 }
             }
 
-            AeroSectionCard(title: "App Denylist (Bundle Identifiers)") {
-                TextEditor(text: $denylistText)
-                    .font(.system(size: 11, design: .monospaced))
-                    .frame(minHeight: 90)
-                    .padding(6)
-                    .background(AeroColor.obsidian)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-
-                HStack(spacing: 8) {
-                    AeroGlassButton(title: "Save Denylist", isProminent: true) {
-                        var c = appState.config
-                        c.denylistBundleIds = denylistText
-                            .split(whereSeparator: { $0 == "\n" || $0 == "," })
-                            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                            .filter { !$0.isEmpty }
-                        appState.config = c
+            AeroSectionCard(
+                title: "Quiet Apps",
+                subtitle: "No reminder banners while one of these apps is frontmost"
+            ) {
+                ForEach(appState.config.denylistBundleIds, id: \.self) { bundleID in
+                    HStack(spacing: 10) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(applicationName(for: bundleID))
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(AeroColor.titaniumWhite)
+                            Text(bundleID)
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundStyle(AeroColor.vaporGray)
+                        }
+                        Spacer()
+                        Button {
+                            updateConfig { config in
+                                config.denylistBundleIds.removeAll {
+                                    $0.caseInsensitiveCompare(bundleID) == .orderedSame
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "trash")
+                                .foregroundStyle(AeroColor.vaporGray)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    AeroGlassButton(title: "Reset Defaults") {
-                        var c = appState.config
-                        c.denylistBundleIds = AppConfig.defaultDenylist
-                        appState.config = c
-                        denylistText = c.denylistBundleIds.joined(separator: "\n")
+                    Divider().overlay(AeroColor.hairline)
+                }
+
+                if let current = appState.lastExternalFrontmostBundleId,
+                   !AppDenylist.contains(bundleIdentifier: current, entries: appState.config.denylistBundleIds) {
+                    AeroGlassButton(
+                        title: "Add Current App (\(applicationName(for: current)))",
+                        systemImage: "plus.app.fill",
+                        isProminent: true
+                    ) {
+                        addBundleIdentifier(current)
                     }
                 }
-                .padding(.top, 4)
+
+                HStack(spacing: 8) {
+                    TextField("Bundle identifier (for example, com.apple.keynote)", text: $newBundleIdentifier)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 11, design: .monospaced))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 7)
+                        .background(AeroColor.obsidian)
+                        .clipShape(RoundedRectangle(cornerRadius: 7))
+                        .onSubmit { addBundleIdentifier(newBundleIdentifier) }
+                    Button("Add") { addBundleIdentifier(newBundleIdentifier) }
+                        .disabled(AppDenylist.normalized([newBundleIdentifier]).isEmpty)
+                }
+
+                AeroGlassButton(title: "Reset Defaults", systemImage: "arrow.counterclockwise") {
+                    updateConfig { $0.denylistBundleIds = AppDenylist.normalized(AppConfig.defaultDenylist) }
+                }
             }
         }
-        .onAppear { denylistText = appState.config.denylistBundleIds.joined(separator: "\n") }
+    }
+
+    private func addBundleIdentifier(_ bundleIdentifier: String) {
+        updateConfig { config in
+            config.denylistBundleIds = AppDenylist.normalized(config.denylistBundleIds + [bundleIdentifier])
+        }
+        newBundleIdentifier = ""
+    }
+
+    private func applicationName(for bundleIdentifier: String) -> String {
+        let defaults = [
+            "us.zoom.xos": "Zoom",
+            "com.microsoft.teams2": "Microsoft Teams",
+            "com.microsoft.teams": "Microsoft Teams (Classic)",
+            "com.apple.finalcut": "Final Cut Pro",
+            "com.apple.keynote": "Keynote",
+            "com.microsoft.powerpoint": "Microsoft PowerPoint"
+        ]
+        if let name = defaults[bundleIdentifier.lowercased()] { return name }
+        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) {
+            return FileManager.default.displayName(atPath: url.path)
+                .replacingOccurrences(of: ".app", with: "")
+        }
+        return "Application"
     }
 
     private func b(_ keyPath: WritableKeyPath<AppConfig, Bool>) -> Binding<Bool> {
@@ -826,7 +908,7 @@ private struct SyncPrivacySettingsTab: View {
             }
 
             AeroSectionCard(title: "iCloud Drive Document Sync") {
-                AeroRow(label: "Sync Settings & Cadence via iCloud", caption: "Keeps Mac, iPhone, and Apple Watch in sync") {
+                AeroRow(label: "Sync Settings & Cadence via iCloud", caption: "Changes push immediately; cloud updates pull automatically") {
                     Toggle("", isOn: featureBool(\.iCloudSyncEnabled)).toggleStyle(.switch).tint(AeroColor.volt)
                 }
 

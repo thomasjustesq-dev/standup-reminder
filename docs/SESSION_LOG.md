@@ -118,3 +118,10 @@ Append-only. `merge=union`.
 - Aligned `iOSWidget` / `WatchWidget` Info.plist to 4.2.2 (8); bump/check scripts cover them.
 - Built + installed Development-signed 4.2.2 to `~/Applications`; diagnostics live, iCloud
   migrated 4 files from legacy container. Notarized tag ship still blocked on Developer ID.
+
+## 2026-08-27 — automatic sync, Quiet Apps, real HealthKit
+
+- Settings and profiles now push immediately and reconcile automatically on Mac tick, iPhone launch/foreground, and iPhone background refresh using a tested newest-wins policy.
+- Replaced the raw denylist editor with a normalized, case-insensitive Quiet Apps list, readable names, removal controls, and Add Current App.
+- Added explicit HealthKit authorization state. iPhone reads recent workouts and writes mindful sessions on Done; unsupported Macs report unavailable instead of implying access.
+- Added the iOS Health update usage description and a release gate for signed HealthKit, iCloud, App Group, and widget capabilities.

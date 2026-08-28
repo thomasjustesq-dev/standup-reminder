@@ -2,16 +2,59 @@
 import Foundation
 import HealthKit
 
-/// Read-only HealthKit access: the app never writes health samples (the
-/// user's health pipeline is curated elsewhere); it only reads workout end
-/// times to auto-credit training as a movement break.
+/// Reads workout end times to auto-credit training and writes the configured
+/// mindful-session duration when the user marks a break Done.
 enum HealthCredit {
     private static let store = HKHealthStore()
 
-    static func requestAuthorizationIfNeeded() {
-        guard HKHealthStore.isHealthDataAvailable() else { return }
-        store.requestAuthorization(toShare: nil, read: [HKObjectType.workoutType()]) { _, error in
-            if let error { AppLog.write("HealthKit auth error: \(error.localizedDescription)") }
+    static func authorizationStatus() -> HealthAccessStatus {
+        guard HKHealthStore.isHealthDataAvailable(),
+              let mindful = HKObjectType.categoryType(forIdentifier: .mindfulSession) else {
+            return .unavailable
+        }
+        switch store.authorizationStatus(for: mindful) {
+        case .notDetermined: return .notDetermined
+        case .sharingAuthorized: return .authorized
+        case .sharingDenied: return .denied
+        @unknown default: return .notDetermined
+        }
+    }
+
+    static func requestAuthorization(completion: @escaping (HealthAccessStatus) -> Void) {
+        guard HKHealthStore.isHealthDataAvailable(),
+              let mindful = HKObjectType.categoryType(forIdentifier: .mindfulSession) else {
+            completion(.unavailable)
+            return
+        }
+        store.requestAuthorization(toShare: [mindful], read: [HKObjectType.workoutType()]) { _, error in
+            let status: HealthAccessStatus
+            if let error {
+                AppLog.write("HealthKit auth error: \(error.localizedDescription)")
+                status = .failed(error.localizedDescription)
+            } else {
+                status = authorizationStatus()
+            }
+            DispatchQueue.main.async { completion(status) }
+        }
+    }
+
+    static func logMindfulMinutes(_ minutes: Double) {
+        guard minutes > 0,
+              authorizationStatus().canWriteMindfulSessions,
+              let mindful = HKObjectType.categoryType(forIdentifier: .mindfulSession) else { return }
+        let end = Date()
+        let sample = HKCategorySample(
+            type: mindful,
+            value: HKCategoryValue.notApplicable.rawValue,
+            start: end.addingTimeInterval(-minutes * 60),
+            end: end
+        )
+        store.save(sample) { success, error in
+            if let error {
+                AppLog.write("HealthKit mindful save failed: \(error.localizedDescription)")
+            } else if success {
+                AppLog.write("Logged \(minutes) mindful minute(s) to Health")
+            }
         }
     }
 

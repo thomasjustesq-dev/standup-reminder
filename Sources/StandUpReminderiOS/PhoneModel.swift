@@ -29,8 +29,14 @@ final class PhoneModel: ObservableObject {
 
     @Published var config: AppConfig {
         didSet {
-            ConfigStore.save(config)
+            ConfigStore.save(config, notifyCloud: false)
             rescheduleNotifications()
+            guard !suppressCloudSettingsPush, config.features.iCloudSyncEnabled else { return }
+            if !oldValue.features.iCloudSyncEnabled {
+                reconcileSettingsWithCloud()
+            } else {
+                _ = pushToiCloud()
+            }
         }
     }
 
@@ -53,6 +59,7 @@ final class PhoneModel: ObservableObject {
     /// Stamp of the runtime doc that last supplied authority fields.
     @Published var authorityUpdatedAt: Date?
     @Published var syncHealth: SyncHealth = SyncHealth.load()
+    @Published var healthAccessStatus: HealthAccessStatus = .unavailable
 
     /// Adaptive interval pushed from a Mac peer (iOS has no idle samples).
     var cloudEffectiveIntervalMinutes: Int?
@@ -74,6 +81,7 @@ final class PhoneModel: ObservableObject {
     /// Live Activities may only be *started* in the foreground; tracked from
     /// scenePhase so background reschedules only update/end.
     var isForeground = false
+    var suppressCloudSettingsPush = false
 
     struct GuidedSheetPayload: Identifiable {
         let id = UUID()
@@ -198,11 +206,11 @@ final class PhoneModel: ObservableObject {
             lastAcknowledgedAt = Date()
         }
 
-        if config.healthLoggingEnabled {
-            HealthCredit.requestAuthorizationIfNeeded()
-        }
+        refreshHealthAccessStatus()
+        if config.healthLoggingEnabled { requestHealthAccess() }
 
         PhoneWatchBridge.shared.start()
+        reconcileSettingsWithCloud()
         syncRuntimeFromCloud()
         rescheduleNotifications()
     }
@@ -228,6 +236,9 @@ final class PhoneModel: ObservableObject {
     func acknowledgeDone() {
         lastAcknowledgedAt = Date()
         stats.recordDone(on: StatsSnapshot.dayKey(calendar: config.scheduleCalendar))
+        if config.healthLoggingEnabled {
+            HealthCredit.logMindfulMinutes(config.healthMindfulMinutes)
+        }
         if config.sitStandModeEnabled {
             deskPhase = (deskPhase == .stand) ? .sit : .stand
             deskPhaseStartedAt = Date()
@@ -290,6 +301,18 @@ final class PhoneModel: ObservableObject {
             Task { @MainActor in
                 if self.notificationsAuthorized != ok { self.notificationsAuthorized = ok }
             }
+        }
+        refreshHealthAccessStatus()
+    }
+
+    func refreshHealthAccessStatus() {
+        healthAccessStatus = HealthCredit.authorizationStatus()
+    }
+
+    func requestHealthAccess() {
+        healthAccessStatus = .notDetermined
+        HealthCredit.requestAuthorization { [weak self] status in
+            Task { @MainActor in self?.healthAccessStatus = status }
         }
     }
 

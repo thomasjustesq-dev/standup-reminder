@@ -1,4 +1,4 @@
-# Stand Up Reminder · v4.2.2
+# Stand Up Reminder · v4.2.3
 
 Movement-break companion: macOS menu bar app (macOS 14+), iPhone app, and
 Apple Watch companion on one shared scheduler core.
@@ -14,13 +14,24 @@ It orients; it does not replace this README, `CLAUDE.md`, or `docs/DECISIONS.md`
 | Bundle ID (Mac / iOS) | `com.thomasjust.standupreminder` |
 | App Group | `group.com.thomasjust.standupreminder` |
 | iCloud container | `iCloud.com.thomasjust.standupreminder` |
-| Marketing version | `4.2.2` (see `AppVersion` in `Sources/StandUpReminderCore/AppIdentity.swift`) |
+| Marketing version | `4.2.3` (see `AppVersion` in `Sources/StandUpReminderCore/AppIdentity.swift`) |
 
 Application Support remains `~/Library/Application Support/StandUpReminder/` so local
 config survives a bundle-id change. After upgrading from the old `com.user.*` /
 `iCloud.com.user.*` identifiers, **push once from any device** to re-seed the new
 iCloud container. Enable the matching App ID capabilities in the Apple Developer
 portal (App Groups + iCloud Documents) for automatic signing.
+
+## What’s new in v4.2.3
+
+- **Automatic cloud settings** — settings and profiles push immediately and
+  reconcile automatically across Mac and iPhone without pull/save/push loops.
+- **Quiet Apps** — readable, case-insensitive frontmost-app suppression with
+  removal controls and Add Current App replaces the raw bundle-ID editor.
+- **Real Apple Health connection** — iPhone reads recent workouts and writes
+  mindful-session minutes on Done; unsupported Macs report unavailable.
+- **Signed capability gate** — releases fail before notarization if HealthKit,
+  iCloud, App Group, or the embedded widget is missing.
 
 ## What’s new in v4.2.2
 
@@ -98,7 +109,7 @@ portal (App Groups + iCloud Documents) for automatic signing.
 
 | Feature | Notes |
 | --- | --- |
-| **iCloud sync** | Opt-in push/pull of settings + profiles |
+| **iCloud sync** | Opt-in automatic newest-wins settings/profile reconciliation, with manual diagnostics |
 | **Team quiet hours** | JSON feed for all-hands / focus blocks; refreshes every 6 h |
 | **Voice chimes** | Spoken reminders, off by default (optional headphones-only) |
 | **Learned schedule** | Infers start/end from activity; apply when ready |
@@ -109,6 +120,12 @@ portal (App Groups + iCloud Documents) for automatic signing.
 | **Diagnostics** | Opt-in crash breadcrumbs + optional POST endpoint |
 
 Plus everything from v3: sit/stand, packs, adaptive interval, meeting catch-up, guided breaks, profiles, export/import, Health, denylist, deep work.
+
+When iCloud sync is enabled, settings and profiles push immediately after local changes and reconcile automatically at launch, on foreground, during background refresh on iPhone, and every minute while the Mac app is running. Manual Push/Pull controls remain available for diagnostics.
+
+The app denylist is a quiet-app list, not a launch blocklist: reminder banners are suppressed while a listed application is frontmost. Entries are normalized and matched case-insensitively; the Mac settings UI can add the previously frontmost app without requiring a bundle identifier.
+
+Apple Health is connected on iPhone. With Health enabled, recent workouts count as completed movement breaks and tapping Done writes the configured mindful-session duration. The Mac reports Health as unavailable on hardware where `HKHealthStore` is unavailable instead of showing a false success state.
 
 ## Platforms
 

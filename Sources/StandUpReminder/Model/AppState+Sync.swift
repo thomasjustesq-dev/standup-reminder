@@ -15,8 +15,10 @@ extension AppState {
         syncHealth.lastPullMessage = outcome.userMessage
         switch outcome {
         case .success(let pulledConfig, let pulledProfiles, let remoteAt):
-            config = pulledConfig
+            suppressCloudSettingsPush = true
+            defer { suppressCloudSettingsPush = false }
             if let pulledProfiles { profiles = pulledProfiles }
+            config = pulledConfig
             refreshNextFire()
             syncHealth.lastRuntimeRemoteAt = remoteAt
             syncHealth.lastPullWasStale = false
@@ -34,6 +36,59 @@ extension AppState {
         SyncHealth.save(syncHealth)
         statusMessage = outcome.userMessage
         return outcome
+    }
+
+    /// Automatic newest-wins settings/profile reconciliation. Equal payloads
+    /// are a no-op, so saving a remote pull locally cannot create ping-pong.
+    func reconcileSettingsWithCloud() {
+        guard config.features.iCloudSyncEnabled else { return }
+        let localStamp = [Self.fileMTime(Paths.configFile), Self.fileMTime(ProfileStore.fileURL)]
+            .compactMap { $0 }
+            .max()
+        let outcome = CloudSync.pull(localModifiedAt: nil)
+        syncHealth.lastPullAt = Date()
+        syncHealth.lastPullMessage = outcome.userMessage
+
+        switch outcome {
+        case .success(let remoteConfig, let remoteProfiles, let remoteAt):
+            let action = CloudSettingsSyncPolicy.decide(
+                localConfig: config,
+                localProfiles: profiles,
+                localModifiedAt: localStamp,
+                remoteConfig: remoteConfig,
+                remoteProfiles: remoteProfiles,
+                remoteUpdatedAt: remoteAt,
+                isFreshInstall: !config.hasCompletedOnboarding
+            )
+            switch action {
+            case .applyRemote:
+                suppressCloudSettingsPush = true
+                defer { suppressCloudSettingsPush = false }
+                if let remoteProfiles { profiles = remoteProfiles }
+                config = remoteConfig
+                syncHealth.lastRuntimeRemoteAt = remoteAt
+                syncHealth.cloudContainerEmpty = false
+                syncHealth.lastPullWasStale = false
+                statusMessage = "Settings synced from iCloud"
+                refreshNextFire()
+            case .pushLocal:
+                _ = pushToiCloud()
+            case .unchanged:
+                syncHealth.cloudContainerEmpty = false
+                syncHealth.lastPullWasStale = false
+                syncHealth.lastPullMessage = "Settings up to date"
+            }
+        case .empty:
+            syncHealth.cloudContainerEmpty = true
+            syncHealth.seedBannerDismissed = false
+            _ = pushToiCloud()
+        case .downloading, .unavailable, .corrupt:
+            break
+        case .staleRemote:
+            // Impossible with localModifiedAt:nil; retain a safe local-wins fallback.
+            _ = pushToiCloud()
+        }
+        SyncHealth.save(syncHealth)
     }
 
     @discardableResult
@@ -68,6 +123,11 @@ extension AppState {
     /// Weather hourly, team quiet feed every 6h, cross-device runtime/stats
     /// every minute — all on the tick cadence.
     func refreshPeriodicSourcesIfDue() {
+        if config.features.iCloudSyncEnabled,
+           lastSettingsSyncAt.map({ Date().timeIntervalSince($0) >= 60 }) ?? true {
+            lastSettingsSyncAt = Date()
+            reconcileSettingsWithCloud()
+        }
         if config.features.weatherBreaksEnabled,
            lastWeatherRefreshAt.map({ Date().timeIntervalSince($0) >= 3600 }) ?? true {
             lastWeatherRefreshAt = Date()

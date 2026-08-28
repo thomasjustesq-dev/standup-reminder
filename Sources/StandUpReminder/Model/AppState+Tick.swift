@@ -175,6 +175,10 @@ extension AppState {
 
     private func updateFrontmostTracking() {
         let current = DeepWorkMonitor.frontmostBundleId()
+        if let current, current != AppIdentity.macBundleId,
+           current != lastExternalFrontmostBundleId {
+            lastExternalFrontmostBundleId = current
+        }
         if current != frontmostBundleId {
             frontmostBundleId = current
             frontmostSince = Date()

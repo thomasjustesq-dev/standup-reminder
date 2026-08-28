@@ -18,6 +18,7 @@ struct StandUpReminderiOSApp: App {
             // from the expiration handler could race the success path).
             let work = Task { @MainActor in
                 // Refill queue + re-pull authority before completion.
+                PhoneModel.shared.reconcileSettingsWithCloud()
                 PhoneModel.shared.syncRuntimeFromCloud()
                 await PhoneModel.shared.reconcileDelivered()
                 PhoneModel.shared.rescheduleNotifications()
@@ -48,6 +49,7 @@ struct StandUpReminderiOSApp: App {
             case .active:
                 PhoneModel.shared.isForeground = true
                 PhoneModel.shared.refreshAuthorizationStatus()
+                PhoneModel.shared.reconcileSettingsWithCloud()
                 PhoneModel.shared.creditRecentWorkoutIfAny()
                 // Pull authority presence / next-fire before rebuild.
                 Task { await PhoneModel.shared.reconcileDelivered() }
