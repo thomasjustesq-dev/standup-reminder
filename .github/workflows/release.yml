@@ -116,6 +116,7 @@ jobs:
           codesign -d --entitlements :- "$APP" > "$ENTITLEMENTS"
           plutil -lint "$ENTITLEMENTS"
           codesign -dvv "$APP" 2>&1 | grep -F '(runtime)'
+          codesign -dvvv "$APP" 2>&1 | grep -F 'Timestamp='
           if /usr/libexec/PlistBuddy -c 'Print :com.apple.security.get-task-allow' "$ENTITLEMENTS" 2>/dev/null \
             | grep -qx true; then
             echo "error: release signature contains get-task-allow" >&2
@@ -127,6 +128,8 @@ jobs:
             | grep -F 'group.com.thomasjust.standupreminder'
           test -d "$WIDGET"
           codesign -d --entitlements :- "$WIDGET" > "$WIDGET_ENTITLEMENTS"
+          codesign -dvv "$WIDGET" 2>&1 | grep -F '(runtime)'
+          codesign -dvvv "$WIDGET" 2>&1 | grep -F 'Timestamp='
           /usr/libexec/PlistBuddy -c 'Print :com.apple.security.application-groups' "$WIDGET_ENTITLEMENTS" \
             | grep -F 'group.com.thomasjust.standupreminder'
           test "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.developer.healthkit' Resources/StandUpReminderiOS.entitlements)" = "true"
