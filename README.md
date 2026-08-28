@@ -110,6 +110,12 @@ portal (App Groups + iCloud Documents) for automatic signing.
 
 Plus everything from v3: sit/stand, packs, adaptive interval, meeting catch-up, guided breaks, profiles, export/import, Health, denylist, deep work.
 
+When iCloud sync is enabled, settings and profiles push immediately after local changes and reconcile automatically at launch, on foreground, during background refresh on iPhone, and every minute while the Mac app is running. Manual Push/Pull controls remain available for diagnostics.
+
+The app denylist is a quiet-app list, not a launch blocklist: reminder banners are suppressed while a listed application is frontmost. Entries are normalized and matched case-insensitively; the Mac settings UI can add the previously frontmost app without requiring a bundle identifier.
+
+Apple Health is connected on iPhone. With Health enabled, recent workouts count as completed movement breaks and tapping Done writes the configured mindful-session duration. The Mac reports Health as unavailable on hardware where `HKHealthStore` is unavailable instead of showing a false success state.
+
 ## Platforms
 
 One shared core (`Sources/StandUpReminderCore`: config, scheduler, stats,

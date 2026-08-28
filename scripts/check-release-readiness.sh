@@ -56,7 +56,7 @@ echo "Portal checklist (manual — cannot automate):"
 echo "  [ ] App ID $MARKETING capabilities: App Groups group.com.thomasjust.standupreminder"
 echo "  [ ] iCloud container iCloud.com.thomasjust.standupreminder on Mac + iOS App IDs"
 echo "  [ ] Developer ID Application cert exported as .p12 for CI (or local signing)"
-echo "  [ ] After first install: Push to iCloud once to seed new container"
+echo "  [ ] After first signed install: enable iCloud sync and confirm automatic seed/pull"
 echo
 echo "Ship steps:"
 echo "  1. Confirm portal boxes above"

@@ -30,8 +30,7 @@ enum DeepWorkMonitor {
     }
 
     static func isDenylisted(bundleId: String?, denylist: [String]) -> Bool {
-        guard let bundleId else { return false }
-        return denylist.contains(bundleId)
+        AppDenylist.contains(bundleIdentifier: bundleId, entries: denylist)
     }
 
     static func isInDeepWork(

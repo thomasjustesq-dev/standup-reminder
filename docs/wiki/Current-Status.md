@@ -21,6 +21,8 @@ Snapshot of `origin/main` at `9f8d5c4` (2026-08-19). Living status also lives in
 
 Authority lease, PhoneModel split, diagnostics CLI, seed-iCloud banner (#10). Suppression glance, iOS notification trust, guided-break activate policy (#11). Identity unification to `com.thomasjust.standupreminder` (2026-08-06). Cask sha for the 4.2.2 zip. Fleet BYOK degrade and grok-4.6 preflight default.
 
+Settings/profile iCloud sync is automatic and newest-wins, with immediate push after local edits and periodic/foreground reconciliation. Quiet Apps replaces the raw denylist editor and performs normalized case-insensitive bundle-ID matching. HealthKit has explicit authorization state: iPhone reads workouts and writes mindful sessions on Done; unsupported Macs report unavailable.
+
 iCloud container `iCloud.com.thomasjust.standupreminder` is on the Mac Development profile (legacy container retained for migration). A live install has already migrated files from `iCloud.com.user.StandUpReminder`.
 
 ## What `NEXT.md` still says (stale on this SHA)

@@ -19,9 +19,18 @@ final class AppState: ObservableObject {
 
     @Published var config: AppConfig {
         didSet {
-            ConfigStore.save(config)
+            ConfigStore.save(config, notifyCloud: false)
+            let wasSuppressing = suppressCloudSettingsPush
+            suppressCloudSettingsPush = true
             syncActiveProfileConfig()
+            suppressCloudSettingsPush = wasSuppressing
             publishWidget()
+            guard !wasSuppressing, config.features.iCloudSyncEnabled else { return }
+            if !oldValue.features.iCloudSyncEnabled {
+                reconcileSettingsWithCloud()
+            } else {
+                _ = pushToiCloud()
+            }
         }
     }
 
@@ -33,7 +42,12 @@ final class AppState: ObservableObject {
     }
 
     @Published var profiles: ProfileDocument {
-        didSet { ProfileStore.save(profiles) }
+        didSet {
+            ProfileStore.save(profiles)
+            if !suppressCloudSettingsPush, config.features.iCloudSyncEnabled {
+                _ = pushToiCloud()
+            }
+        }
     }
 
     @Published var isPaused = false { didSet { persistRuntime() } }
@@ -59,6 +73,8 @@ final class AppState: ObservableObject {
     @Published var presence: PresenceState = .atDesk
     @Published var adaptiveSuggestion: AdaptiveSuggestion?
     @Published var showDayTimeline = false
+    @Published var healthAccessStatus: HealthAccessStatus = .unavailable
+    @Published var lastExternalFrontmostBundleId: String?
 
     // MARK: Stored state shared with the extension files (internal by design)
 
@@ -79,6 +95,7 @@ final class AppState: ObservableObject {
     var lastAdaptiveComputedAt: Date?
     var lastAdaptiveAnchor: Date?
     var lastRuntimeSyncAt: Date?
+    var lastSettingsSyncAt: Date?
     var lastPushedStats: StatsSnapshot?
     var remoteStats: [StatsSnapshot] = []
     /// Stamp of this device's most recent runtime mutation (including its own
@@ -121,6 +138,7 @@ final class AppState: ObservableObject {
     private var knownConfigMTime: Date?
     private var knownProfilesMTime: Date?
     private var lastSamplesPersistAt: Date?
+    var suppressCloudSettingsPush = false
 
     var activeProfileName: String {
         ProfileStore.activeProfile(in: profiles).name
@@ -338,17 +356,6 @@ final class AppState: ObservableObject {
         refreshNextFire()
         registerLoginItemIfPossible()
 
-        NotificationCenter.default.addObserver(
-            forName: .configDidSaveForCloud,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                guard let self, self.config.features.iCloudSyncEnabled else { return }
-                CloudSync.push(config: self.config, profiles: self.profiles)
-            }
-        }
-
         WatchBridge.shared.start(enabled: config.features.watchCompanionEnabled)
         WebcamStillnessMonitor.shared.configure(
             enabled: config.features.webcamStillnessEnabled,
@@ -362,6 +369,7 @@ final class AppState: ObservableObject {
             feedURL: config.features.sparkleFeedURL,
             preferSparkle: config.features.preferSparkleUpdates
         )
+        refreshHealthAccessStatus()
 
         if config.features.showSampleDayTour && !config.hasCompletedOnboarding {
             showSampleDayTour = true
@@ -385,7 +393,7 @@ final class AppState: ObservableObject {
         if enableFocus { FocusMonitor.requestAuthorizationIfNeeded() }
         if enableHealth {
             config.healthLoggingEnabled = true
-            HealthLogger.requestAuthorization { granted in AppLog.write("Health granted: \(granted)") }
+            requestHealthAccess()
         }
         config.hasCompletedOnboarding = true
         showOnboarding = false

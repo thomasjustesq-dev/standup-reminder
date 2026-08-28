@@ -96,6 +96,19 @@ jobs:
           cp -R ".derivedData/Build/Products/Release/StandUpReminder.app" dist/
           codesign --verify --deep --strict --verbose dist/StandUpReminder.app
 
+      - name: Verify signed capabilities and embedded widget
+        run: |
+          APP="dist/StandUpReminder.app"
+          ENTITLEMENTS="dist/signed-entitlements.plist"
+          codesign -d --entitlements :- "$APP" > "$ENTITLEMENTS"
+          plutil -lint "$ENTITLEMENTS"
+          test "$(plutil -extract com.apple.developer.healthkit raw -o - "$ENTITLEMENTS")" = "true"
+          plutil -extract com.apple.developer.icloud-container-identifiers json -o - "$ENTITLEMENTS" \
+            | grep -Fq 'iCloud.com.thomasjust.standupreminder'
+          plutil -extract com.apple.security.application-groups json -o - "$ENTITLEMENTS" \
+            | grep -Fq 'group.com.thomasjust.standupreminder'
+          test -d "$APP/Contents/PlugIns/StandUpReminderWidget.appex"
+
       - name: Notarize and staple
         env:
           ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}

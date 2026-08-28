@@ -339,10 +339,13 @@ struct SettingsSheet: View {
                 }
 
                 Section("iCloud sync") {
-                    Toggle("Sync cadence via iCloud", isOn: Binding(
+                    Toggle("Sync settings automatically", isOn: Binding(
                         get: { model.config.features.iCloudSyncEnabled },
                         set: { v in var c = model.config; c.features.iCloudSyncEnabled = v; model.config = c }
                     ))
+                    Text("Settings and profiles reconcile when the app opens, returns to the foreground, and refreshes in the background. Changes push immediately.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                     Button("Push settings to iCloud") {
                         cloudMessage = model.pushToiCloud()
                             ? "Pushed."
@@ -353,6 +356,45 @@ struct SettingsSheet: View {
                     }
                     if let cloudMessage {
                         Text(cloudMessage).font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
+
+                Section("Apple Health") {
+                    Toggle("Connect Apple Health", isOn: Binding(
+                        get: { model.config.healthLoggingEnabled },
+                        set: { enabled in
+                            var config = model.config
+                            config.healthLoggingEnabled = enabled
+                            model.config = config
+                            if enabled { model.requestHealthAccess() }
+                        }
+                    ))
+                    if model.config.healthLoggingEnabled {
+                        Stepper(
+                            "Mindful minutes on Done: \(Int(model.config.healthMindfulMinutes))",
+                            value: Binding(
+                                get: { Int(model.config.healthMindfulMinutes) },
+                                set: { value in
+                                    var config = model.config
+                                    config.healthMindfulMinutes = Double(value)
+                                    model.config = config
+                                }
+                            ),
+                            in: 1...15
+                        )
+                    }
+                    Text(healthStatusText)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    if model.healthAccessStatus == .denied {
+                        Button("Open Health Permissions") {
+                            if let url = URL(string: UIApplication.openSettingsURLString) {
+                                UIApplication.shared.open(url)
+                            }
+                        }
+                    } else if model.healthAccessStatus != .authorized,
+                              model.healthAccessStatus != .unavailable {
+                        Button("Connect Apple Health") { model.requestHealthAccess() }
                     }
                 }
 
@@ -371,6 +413,21 @@ struct SettingsSheet: View {
 
     private var workStart: Int {
         model.config.scheduleByWeekday.values.map(\.startHour).min() ?? 9
+    }
+
+    private var healthStatusText: String {
+        switch model.healthAccessStatus {
+        case .authorized:
+            return "Connected. Recent workouts count as breaks, and Done writes a mindful session."
+        case .notDetermined:
+            return "Not connected. Access is requested only when you enable this feature."
+        case .denied:
+            return "Access denied. Enable Health access in Settings."
+        case .unavailable:
+            return "Apple Health is unavailable on this device."
+        case .failed(let message):
+            return "HealthKit error: \(message)"
+        }
     }
 
     private var workEnd: Int {

@@ -295,10 +295,9 @@ struct AppConfig: Codable, Equatable {
         "us.zoom.xos",
         "com.microsoft.teams",
         "com.microsoft.teams2",
-        "com.apple.FinalCut",
-        "com.apple.Keynote",
+        "com.apple.finalcut",
         "com.apple.keynote",
-        "com.microsoft.Powerpoint"
+        "com.microsoft.powerpoint"
     ]
 
     static let `default` = AppConfig(
@@ -408,6 +407,7 @@ struct AppConfig: Codable, Equatable {
         c.guidedBreakSeconds = c.guidedBreakSeconds.clampedTo(10...600)
         c.deepWorkQuietMinutes = c.deepWorkQuietMinutes.clampedTo(5...240)
         c.healthMindfulMinutes = min(max(c.healthMindfulMinutes, 0), 60)
+        c.denylistBundleIds = AppDenylist.normalized(c.denylistBundleIds)
         c.lunch.hour = c.lunch.hour.clampedTo(0...23)
         c.lunch.minute = c.lunch.minute.clampedTo(0...59)
         c.lunch.windowMinutes = c.lunch.windowMinutes.clampedTo(0...120)
@@ -582,11 +582,11 @@ enum ConfigStore {
         try? FileManager.default.copyItem(at: url, to: backup)
     }
 
-    static func save(_ config: AppConfig) {
+    static func save(_ config: AppConfig, notifyCloud: Bool = true) {
         guard let data = try? JSONCoding.encoder().encode(config) else { return }
         try? data.write(to: Paths.configFile, options: .atomic)
         WidgetSnapshotWriter.write(from: config)
-        if config.features.iCloudSyncEnabled {
+        if notifyCloud, config.features.iCloudSyncEnabled {
             // Profiles pushed from AppState after save to avoid circular imports of ProfileStore state
             NotificationCenter.default.post(name: .configDidSaveForCloud, object: nil)
         }

@@ -24,6 +24,8 @@ extension PhoneModel {
         syncHealth.lastPullMessage = outcome.userMessage
         switch outcome {
         case .success(let pulledConfig, let pulledProfiles, let remoteAt):
+            suppressCloudSettingsPush = true
+            defer { suppressCloudSettingsPush = false }
             config = pulledConfig
             if let pulledProfiles { ProfileStore.save(pulledProfiles) }
             syncHealth.cloudContainerEmpty = false
@@ -41,6 +43,57 @@ extension PhoneModel {
         }
         SyncHealth.save(syncHealth)
         return outcome
+    }
+
+    /// Automatic newest-wins reconciliation for settings and profiles.
+    /// Equal payloads are a no-op, preventing pull/save/push loops.
+    func reconcileSettingsWithCloud() {
+        guard config.features.iCloudSyncEnabled else { return }
+        let localConfigStamp = (try? FileManager.default.attributesOfItem(atPath: Paths.configFile.path))?[.modificationDate] as? Date
+        let localProfilesStamp = (try? FileManager.default.attributesOfItem(atPath: ProfileStore.fileURL.path))?[.modificationDate] as? Date
+        let localStamp = [localConfigStamp, localProfilesStamp].compactMap { $0 }.max()
+        let localProfiles = ProfileStore.load()
+        let outcome = CloudSync.pull(localModifiedAt: nil)
+        syncHealth.lastPullAt = Date()
+        syncHealth.lastPullMessage = outcome.userMessage
+
+        switch outcome {
+        case .success(let remoteConfig, let remoteProfiles, let remoteAt):
+            let action = CloudSettingsSyncPolicy.decide(
+                localConfig: config,
+                localProfiles: localProfiles,
+                localModifiedAt: localStamp,
+                remoteConfig: remoteConfig,
+                remoteProfiles: remoteProfiles,
+                remoteUpdatedAt: remoteAt,
+                isFreshInstall: !config.hasCompletedOnboarding
+            )
+            switch action {
+            case .applyRemote:
+                suppressCloudSettingsPush = true
+                defer { suppressCloudSettingsPush = false }
+                if let remoteProfiles { ProfileStore.save(remoteProfiles) }
+                config = remoteConfig
+                syncHealth.cloudContainerEmpty = false
+                syncHealth.lastPullWasStale = false
+                syncHealth.lastRuntimeRemoteAt = remoteAt
+            case .pushLocal:
+                _ = pushToiCloud()
+            case .unchanged:
+                syncHealth.cloudContainerEmpty = false
+                syncHealth.lastPullWasStale = false
+                syncHealth.lastPullMessage = "Settings up to date"
+            }
+        case .empty:
+            syncHealth.cloudContainerEmpty = true
+            syncHealth.seedBannerDismissed = false
+            _ = pushToiCloud()
+        case .staleRemote:
+            _ = pushToiCloud()
+        case .downloading, .unavailable, .corrupt:
+            break
+        }
+        SyncHealth.save(syncHealth)
     }
 
     func syncRuntimeToCloud() {
