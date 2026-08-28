@@ -179,9 +179,8 @@ jobs:
         run: |
           curl -sL https://github.com/sparkle-project/Sparkle/releases/download/2.7.0/Sparkle-2.7.0.tar.xz -o sparkle.tar.xz
           tar xf sparkle.tar.xz
-          # sign_update prints: sparkle:edSignature="SIG" length="N"
-          SIGNATURE=$(./bin/sign_update "dist/StandUpReminder-$VERSION.zip" "$SPARKLE_ED_PRIVATE_KEY" \
-            | sed -n 's/.*sparkle:edSignature="\([^"]*\)".*/\1/p')
+          SIGNATURE=$(printf '%s' "$SPARKLE_ED_PRIVATE_KEY" \
+            | ./bin/sign_update --ed-key-file - -p "dist/StandUpReminder-$VERSION.zip")
           test -n "$SIGNATURE"
           python3 scripts/update-appcast.py \
             --version "$VERSION" --build "$BUILD" \
