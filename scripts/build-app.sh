@@ -25,6 +25,8 @@ if command -v xcodegen >/dev/null 2>&1 && command -v xcodebuild >/dev/null 2>&1 
     -allowProvisioningUpdates \
     DEVELOPMENT_TEAM="${DEVELOPMENT_TEAM:-BBTNHBK7VX}" \
     CODE_SIGN_STYLE=Automatic \
+    ARCHS="${ARCHS:-arm64 x86_64}" \
+    ONLY_ACTIVE_ARCH=NO \
     build
   BUILT=$(find "${ROOT_DIR}/.derivedData/Build/Products" -name "${APP_NAME}.app" -type d | head -n1)
   if [[ -z "${BUILT}" ]]; then

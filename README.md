@@ -1,4 +1,4 @@
-# Stand Up Reminder · v4.2.3
+# Stand Up Reminder · v4.2.4
 
 Movement-break companion: macOS menu bar app (macOS 14+), iPhone app, and
 Apple Watch companion on one shared scheduler core.
@@ -14,13 +14,22 @@ It orients; it does not replace this README, `CLAUDE.md`, or `docs/DECISIONS.md`
 | Bundle ID (Mac / iOS) | `com.thomasjust.standupreminder` |
 | App Group | `group.com.thomasjust.standupreminder` |
 | iCloud container | `iCloud.com.thomasjust.standupreminder` |
-| Marketing version | `4.2.3` (see `AppVersion` in `Sources/StandUpReminderCore/AppIdentity.swift`) |
+| Marketing version | `4.2.4` (see `AppVersion` in `Sources/StandUpReminderCore/AppIdentity.swift`) |
 
 Application Support remains `~/Library/Application Support/StandUpReminder/` so local
 config survives a bundle-id change. After upgrading from the old `com.user.*` /
 `iCloud.com.user.*` identifiers, **push once from any device** to re-seed the new
 iCloud container. Enable the matching App ID capabilities in the Apple Developer
 portal (App Groups + iCloud Documents) for automatic signing.
+
+## What’s new in v4.2.4
+
+- **Universal Mac release** — notarized downloads include both Intel and Apple
+  Silicon executables for the app and widget, with CI rejecting single-architecture
+  release artifacts.
+- **Hardened release pipeline** — Developer ID profiles, Hardened Runtime, secure
+  timestamps, entitlement checks, Apple rejection logs, and current Sparkle 2.7
+  signing are enforced before publishing.
 
 ## What’s new in v4.2.3
 
