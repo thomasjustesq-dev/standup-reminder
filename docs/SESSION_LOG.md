@@ -125,3 +125,9 @@ Append-only. `merge=union`.
 - Replaced the raw denylist editor with a normalized, case-insensitive Quiet Apps list, readable names, removal controls, and Add Current App.
 - Added explicit HealthKit authorization state. iPhone reads recent workouts and writes mindful sessions on Done; unsupported Macs report unavailable instead of implying access.
 - Added the iOS Health update usage description and a release gate for signed HealthKit, iCloud, App Group, and widget capabilities.
+
+## 2026-08-27 — v4.2.4 release and dormant reconcile gate
+
+- Published signed, notarized, stapled universal v4.2.4 assets for Intel and Apple Silicon; tracked appcast and Cask checksum match the public release.
+- Gated claim reconciliation behind repository variable `CLAIM_COORDINATION_ACTIVE=true`, so dormant solo mode skips the PAT-dependent job instead of rendering every merged product PR red.
+- Reviving claim-first now requires both that variable and `REPO_PAT`; the existing PAT-only security rule remains intact.

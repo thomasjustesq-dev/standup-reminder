@@ -17,7 +17,9 @@ permissions:
 
 jobs:
   reconcile:
-    if: github.event_name != 'pull_request' || github.event.pull_request.merged == true
+    if: >-
+      vars.CLAIM_COORDINATION_ACTIVE == 'true' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.merged == true)
     runs-on: ubuntu-latest
     steps:
       - name: Require REPO_PAT
