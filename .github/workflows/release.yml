@@ -85,7 +85,7 @@ jobs:
           -derivedDataPath .derivedData
           CODE_SIGN_IDENTITY="Developer ID Application"
           -allowProvisioningUpdates
-          -authenticationKeyPath private_keys/AuthKey.p8
+          -authenticationKeyPath "$GITHUB_WORKSPACE/private_keys/AuthKey.p8"
           -authenticationKeyID "$ASC_KEY_ID"
           -authenticationKeyIssuerID "$ASC_ISSUER_ID"
           build
@@ -116,7 +116,7 @@ jobs:
         run: |
           ditto -c -k --keepParent dist/StandUpReminder.app dist/notarize.zip
           xcrun notarytool submit dist/notarize.zip \
-            --key private_keys/AuthKey.p8 \
+            --key "$GITHUB_WORKSPACE/private_keys/AuthKey.p8" \
             --key-id "$ASC_KEY_ID" \
             --issuer "$ASC_ISSUER_ID" \
             --wait
