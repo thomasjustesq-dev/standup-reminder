@@ -26,20 +26,11 @@ targets:
       - Sources/DebugHarness
       - Resources/Assets.xcassets
     settings:
-      base:
-        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        PRODUCT_BUNDLE_IDENTIFIER: com.thomasjust.standupreminder
-        INFOPLIST_FILE: Resources/Info.plist
-        CODE_SIGN_ENTITLEMENTS: Resources/StandUpReminder.entitlements
-        LD_RUNPATH_SEARCH_PATHS: ["@executable_path/../Frameworks"]
-      configs:
-        Release:
-          CODE_SIGN_STYLE: Manual
-          CODE_SIGN_IDENTITY: Developer ID Application
-          CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
-          ENABLE_HARDENED_RUNTIME: YES
-          OTHER_CODE_SIGN_FLAGS: --timestamp
-          PROVISIONING_PROFILE_SPECIFIER: StandUpReminder Main Devid 20260810234319
+      ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+      PRODUCT_BUNDLE_IDENTIFIER: com.thomasjust.standupreminder
+      INFOPLIST_FILE: Resources/Info.plist
+      CODE_SIGN_ENTITLEMENTS: Resources/StandUpReminder.entitlements
+      LD_RUNPATH_SEARCH_PATHS: ["@executable_path/../Frameworks"]
     dependencies:
       - target: StandUpReminderWidget
         embed: true
@@ -51,19 +42,10 @@ targets:
       - Sources/StandUpReminderWidget
       - Sources/StandUpReminderCore
     settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.thomasjust.standupreminder.widget
-        INFOPLIST_FILE: Sources/StandUpReminderWidget/Info.plist
-        CODE_SIGN_ENTITLEMENTS: Resources/StandUpReminderWidget.entitlements
-        SKIP_INSTALL: true
-      configs:
-        Release:
-          CODE_SIGN_STYLE: Manual
-          CODE_SIGN_IDENTITY: Developer ID Application
-          CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
-          ENABLE_HARDENED_RUNTIME: YES
-          OTHER_CODE_SIGN_FLAGS: --timestamp
-          PROVISIONING_PROFILE_SPECIFIER: StandUpReminder Widget Devid 20260810234320
+      PRODUCT_BUNDLE_IDENTIFIER: com.thomasjust.standupreminder.widget
+      INFOPLIST_FILE: Sources/StandUpReminderWidget/Info.plist
+      CODE_SIGN_ENTITLEMENTS: Resources/StandUpReminderWidget.entitlements
+      SKIP_INSTALL: true
 
   StandUpReminderiOS:
     type: application
@@ -75,8 +57,8 @@ targets:
       path: Resources/iOS-Info.plist
       properties:
         CFBundleDisplayName: Stand Up
-        CFBundleShortVersionString: "4.2.4"
-        CFBundleVersion: "10"
+        CFBundleShortVersionString: "4.2.2"
+        CFBundleVersion: "8"
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         ITSAppUsesNonExemptEncryption: false
@@ -84,8 +66,7 @@ targets:
         UIBackgroundModes: [fetch]
         BGTaskSchedulerPermittedIdentifiers: [com.thomasjust.standupreminder.refresh]
         NSSupportsLiveActivities: true
-        NSHealthShareUsageDescription: "Stand Up reads recent workouts so a swim or gym session counts as your movement break."
-        NSHealthUpdateUsageDescription: "Stand Up writes mindful-session minutes when you mark a movement break Done."
+        NSHealthShareUsageDescription: "Optional: recent workouts are read (never written) so a swim or gym session counts as your movement break."
     settings:
       ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
       PRODUCT_BUNDLE_IDENTIFIER: com.thomasjust.standupreminder
@@ -108,8 +89,8 @@ targets:
       path: Resources/iOSWidget-Info.plist
       properties:
         CFBundleDisplayName: Stand Up
-        CFBundleShortVersionString: "4.2.4"
-        CFBundleVersion: "10"
+        CFBundleShortVersionString: "4.2.2"
+        CFBundleVersion: "8"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:
@@ -127,8 +108,8 @@ targets:
       path: Resources/Watch-Info.plist
       properties:
         CFBundleDisplayName: Stand Up
-        CFBundleShortVersionString: "4.2.4"
-        CFBundleVersion: "10"
+        CFBundleShortVersionString: "4.2.2"
+        CFBundleVersion: "8"
         WKApplication: true
         WKCompanionAppBundleIdentifier: com.thomasjust.standupreminder
     settings:
@@ -150,8 +131,8 @@ targets:
       path: Resources/WatchWidget-Info.plist
       properties:
         CFBundleDisplayName: Stand Up
-        CFBundleShortVersionString: "4.2.4"
-        CFBundleVersion: "10"
+        CFBundleShortVersionString: "4.2.2"
+        CFBundleVersion: "8"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:
