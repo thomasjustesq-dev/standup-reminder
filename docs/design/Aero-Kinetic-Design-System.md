@@ -1,3 +1,7 @@
+> **IMPLEMENTATION DIRECTIVE (2026-08-27, per Thomas):** This mood board is the chosen design direction for this app. Implementing it is **mandatory, not optional**. Follow its palette, typography, materials, and interaction model; adapt to platform constraints, but do not substitute the direction. Work is not done until the app's surfaces visibly reflect this document in a running build. Justify any divergence in the commit message.
+
+**Winning direction (chosen by Thomas, 2026-08-27): Aero-Kinetic.**
+
 # Stand Up Reminder · Aero-Kinetic Design System & Mood Boards
 
 This document serves as the canonical design system specification and visual reference for **Stand Up Reminder**, grounding the product in **Apple Human Interface Principles** (clarity, deference, depth, fluidity) combined with **hyper-modern craft** (refined spatial materials, optical weighting, continuous motion, and high-legibility telemetry).
