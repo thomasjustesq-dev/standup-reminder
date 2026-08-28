@@ -115,6 +115,12 @@ jobs:
           WIDGET_ENTITLEMENTS="dist/signed-widget-entitlements.plist"
           codesign -d --entitlements :- "$APP" > "$ENTITLEMENTS"
           plutil -lint "$ENTITLEMENTS"
+          codesign -dvv "$APP" 2>&1 | grep -F '(runtime)'
+          if /usr/libexec/PlistBuddy -c 'Print :com.apple.security.get-task-allow' "$ENTITLEMENTS" 2>/dev/null \
+            | grep -qx true; then
+            echo "error: release signature contains get-task-allow" >&2
+            exit 1
+          fi
           /usr/libexec/PlistBuddy -c 'Print :com.apple.developer.icloud-container-identifiers' "$ENTITLEMENTS" \
             | grep -F 'iCloud.com.thomasjust.standupreminder'
           /usr/libexec/PlistBuddy -c 'Print :com.apple.security.application-groups' "$ENTITLEMENTS" \
@@ -133,11 +139,22 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
         run: |
           ditto -c -k --keepParent dist/StandUpReminder.app dist/notarize.zip
-          xcrun notarytool submit dist/notarize.zip \
+          NOTARY_RESULT="$(xcrun notarytool submit dist/notarize.zip \
             --key "$GITHUB_WORKSPACE/private_keys/AuthKey.p8" \
             --key-id "$ASC_KEY_ID" \
             --issuer "$ASC_ISSUER_ID" \
-            --wait
+            --wait \
+            --output-format json)"
+          echo "$NOTARY_RESULT"
+          SUBMISSION_ID="$(jq -r '.id' <<< "$NOTARY_RESULT")"
+          STATUS="$(jq -r '.status' <<< "$NOTARY_RESULT")"
+          if [[ "$STATUS" != "Accepted" ]]; then
+            xcrun notarytool log "$SUBMISSION_ID" \
+              --key "$GITHUB_WORKSPACE/private_keys/AuthKey.p8" \
+              --key-id "$ASC_KEY_ID" \
+              --issuer "$ASC_ISSUER_ID"
+            exit 1
+          fi
           xcrun stapler staple dist/StandUpReminder.app
           spctl --assess --type execute -vv dist/StandUpReminder.app
 

@@ -36,6 +36,8 @@ targets:
         Release:
           CODE_SIGN_STYLE: Manual
           CODE_SIGN_IDENTITY: Developer ID Application
+          CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
+          ENABLE_HARDENED_RUNTIME: YES
           PROVISIONING_PROFILE_SPECIFIER: StandUpReminder Main Devid 20260810234319
     dependencies:
       - target: StandUpReminderWidget
@@ -57,6 +59,8 @@ targets:
         Release:
           CODE_SIGN_STYLE: Manual
           CODE_SIGN_IDENTITY: Developer ID Application
+          CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
+          ENABLE_HARDENED_RUNTIME: YES
           PROVISIONING_PROFILE_SPECIFIER: StandUpReminder Widget Devid 20260810234320
 
   StandUpReminderiOS:
