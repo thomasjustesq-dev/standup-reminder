@@ -18,9 +18,9 @@ It orients; it does not replace this README, `CLAUDE.md`, or `docs/DECISIONS.md`
 
 Application Support remains `~/Library/Application Support/StandUpReminder/` so local
 config survives a bundle-id change. After upgrading from the old `com.user.*` /
-`iCloud.com.user.*` identifiers, **push once from any device** to re-seed the new
-iCloud container. Enable the matching App ID capabilities in the Apple Developer
-portal (App Groups + iCloud Documents) for automatic signing.
+`iCloud.com.user.*` identifiers, enable sync on one device to seed the new iCloud
+container automatically. Enable the matching App ID capabilities in the Apple
+Developer portal (App Groups + iCloud Documents) for automatic signing.
 
 ## What’s new in v4.2.4
 
@@ -167,12 +167,12 @@ idle / deep-work suppression (the app cannot observe those in the
 background). Background app refresh tops the queue up opportunistically, but
 iOS decides when it runs — the sentinel notification covers the gap.
 
-### Roadmap / not wired up yet
+### Distribution status
 
-- **Reviewed:** 2026-07-30
-- [ ] **Sparkle appcast** — template only (`docs/appcast.xml`); the app uses the
-  GitHub releases checker unless Sparkle is linked in a distribution build.
-- [ ] **MAS / Homebrew** — entitlements and cask/formula files are templates.
+- **Reviewed:** 2026-08-27
+- **GitHub / Homebrew:** v4.2.4 is a signed, notarized universal release; the Cask points to its verified zip.
+- **Sparkle:** the release pipeline generates and signs `docs/appcast.xml`; builds with an empty feed URL continue using the GitHub releases checker.
+- **Mac App Store:** entitlements are maintained, but no MAS listing is published.
 
 ## Install
 

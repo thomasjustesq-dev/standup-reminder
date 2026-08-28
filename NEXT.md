@@ -1,8 +1,9 @@
-# Next — after v4.2.2
+# Next — after v4.2.4
 
-**Status as of 2026-08-26:** Product on `main` `14aad14`. GitHub release
-**v4.2.2** exists (2026-08-11). Cask `sha256` is real (#18/#19). Menu bar
-stretching-figure icon is on `main` (#21). Wiki handbook is in git (#23).
+**Status as of 2026-08-27:** Product on `main` `a2ed31e`. GitHub release
+**v4.2.4** exists (2026-08-27). It is a signed, notarized, stapled universal
+binary for Intel and Apple Silicon. The tracked Sparkle appcast and Cask
+checksum match the public release. Wiki handbook is in git (#23).
 Canonical checkout: `/Volumes/Crucial X8/GitHub/standup-reminder` (not
 `GitHub/Projects/`). Do not treat the 2026-08-10 “do not push tag v4.2.2”
 checklist as live.
@@ -11,8 +12,8 @@ checklist as live.
 
 | Check | Result |
 | --- | --- |
-| Tag / GitHub release `v4.2.2` | **Shipped** 2026-08-11 |
-| Cask `Casks/standup-reminder.rb` | version `4.2.2` with sha256; url is the GitHub zip |
+| Tag / GitHub release `v4.2.4` | **Shipped** 2026-08-27 |
+| Cask `Casks/standup-reminder.rb` | version `4.2.4` with verified sha256; url is the GitHub zip |
 | Menu bar icon | #21 on `main` (not the blank `MenuBarExtra`+`HStack` extra) |
 | Identity | `com.thomasjust.standupreminder` · group + iCloud new IDs |
 | Wiki in git | #23. GitHub Wiki remote still needs a logged-in first page |
@@ -20,7 +21,7 @@ checklist as live.
 ## Remaining operator work
 
 1. Wiki tab **Create the first page**, then `scripts/publish_wiki.sh`.
-2. iPhone smoke: presence/schedule; Mac offline >15m → “Mac offline · local schedule.”
+2. iPhone smoke: HealthKit authorization/read/write; presence/schedule; Mac offline >15m → “Mac offline · local schedule.”
 3. Do not invent bundle IDs. Do not `codesign --deep` the installed bundle.
 4. Do not run `xcodebuild` or the iOS simulator on the iMac.
 
@@ -41,4 +42,4 @@ Developer ID in CI secrets.
 | #26 Aero-Kinetic Suite | VisionOS glass, dynamic progress arc, spatial chimes, Watch dial, global hotkeys |
 | Identity rename | `com.thomasjust.standupreminder` |
 
-Version: **4.2.2** · Full notes: `docs/DISTRIBUTION.md`
+Version: **4.2.4** · Full notes: `docs/DISTRIBUTION.md`

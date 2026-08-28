@@ -2,13 +2,9 @@
 
 Durable traps from the repo briefing, `docs/SESSION_LOG.md`, and this SHA. If you learn a new one, write it here and on `Projects/Claude Code/standup-reminder.md`.
 
-## Canonical checkout is not `main`
-
-`/Volumes/Crucial X8/GitHub/standup-reminder` has sat on `fix/menubar-icon-blank` (PR #21) with an `NSStatusItem` + `MenuBarMark`. `origin/main` still uses `MenuBarExtra`. An analysis run in the canonical tree is an analysis of the unmerged branch. Work from a worktree on `origin/main` unless the briefing names that PR.
-
 ## `MenuBarExtra` + `HStack` is blank
 
-On macOS 14+, a `MenuBarExtra` label that wraps the SF Symbol / countdown `Text` in an `HStack` (or any container) renders an empty extra. Finder app icon stays fine, which makes the bug look like a template-image / asset problem. It is not. Do not put a container around that label. The stretching-figure template mark is the fix; it is not on this SHA.
+On macOS 14+, a `MenuBarExtra` label that wraps the SF Symbol / countdown `Text` in an `HStack` (or any container) renders an empty extra. Finder app icon stays fine, which makes the bug look like a template-image / asset problem. It is not. Do not regress the stretching-figure `NSStatusItem` merged in PR #21.
 
 ## `codesign --deep` kills the widget
 
@@ -16,7 +12,7 @@ On macOS 14+, a `MenuBarExtra` label that wraps the SF Symbol / countdown `Text`
 
 ## Do not invent bundle IDs
 
-Identity is `com.thomasjust.standupreminder` everywhere. Split `com.user` vs `com.thomasjust` already broke App Groups and provisioning once. After any rename, **push once from any device** so the new iCloud container is not empty. Application Support stays `~/Library/Application Support/StandUpReminder/` so local config survives the DNS change.
+Identity is `com.thomasjust.standupreminder` everywhere. Split `com.user` vs `com.thomasjust` already broke App Groups and provisioning once. After any rename, enable sync so automatic seeding populates the new iCloud container. Application Support stays `~/Library/Application Support/StandUpReminder/` so local config survives the DNS change.
 
 ## Stale Mac must not silence the phone
 
@@ -29,10 +25,6 @@ WatchConnectivity is iPhone↔Watch. Wiring a Mac Watch bridge will not pair. Ma
 ## iOS quiet-rule honesty
 
 The phone cannot observe meetings, Focus, idle, display sleep, or deep work in the background. Copy and architecture already say Mac is the suppressor. Do not add iOS EventKit / Focus polling that pretends otherwise.
-
-## `NEXT.md` path and ship state are stale
-
-That file still `cd`s to `/Volumes/Crucial X8/GitHub/Projects/standup-reminder`. That directory does not exist. Canonical is `/Volumes/Crucial X8/GitHub/standup-reminder`. It also still says “do not push `v4.2.2`”; the tag and GitHub release exist, and the cask `sha256` is filled. `docs/ROADMAP.md` still marks that ship as **Next**.
 
 ## Leftover tree `standup-reminder-fix`
 

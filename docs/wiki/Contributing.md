@@ -27,13 +27,13 @@ Label path classes (`claims-only`, `docs-process`) are applied by `scripts/class
 ## Version and ship
 
 ```bash
-./scripts/bump-version.sh 4.2.2 8
+./scripts/bump-version.sh 4.2.4 10
 ./scripts/check-release-readiness.sh
 ```
 
-Tag `v<ver>` only when Info.plist agrees and release secrets are actually present. After a zip exists, keep `Casks/standup-reminder.rb` `sha256` in lockstep. Sparkle appcast stays a template until Sparkle is linked in a distribution build.
+Tag `v<ver>` only when Info.plist agrees and release secrets are actually present. After a zip exists, keep `Casks/standup-reminder.rb` `sha256` and the signed Sparkle appcast in lockstep through a normal PR.
 
-First multi-device install after an identity change: **Push to iCloud once**.
+After an identity change, enable iCloud sync on each device and verify automatic seed/reconciliation in Cloud Sync Health.
 
 ## Wiki maintenance
 

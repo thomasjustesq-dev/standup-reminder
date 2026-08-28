@@ -1,13 +1,7 @@
-# Homebrew Cask template.
-# Publish a notarized .dmg/.zip, then point `url` + `sha256` at the release asset.
-# Until then this file is a packaging stub — not installable from example.com.
-
 cask "standup-reminder" do
   version "4.2.4"
-  sha256 "5e1d9d7b30a21e268e6cdae96ff8230001903a7a1449021b183653b89bec7848"
+  sha256 "6a45efa9ad79d0d88f0754291e18745048e3c23e90488c8877ff4f7009373bff"
 
-  # Replace with the GitHub release asset after notarization:
-  #   https://github.com/thomasjustesq-dev/standup-reminder/releases/download/v#{version}/StandUpReminder-#{version}.zip
   url "https://github.com/thomasjustesq-dev/standup-reminder/releases/download/v#{version}/StandUpReminder-#{version}.zip"
   name "Stand Up Reminder"
   desc "Menu bar break reminders with lunch, quiet rules, and guided stretches"

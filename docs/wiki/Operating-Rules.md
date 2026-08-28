@@ -28,7 +28,7 @@ Solo session: feature branch → implement → PR. Never push `main`. Append SES
 7. **Corrupt config is preserved.** Failed decode → `*.corrupt` + in-memory defaults. Do not overwrite a bad file with a silent default write.
 8. **Diagnostics stay local** unless a validated HTTPS public-host endpoint is set.
 9. **Webcam stillness is on-device.** Face boxes only. Never upload frames.
-10. **HealthKit is read-only and optional.** A workout that just ended may count as the movement break. Fighting Shape cadence tightening is off by default.
+10. **HealthKit is optional and iPhone-only.** Recent workouts may count as movement breaks; tapping Done may write a mindful session when enabled. Fighting Shape cadence tightening is off by default.
 
 ## Menu bar and signing
 
