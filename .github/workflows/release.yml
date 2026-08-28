@@ -95,6 +95,8 @@ jobs:
           xcodebuild -project StandUpReminder.xcodeproj
           -scheme StandUpReminder -configuration Release
           -derivedDataPath .derivedData
+          ARCHS="arm64 x86_64"
+          ONLY_ACTIVE_ARCH=NO
           -allowProvisioningUpdates
           -authenticationKeyPath "$GITHUB_WORKSPACE/private_keys/AuthKey.p8"
           -authenticationKeyID "$ASC_KEY_ID"
@@ -113,6 +115,10 @@ jobs:
           ENTITLEMENTS="dist/signed-entitlements.plist"
           WIDGET="$APP/Contents/PlugIns/StandUpReminderWidget.appex"
           WIDGET_ENTITLEMENTS="dist/signed-widget-entitlements.plist"
+          APP_EXECUTABLE="$APP/Contents/MacOS/StandUpReminder"
+          WIDGET_EXECUTABLE="$WIDGET/Contents/MacOS/StandUpReminderWidget"
+          lipo -verify_arch arm64 x86_64 "$APP_EXECUTABLE"
+          lipo -verify_arch arm64 x86_64 "$WIDGET_EXECUTABLE"
           codesign -d --entitlements :- "$APP" > "$ENTITLEMENTS"
           plutil -lint "$ENTITLEMENTS"
           codesign -dvv "$APP" 2>&1 | grep -F '(runtime)'
