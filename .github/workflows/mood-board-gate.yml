@@ -1,0 +1,37 @@
+name: Mood Board Gate
+
+on:
+  pull_request:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mood-board:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Mood board doc present
+        run: |
+          if [ ! -f "docs/design/Aero-Kinetic-Design-System.md" ]; then
+            echo "::error::docs/design/Aero-Kinetic-Design-System.md is missing. The design mood board is the owner's chosen direction and is MANDATORY. Restore it."
+            exit 1
+          fi
+
+      - name: Implementation directive present
+        run: |
+          if ! grep -q "Mood Board Implementation Directive" AGENTS.md; then
+            echo "::error::The Mood Board Implementation Directive was removed from AGENTS.md. It is mandatory, not optional."
+            exit 1
+          fi
+
+      - name: Directive banner intact
+        run: |
+          if ! grep -q "IMPLEMENTATION DIRECTIVE" "docs/design/Aero-Kinetic-Design-System.md"; then
+            echo "::error::The IMPLEMENTATION DIRECTIVE banner was removed from docs/design/Aero-Kinetic-Design-System.md."
+            exit 1
+          fi
