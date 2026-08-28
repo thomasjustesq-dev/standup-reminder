@@ -117,8 +117,8 @@ jobs:
           WIDGET_ENTITLEMENTS="dist/signed-widget-entitlements.plist"
           APP_EXECUTABLE="$APP/Contents/MacOS/StandUpReminder"
           WIDGET_EXECUTABLE="$WIDGET/Contents/MacOS/StandUpReminderWidget"
-          lipo -verify_arch arm64 x86_64 "$APP_EXECUTABLE"
-          lipo -verify_arch arm64 x86_64 "$WIDGET_EXECUTABLE"
+          lipo "$APP_EXECUTABLE" -verify_arch arm64 x86_64
+          lipo "$WIDGET_EXECUTABLE" -verify_arch arm64 x86_64
           codesign -d --entitlements :- "$APP" > "$ENTITLEMENTS"
           plutil -lint "$ENTITLEMENTS"
           codesign -dvv "$APP" 2>&1 | grep -F '(runtime)'
