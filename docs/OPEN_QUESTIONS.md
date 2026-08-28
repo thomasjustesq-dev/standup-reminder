@@ -44,3 +44,10 @@ Append-only. `merge=union`.
    Blocks notarize + GH `APPLE_CERTIFICATES_P12` / `APPLE_CERTIFICATES_PASSWORD`.
 4. **[PARTIAL]** GH release secrets: ASC key trio + Sparkle Ed present; **p12 pair missing**.
 5. **[CLOSED]** Local Development install of 4.2.2 (8) on this Mac; iCloud legacy migrate ran.
+
+## 2026-08-27 — v4.2.4 release closure
+
+1. **[CLOSED]** Developer ID certificate and Mac/widget provisioning — the CI release passed signed App Group/iCloud capability verification and Apple notarization.
+2. **[CLOSED]** GitHub release secrets and Cask checksum — v4.2.4 was published with signed appcast, notarized zip/DMG, and verified Cask SHA-256.
+3. **[OPEN]** Physical-iPhone provisioning and smoke test for the HealthKit authorization sheet, recent-workout read, and mindful-session write.
+4. **[OPEN]** Live two-device confirmation of automatic iCloud reconciliation and 15-minute authority-lease fallback.

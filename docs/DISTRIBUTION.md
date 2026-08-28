@@ -12,22 +12,22 @@ Marketing version and build number live in:
 Bump with one command:
 
 ```bash
-./scripts/bump-version.sh 4.2.2 8
+./scripts/bump-version.sh 4.2.4 10
 ```
 
 CI release workflow fails if the git tag disagrees with `Resources/Info.plist`.
 
 ## Canonical install path (Thomas)
 
-Until a notarized asset exists, install is source-build only:
+For development, build from source:
 
 ```bash
 ./scripts/build-app.sh
 # open dist/StandUpReminder.app
 ```
 
-After first notarized release, prefer GitHub Releases zip + optional Sparkle.
-Do not maintain a second install story (Homebrew cask stays a template until sha256 is real).
+For normal installation, use the signed and notarized GitHub release or the
+Homebrew Cask. The Cask checksum must match the public zip.
 
 ## One-shot release checklist (first real ship)
 
@@ -45,8 +45,7 @@ Preflight (code + secret presence only):
 6. Fill `Casks/standup-reminder.rb` `sha256` for the zip (or rely on tag-triggered
    `.github/workflows/release.yml` if secrets are configured).
 7. Optional Sparkle: set `SPARKLE_ED_PRIVATE_KEY` so the release job signs appcast.
-8. First multi-device install: **Push to iCloud once** (seed banner) so the new
-   container is not empty for the other device.
+8. Enable iCloud sync on each device; settings seed and reconcile automatically.
 
 ## Sparkle
 
@@ -62,13 +61,13 @@ appcast feed URL is normal for non-distribution builds.
     # 1. bump CFBundleShortVersionString in Resources/Info.plist (and the
     #    iOS/Watch versions in project.yml) — the workflow fails if the tag
     #    and Info.plist disagree
-    git tag v4.2.1 && git push origin v4.2.1
+    git tag v4.2.4 && git push origin v4.2.4
 
 The pipeline builds the Release app (Developer ID signing with provisioning
 profiles via an App Store Connect API key), notarizes and staples it, packs a
 Sparkle `.zip` and a `.dmg`, regenerates `docs/appcast.xml` (signed with the
-Sparkle Ed key, committed back to `main`), and creates the GitHub release with
-both artifacts.
+Sparkle Ed key), and creates the GitHub release with the appcast and both
+artifacts. Commit the generated appcast and Cask checksum through a normal PR.
 
 Required repository secrets:
 
@@ -81,9 +80,7 @@ Required repository secrets:
 | `APP_STORE_CONNECT_PRIVATE_KEY` | base64 `.p8` of the API key |
 | `SPARKLE_ED_PRIVATE_KEY` | *(optional)* Sparkle EdDSA private key — without it the appcast step is skipped |
 
-Notes: the appcast commit pushes straight to `main` as `github-actions[bot]`;
-if `main` is protected, allow that actor (or GitHub Actions) to push. Re-tagging
-the same version replaces its appcast item instead of duplicating it.
+Re-tagging the same version replaces its appcast item instead of duplicating it.
 
 ## Direct / Developer ID (manual)
 

@@ -1,30 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  Sparkle 2 appcast template.
-  Host this file (HTTPS), set features.sparkleFeedURL / SUFeedURL to its URL,
-  and attach a notarized .zip of StandUpReminder.app to each item.
-  Sign with generate_keys / sign_update from Sparkle tools.
--->
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
   <channel>
     <title>Stand Up Reminder</title>
     <language>en</language>
     <item>
-      <title>Version 4.0.0</title>
-      <sparkle:version>4</sparkle:version>
-      <sparkle:shortVersionString>4.0.0</sparkle:shortVersionString>
+      <title>Version 4.2.4</title>
+      <pubDate>Fri, 28 Aug 2026 02:42:56 GMT</pubDate>
+      <sparkle:version>10</sparkle:version>
+      <sparkle:shortVersionString>4.2.4</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
       <enclosure
-        url="https://example.com/releases/StandUpReminder-4.0.0.zip"
-        length="0"
+        url="https://github.com/thomasjustesq-dev/standup-reminder/releases/download/v4.2.4/StandUpReminder-4.2.4.zip"
+        length="2674268"
         type="application/octet-stream"
-        sparkle:edSignature="REPLACE_WITH_SPARKLE_SIGNATURE" />
+        sparkle:edSignature="b9H0tTKsP0GJXaPk20Pw8z+YZshOPgM6HiNH0VekjQkhaN7v4qu6h5qFTQoZ7Bvg/TAjJkS/rALs2HMf9UN7Cg==" />
       <description><![CDATA[
-        <ul>
-          <li>iCloud sync, team quiet hours, Watch bridge</li>
-          <li>Voice chimes, weather tips, learned schedule</li>
-          <li>Sample-day tour and accessibility polish</li>
-        </ul>
+        See the GitHub release notes for details.
       ]]></description>
     </item>
   </channel>
